@@ -1,6 +1,6 @@
 {
   "name": "@codexsun/os-api",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -15,13 +15,14 @@
     "@codexsun/runtime": "*",
     "@fastify/cors": "latest",
     "@openai/agents": "latest",
+    "@openai/codex-sdk": "^0.153.0",
     "fastify": "latest",
     "zod": "latest"
   },
   "devDependencies": {
     "@types/node": "latest",
-    "tsx": "latest",
     "tsup": "latest",
+    "tsx": "latest",
     "vitest": "latest"
   }
 }

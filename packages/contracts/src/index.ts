@@ -55,3 +55,30 @@ export type ControlPlaneSnapshot = {
     version: string;
   };
 };
+
+export const chatMessageInputSchema = z.object({
+  conversationId: z.string().uuid().optional(),
+  message: z.string().trim().min(1).max(20_000),
+});
+
+export type ChatMessageInput = z.infer<typeof chatMessageInputSchema>;
+
+export type ChatActivity = {
+  id: string;
+  kind: "command" | "error" | "file" | "reasoning" | "search" | "todo" | "tool";
+  label: string;
+  status: "completed" | "failed" | "running";
+};
+
+export type ChatTurnResponse = {
+  activities: ChatActivity[];
+  conversationId: string;
+  message: string;
+  provider: "codex-sidecar";
+  runId: string;
+  usage: {
+    cachedInputTokens: number;
+    inputTokens: number;
+    outputTokens: number;
+  } | null;
+};

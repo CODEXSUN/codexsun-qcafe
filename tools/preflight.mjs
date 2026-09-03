@@ -91,10 +91,18 @@ function getPidsOnPort(port) {
 
 function stopProcessTree(pid) {
   if (process.platform === "win32") {
-    execFileSync("taskkill", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore" });
+    try {
+      execFileSync("taskkill", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore" });
+    } catch {
+      // The listener may exit after discovery. The port check verifies the result.
+    }
     return;
   }
-  process.kill(pid, "SIGTERM");
+  try {
+    process.kill(pid, "SIGTERM");
+  } catch (error) {
+    if (error?.code !== "ESRCH") throw error;
+  }
 }
 
 function portIsFree(port, host) {

@@ -11,7 +11,7 @@ test("patch versions advance by one", () => {
 test("the Git subject follows the latest changelog entry", () => {
   const root = new URL("..", import.meta.url).pathname.replace(/^\/(.:)/u, "$1");
   const entry = readLatestVersionedChangelogEntry(root);
-  assert.equal(formatChangelogCommitSubject(entry), "#0 - OS foundation");
+  assert.match(formatChangelogCommitSubject(entry), /^#\d+ - .+/u);
 });
 
 test("the GitHub review uses the interactive bordered format", () => {

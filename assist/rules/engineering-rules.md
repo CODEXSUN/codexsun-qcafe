@@ -30,3 +30,11 @@
 - Test state transitions and retry behavior.
 - Test tenant isolation.
 - Run type checks and tests before handoff.
+
+## Interface design
+
+- Use the shadcn configuration owned by each web workspace as the shared component foundation.
+- Use relaxed spacing for every CODEXSUN workspace. Do not add compact-density controls unless an accepted product requirement changes this rule.
+- Apply resizable panels only where users compare or navigate adjacent workspace content.
+- Use three light workspace surfaces: white for chrome, a soft neutral for drawers, and near-white for the active canvas.
+- Use the Interface Topology Overlay (ITO) for user-facing feature workspaces. Keep its numbered labels as an independent transparent layer and place Topology Inspection above Notifications at the lower-right edge.

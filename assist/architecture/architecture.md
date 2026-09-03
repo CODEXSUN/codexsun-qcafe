@@ -57,6 +57,12 @@ An agent can collect evidence and propose a refinement. A reviewer must accept a
 
 The first builder agent creates structured plans only. It has no mutation or deployment tools.
 
+## Interactive agent surface
+
+The control-plane web application talks to a versioned chat API. The API owns conversation identifiers and delegates turns to a replaceable sidecar adapter.
+
+The first adapter uses the Codex SDK with a read-only workspace sandbox and no approval prompts. It exposes structured activity summaries and usage without exposing private reasoning. Write-capable runs require a later persisted approval workflow.
+
 ## Scale boundary
 
 Start as a modular monolith. Keep the API, web process, worker, and execution instances separate.
