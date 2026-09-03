@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color-scheme: light;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+button { font: inherit; }
+[data-density="compact"] .module-row { padding-block: 0.75rem; }
+.tweak, .tweak-active { border-radius: 0.375rem; padding: 0.4rem 0.6rem; font-size: 0.875rem; }
+.tweak { color: #52525b; }
+.tweak:hover { background: #f4f4f5; }
+.tweak-active { background: #18181b; color: white; }

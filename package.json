@@ -1,0 +1,25 @@
+{
+  "name": "codexsun-os",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CODEXSUN application control plane and agent-first orchestration runtime",
+  "engines": { "node": ">=24.0.0", "npm": ">=11.0.0" },
+  "workspaces": ["apps/platform/*/*", "packages/*"],
+  "overrides": { "esbuild": "^0.28.2" },
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "check": "npm run check:versions && npm run test:tools && npm run typecheck --workspaces --if-present && npm run test --workspaces --if-present",
+    "check:versions": "node tools/check-versions.mjs",
+    "changelog:append": "node tools/version/version.mjs append",
+    "dev": "node tools/dev-stack.mjs",
+    "dev:api": "node tools/start-service.mjs api",
+    "dev:preflight": "node tools/preflight.mjs",
+    "dev:web": "node tools/start-service.mjs web",
+    "github:now": "node tools/github-helper.mjs",
+    "start": "npm run start -w @codexsun/os-api",
+    "test:tools": "node --test tools/*.test.mjs",
+    "version:bump": "node tools/version-bump.mjs",
+    "version:show": "node tools/version/version.mjs show"
+  },
+  "devDependencies": { "concurrently": "latest", "tsx": "latest", "typescript": "latest", "vite": "latest" }
+}
