@@ -1,6 +1,6 @@
 {
   "name": "codexsun-os",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "description": "CODEXSUN application core and agent-first orchestration runtime",
   "engines": {
@@ -21,10 +21,12 @@
     "assist:doctor": "node tools/assist-doctor.mjs",
     "assist:validate": "node tools/assist-doctor.mjs --strict",
     "build": "npm run build --workspaces --if-present",
+    "build:q-cafe": "npm run build -w @codexsun/q-cafe-web",
     "check": "npm run assist:validate && npm run check:versions && npm run test:tools && npm run typecheck --workspaces --if-present && npm run test --workspaces --if-present",
     "check:versions": "node tools/check-versions.mjs",
     "changelog:append": "node tools/version/version.mjs append",
     "dev": "node tools/dev-stack.mjs",
+    "dev:q-cafe": "node tools/start-q-cafe.mjs",
     "dev:api": "node tools/start-service.mjs api",
     "dev:preflight": "node tools/preflight.mjs",
     "dev:devkit": "node tools/start-service.mjs devkit",

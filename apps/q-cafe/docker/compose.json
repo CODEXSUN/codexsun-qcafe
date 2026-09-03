@@ -1,0 +1,17 @@
+{
+  "name": "q-cafe",
+  "services": {
+    "workspace": {
+      "build": { "context": "../../..", "dockerfile": "apps/q-cafe/docker/Dockerfile" },
+      "image": "codexsun-q-cafe:local",
+      "init": true,
+      "ports": ["127.0.0.1:5180:5180", "127.0.0.1:4180:4180"],
+      "volumes": ["q-cafe-data:/data"],
+      "environment": { "QCAFE_ONLY": "true", "QCAFE_DEMO": "true", "QCAFE_API_TOKEN": "${QCAFE_API_TOKEN:?Set a private Q Cafe operator key}", "OS_DEV_PORT_POLICY": "abort" },
+      "cap_drop": ["ALL"],
+      "security_opt": ["no-new-privileges:true"],
+      "healthcheck": { "test": ["CMD", "node", "-e", "fetch('http://127.0.0.1:4180/health').then(r=>{if(!r.ok)process.exit(1)})"], "interval": "10s", "timeout": "3s", "retries": 6 }
+    }
+  },
+  "volumes": { "q-cafe-data": {} }
+}

@@ -1,0 +1,5 @@
+@import "tailwindcss";
+@import "@codexsun/ui/styles.css";
+@import "@codexsun/devkit-ito/styles.css";
+@source "../../../../packages/ui/src";
+@source "../../../../packages/devkit-ito/src";

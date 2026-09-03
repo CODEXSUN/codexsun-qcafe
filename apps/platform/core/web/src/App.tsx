@@ -1,5 +1,5 @@
 import { chatWorkspaceAddon, chatTopology } from "@codexsun/chat-web";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { zetroPageTopology, zetroWorkspaceAddon } from "@codexsun/zetro-web";
 import { InterfaceTopologyDrawer, TopologyInspectionControl, TopologyMarker } from "@codexsun/devkit-ito";
 import { useInterfaceTopologyOverlay } from "@codexsun/devkit-ito/use-interface-topology-overlay";
@@ -9,11 +9,13 @@ import { coreTopology } from "./core-topology.js";
 import { overviewPage, overviewWorkspace } from "./Overview.js";
 
 export function App() {
+  const [applications, setApplications] = useState<{ id: string; name: string; webUrl?: string }[]>([]);
+  useEffect(() => { void fetch("/api/v1/core").then(response => { if (!response.ok) throw new Error("Application catalog unavailable"); return response.json(); }).then(snapshot => setApplications(snapshot.modules.filter((item: { kind: string; webUrl?: string }) => item.kind === "application" && item.webUrl && /^https?:\/\//.test(item.webUrl)))).catch(() => setApplications([])); }, []);
   const [page, setPage] = useState<MdiPage>(overviewPage);
   const [requestedPage, setRequestedPage] = useState<MdiPage>(overviewPage);
   const onPageChange = useCallback((next: MdiPage) => setPage(next), []);
   const sections = page.addonId === "zetro" ? zetroPageTopology(page.pageId ?? "chat")
-    : page.addonId === "chat" ? chatTopology : coreTopology;
+    : page.addonId === "chat" ? chatTopology : [...coreTopology.filter(section => !/^5\.[0-9]+$/.test(section.id)), ...applications.map((app, index) => ({ id: `5.${index + 1}`, name: app.name, scope: "Application launcher", description: `Open ${app.name} in a new browser tab.` }))];
   const controller = useInterfaceTopologyOverlay(sections);
   const activePage = page.addonId === "zetro" ? "zetro-agent" : page.addonId === "chat" ? "chat" : "home";
   const pageSelector = <div className="grid gap-2 border-b border-border p-4 text-sm">
@@ -43,5 +45,5 @@ export function App() {
     if (!prefix) return id;
     return ({ "11": `${prefix}2`, "11.1": `${prefix}2.1`, "12": `${prefix}2.2` } as Record<string, string>)[id] ?? id;
   }
-  return <MainMdi addons={[overviewWorkspace, chatWorkspaceAddon, zetroWorkspaceAddon]} onPageChange={onPageChange} requestedPage={requestedPage} topology={topology} />;
+  return <MainMdi applications={applications} addons={[overviewWorkspace, chatWorkspaceAddon, zetroWorkspaceAddon]} onPageChange={onPageChange} requestedPage={requestedPage} topology={topology} />;
 }

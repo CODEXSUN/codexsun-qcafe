@@ -1,6 +1,7 @@
 {
   "schemaVersion": 1,
   "modules": [
+    { "id": "app.q-cafe", "owner": "Q Cafe", "roots": ["apps/q-cafe"], "publicContracts": ["/api/v1/q-cafe", "@codexsun/q-cafe-web"], "protectedPaths": ["apps/q-cafe/api/migrations"] },
     {
       "id": "framework.kernel",
       "owner": "Framework",

@@ -1,3 +1,4 @@
+import type { DeskApplication } from "./blocks/navigation/app-deck.js";
 import { readPageUrl, writePageUrl } from "./blocks/workspace/page-url.js";
 import type { LucideIcon } from "lucide-react";
 import type { AppSidebarNavigation } from "@codexsun/ui/components/menu/sidemenu/app-sidebar";
@@ -15,7 +16,7 @@ export type MdiWorkspaceAddon = { id: string; label: string; icon: LucideIcon; n
 
 export type MdiPage = { view: WorkspaceNavigationView; addonId?: string; pageId?: string };
 
-export function MainMdi({ topology, addons = [], requestedPage, onPageChange }: { topology?: MdiTopologyAdapter; addons?: MdiWorkspaceAddon[]; requestedPage?: MdiPage; onPageChange?: (page: MdiPage) => void }) {
+export function MainMdi({ applications, topology, addons = [], requestedPage, onPageChange }: { applications?: DeskApplication[]; topology?: MdiTopologyAdapter; addons?: MdiWorkspaceAddon[]; requestedPage?: MdiPage; onPageChange?: (page: MdiPage) => void }) {
   const [sideCarTarget, setSideCarTarget] = useState<HTMLDivElement | null>(null);
   const fallback = requestedPage ?? { view: "workspace" as const, pageId: getDefaultWorkspaceItem("workspace") };
   const [page, setPage] = useState<MdiPage>(() => readPageUrl(new URL(window.location.href), fallback, addons.map((item) => item.id)));
@@ -45,7 +46,7 @@ export function MainMdi({ topology, addons = [], requestedPage, onPageChange }: 
   const toggleSidebar = useCallback(() => setSidebarOpen((open) => !open), []);
   const changeWorkspaceView = useCallback((view: WorkspaceNavigationView) => changePage({ view, pageId: getDefaultWorkspaceItem(view) }), [changePage]);
   return <main aria-label="Main MDI" className="grid h-screen w-screen grid-cols-[3rem_minmax(0,1fr)_3rem] grid-rows-[3.5rem_minmax(0,1fr)] bg-background text-foreground" {...topology?.rootAttributes}>
-    <TopIconBar navigationOpen={sidebarOpen} onToggleNavigation={toggleSidebar} topology={topology} />
+    <TopIconBar applications={applications} navigationOpen={sidebarOpen} onToggleNavigation={toggleSidebar} topology={topology} />
     <LeftIconDock addons={addons} selectedAddonId={addonId} onAddonSelect={(item) => { changePage({ view: "workspace", addonId: item.id, pageId: item.navigation.groups[0]?.items[0]?.id ?? "" }); }} onViewChange={changeWorkspaceView} selectedView={workspaceView} topology={topology} />
     <section className={topology ? "ito-region row-start-2 min-h-0 min-w-0 overflow-hidden bg-[#F7F7F4] dark:bg-background [&>.technical-label]:!left-1/2 [&>.technical-label]:!top-3 [&>.technical-label]:-translate-x-1/2" : "row-start-2 min-h-0 min-w-0 overflow-hidden bg-[#F7F7F4] dark:bg-background"} {...topology?.regionProps("08")}>
       {topology?.marker("08")}

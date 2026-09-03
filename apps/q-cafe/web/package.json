@@ -1,0 +1,25 @@
+{
+  "name": "@codexsun/q-cafe-web",
+  "version": "0.1.3",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -b && vite build",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@codexsun/ui": "*",
+    "@codexsun/devkit-ito": "*",
+    "lucide-react": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "latest",
+    "@vitejs/plugin-react": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "vite": "latest",
+    "tailwindcss": "latest"
+  }
+}

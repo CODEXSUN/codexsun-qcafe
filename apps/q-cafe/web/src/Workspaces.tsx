@@ -1,0 +1,37 @@
+import { useState } from 'react';
+import { Button } from '@codexsun/ui/components/ui/button';
+import { money, type Snapshot } from './api';
+
+export const field = 'rounded-lg border border-input bg-background px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+type Props = { data: Snapshot; busy: boolean; mutate: (path: string, body: unknown) => Promise<boolean> };
+const tables = Array.from({ length: 12 }, (_, index) => `T${String(index + 1).padStart(2, '0')}`);
+export function TableSelect({ takeaway = false }: { takeaway?: boolean }) {
+  return <select className={field + ' cursor-pointer'} name="table_name" aria-label="Table">{takeaway && <option>Takeaway</option>}{tables.map(table => <option key={table}>{table}</option>)}</select>;
+}
+export function Pos({ data, busy, mutate }: Props) {
+  const [cart, setCart] = useState<Record<number, number>>({});
+  const [query, setQuery] = useState('');
+  const total = data.menu.reduce((sum, item) => sum + item.price * (cart[item.id] ?? 0), 0);
+  return <div className="grid gap-8 xl:grid-cols-[1fr_340px]">
+    <section className="space-y-5"><input className={field + ' w-full'} placeholder="Search the menu…" aria-label="Search menu" value={query} onChange={event => setQuery(event.target.value)} />
+      <div className="divide-y divide-border">{data.menu.filter(item => item.name.toLowerCase().includes(query.toLowerCase())).map(item => <div key={item.id} className="flex items-center gap-4 py-4"><div className="flex-1"><p className="font-medium">{item.name}</p><p className="text-sm text-muted-foreground">{item.category}</p></div><span>{money(item.price)}</span><Button variant="outline" className="cursor-pointer" onClick={() => setCart({ ...cart, [item.id]: Math.min(99, (cart[item.id] ?? 0) + 1) })}>Add</Button></div>)}</div>
+    </section>
+    <form className="space-y-5 rounded-2xl border border-border bg-card p-6" onSubmit={async event => { event.preventDefault(); const form = new FormData(event.currentTarget); if (await mutate('/orders', { table_name: form.get('table_name'), lines: Object.entries(cart).filter(([, quantity]) => quantity > 0).map(([id, quantity]) => ({ menu_id: Number(id), quantity })) })) setCart({}); }}>
+      <h2 className="text-xl font-semibold">Current order</h2><TableSelect takeaway />
+      {data.menu.filter(item => cart[item.id]).map(item => <label key={item.id} className="flex items-center justify-between gap-3 text-sm">{item.name}<input className={field + ' w-20'} aria-label={`${item.name} quantity`} type="number" min="0" max="99" value={cart[item.id]} onChange={event => setCart({ ...cart, [item.id]: Number(event.target.value) })} /></label>)}
+      {!total && <p className="py-8 text-sm text-muted-foreground">Add menu items to start an order.</p>}
+      <div className="flex justify-between border-t border-border pt-5 text-xl font-semibold"><span>Total</span><span>{money(total)}</span></div>
+      <p className="text-sm text-muted-foreground">Kitchen order only. Payments and tax invoices are not enabled.</p>
+      <Button disabled={busy || !total} className="w-full cursor-pointer" type="submit">Send to kitchen</Button>
+    </form>
+  </div>;
+}
+export function Kitchen({ data, busy, mutate }: Props) {
+  return <div className="grid gap-6 lg:grid-cols-3">{['queued', 'preparing', 'ready'].map((status, index) => <section key={status} className="space-y-4"><h2 className="flex justify-between text-lg font-semibold capitalize">{status}<span className="text-muted-foreground">{data.orders.filter(order => order.status === status).length}</span></h2>{data.orders.filter(order => order.status === status).map(order => <article className="space-y-4 rounded-xl border border-border bg-card p-5" key={order.id}><div className="flex justify-between font-semibold"><span>#{String(order.id).padStart(3, '0')}</span><span>{order.table_name}</span></div>{data.order_lines.filter(line => line.order_id === order.id).map((line, lineIndex) => <p className="text-sm" key={lineIndex}>{line.quantity} × {line.name}</p>)}<Button disabled={busy} className="w-full cursor-pointer" variant="outline" onClick={() => void mutate('/kitchen', { id: order.id, status: ['preparing', 'ready', 'served'][index] })}>{['Start preparing', 'Mark ready', 'Mark served'][index]}</Button></article>)}{!data.orders.some(order => order.status === status) && <p className="rounded-xl border border-dashed border-border p-8 text-sm text-muted-foreground">No {status} tickets.</p>}</section>)}</div>;
+}
+export function Inventory({ data, busy, mutate }: Props) {
+  return <div className="space-y-6"><p className="text-sm text-muted-foreground">Record deliveries and usage. Recipe-based stock deduction is not enabled.</p>{data.inventory.map(item => <form key={item.id} className="flex flex-wrap items-center gap-4 border-b border-border pb-5" onSubmit={async event => { event.preventDefault(); const form = event.currentTarget; const values = new FormData(form); if (await mutate('/inventory', { id: item.id, delta: Number(values.get('delta')), reason: values.get('reason') })) form.reset(); }}><div className="min-w-48 flex-1"><h2 className="font-semibold">{item.name}</h2><p className="text-sm text-muted-foreground">{item.quantity} {item.unit} · reorder at {item.minimum}{item.quantity < item.minimum ? ' · Low stock' : ''}</p></div><input className={field + ' w-32'} type="number" step="0.01" name="delta" required placeholder="+ / − Qty" aria-label={`${item.name} adjustment`} /><input className={field} name="reason" required maxLength={120} placeholder="Reason for adjustment" aria-label={`${item.name} reason`} /><Button disabled={busy} variant="outline" className="cursor-pointer">Save adjustment</Button></form>)}</div>;
+}
+export function Bookings({ data, busy, mutate }: Props) {
+  return <div className="grid gap-8 xl:grid-cols-[1fr_340px]"><section className="space-y-4">{data.bookings.map(booking => <article className="flex items-center justify-between gap-4 border-b border-border py-4" key={booking.id}><div><h2 className="font-semibold">{booking.guest}</h2><p className="text-sm text-muted-foreground">{booking.guests} guests · {booking.table_name}</p></div><time className="text-sm">{new Date(booking.starts_at).toLocaleString()}</time></article>)}{!data.bookings.length && <p className="py-12 text-muted-foreground">Your reservations will appear here.</p>}</section><form className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6" onSubmit={async event => { event.preventDefault(); const form = event.currentTarget; const values = new FormData(form); if (await mutate('/bookings', { guest: values.get('guest'), guests: Number(values.get('guests')), table_name: values.get('table_name'), starts_at: new Date(String(values.get('starts_at'))).toISOString() })) form.reset(); }}><h2 className="text-xl font-semibold">Reserve a table</h2><label className="grid gap-2 text-sm">Guest name<input className={field} name="guest" required maxLength={120} /></label><label className="grid gap-2 text-sm">Party size<input className={field} name="guests" type="number" min="1" max="12" defaultValue="2" required /></label><TableSelect /><label className="grid gap-2 text-sm">Arrival<input className={field} name="starts_at" type="datetime-local" required /></label><p className="text-sm text-muted-foreground">Each reservation holds the table for two hours.</p><Button disabled={busy} className="cursor-pointer">Confirm booking</Button></form></div>;
+}

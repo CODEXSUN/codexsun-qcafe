@@ -1,0 +1,15 @@
+{
+  "name": "@codexsun/zetro-local-runner",
+  "version": "0.1.3",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.mjs",
+    "test": "node --test src/*.test.mjs",
+    "smoke": "node smoke.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "zod": "4.5.4"
+  }
+}

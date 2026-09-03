@@ -1,0 +1,4 @@
+.local/
+web/dist/
+web/*.tsbuildinfo
+*.sqlite*

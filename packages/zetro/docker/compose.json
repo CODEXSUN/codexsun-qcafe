@@ -1,0 +1,20 @@
+{
+  "name": "zetro",
+  "services": {
+    "zetro": {
+      "image": "zetro:v1",
+      "build": { "context": "../../..", "dockerfile": "packages/zetro/docker/Dockerfile" },
+      "container_name": "zetro-v1",
+      "init": true,
+      "read_only": true,
+      "cap_drop": ["ALL"],
+      "security_opt": ["no-new-privileges:true"],
+      "ports": ["127.0.0.1:4220:4200"],
+      "volumes": ["zetro-state:/state", "zetro-workspace:/workspace"],
+      "tmpfs": ["/tmp:rw,nosuid,size=256m"],
+      "environment": { "ZETRO_TOKEN": "${ZETRO_LOCAL_TOKEN:-local-demo-only}", "ZETRO_TOOLS_TOKEN": "${ZETRO_TOOLS_TOKEN:-}" },
+      "healthcheck": { "test": ["CMD", "node", "-e", "fetch('http://127.0.0.1:4200/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"], "interval": "10s", "timeout": "3s", "retries": 6 }
+    }
+  },
+  "volumes": { "zetro-state": {}, "zetro-workspace": {} }
+}

@@ -1,0 +1,10 @@
+[
+  {
+    "id": "zetro",
+    "name": "Zetro",
+    "duty": "Answer prompts through Codex in the isolated Zetro container.",
+    "skills": [],
+    "url": "http://127.0.0.1:4220",
+    "tokenEnv": "ZETRO_LOCAL_TOKEN"
+  }
+]

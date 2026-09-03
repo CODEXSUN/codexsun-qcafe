@@ -1,12 +1,17 @@
 #!/usr/bin/env node
 
 import { spawn, spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { watch } from "node:fs";
 import { relative, resolve } from "node:path";
 import { runPreflight } from "./preflight.mjs";
 
 const ROOT = resolve(import.meta.dirname, "..");
-const services = [
+const cafeServices = [
+  { args: ["apps/q-cafe/api/src/server.mjs"], bin: null, healthUrl: "http://127.0.0.1:4180/health", label: "q-cafe-api" },
+  { args: ["apps/q-cafe/web", "--config", "apps/q-cafe/web/vite.config.ts"], bin: resolve(ROOT, "node_modules/vite/bin/vite.js"), healthUrl: "http://127.0.0.1:5180", label: "q-cafe-web" },
+];
+const services = process.env.QCAFE_ONLY === "true" ? cafeServices : [
   {
     args: ["watch", "apps/platform/core/api/src/server.ts"],
     bin: resolve(ROOT, "node_modules", "tsx", "dist", "cli.mjs"),
@@ -45,7 +50,7 @@ const REFACTOR_RESTART_DELAY_MS = 800;
 let stopping = false;
 
 try {
-  const { env } = await runPreflight({ ports: [4100, 4150, 5173, 5174, 5175] });
+  const { env } = await runPreflight({ ports: process.env.QCAFE_ONLY === "true" ? [4180, 5180] : [4100, 4150, 4160, 5173, 5174, 5175] });
   if (env.CODEXSUN_LOCAL_DEMO === "true") {
     const result = spawnSync("docker", ["compose", "-f", resolve(ROOT, "tools/local-demo/compose.json"), "up", "-d", "--wait"], { cwd: ROOT, stdio: "inherit", windowsHide: true });
     if (result.status !== 0) throw new Error("Local demonstration containers could not start.");
@@ -53,6 +58,16 @@ try {
     env.ZETRO_LOCAL_TOKEN = "local-demo-only";
     env.VITE_CHAT_LOCAL_DEMO = "true";
     console.log("Local simulation enabled. No production model or real contacts are connected.");
+  }
+  if (env.CODEXSUN_ZETRO_DOCKER === "true") {
+    env.ZETRO_TOOLS_TOKEN ||= randomBytes(32).toString("hex");
+    startService({ args: ["packages/zetro/local-runner/src/server.mjs"], bin: null, label: "zetro-local-runner" }, env);
+    await waitForHealthyUrl("http://127.0.0.1:4160/health", "zetro-local-runner");
+    const result = spawnSync("docker", ["compose", "-f", resolve(ROOT, "packages/zetro/docker/compose.json"), "up", "-d", "--wait"], { cwd: ROOT, env, stdio: "inherit", windowsHide: true });
+    if (result.status !== 0) throw new Error("Zetro container could not start. Build zetro:v1 first.");
+    env.ZETRO_AGENTS_FILE = resolve(ROOT, "packages/zetro/docker/agents.json");
+    env.ZETRO_LOCAL_TOKEN ||= "local-demo-only";
+    console.log("Zetro Codex container connected. Device sign-in is required for model responses.");
   }
   console.log("CODEXSUN OS development runtime");
   for (const service of services) {
@@ -62,8 +77,9 @@ try {
   }
   if (env.CODEXSUN_VITE_HOT_RELOAD === "true") watchPlatformRefactors();
   else console.log("  - Vite hot reload and refactor restarts are disabled.");
-  console.log("\n  ok Platform, DevKit, and Zetro are ready");
-  console.log("  - Web: http://127.0.0.1:5173");
+  console.log("\n  ok Selected applications are ready");
+  if (process.env.QCAFE_ONLY === "true") console.log("  - Q Cafe: http://127.0.0.1:5180 (API: 4180)");
+  else console.log("  - Web: http://127.0.0.1:5173");
   console.log("  - API: http://127.0.0.1:4100\n");
   console.log("  - DevKit: http://127.0.0.1:5174\n");
   console.log("  - Zetro API: http://127.0.0.1:4150");
@@ -76,7 +92,7 @@ try {
 for (const signal of ["SIGINT", "SIGTERM"]) process.once(signal, () => void shutdown(0));
 
 function startService(service, env) {
-  const child = spawn(process.execPath, [service.bin, ...service.args], {
+  const child = spawn(process.execPath, [...(service.bin ? [service.bin] : []), ...service.args], {
     cwd: ROOT,
     env: { ...env, ...process.env },
     stdio: ["ignore", "pipe", "pipe"],
