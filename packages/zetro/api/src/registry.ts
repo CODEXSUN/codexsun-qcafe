@@ -23,4 +23,17 @@ export class AgentRegistry {
   list(): AgentSummary[] {
     return this.endpoints.map(({ url: _url, tokenEnv, ...profile }) => ({ ...profile, configured: Boolean(this.env[tokenEnv]) }));
   }
+
+  async health(): Promise<AgentSummary[]> {
+    return Promise.all(this.list().map(async (agent) => {
+      if (!agent.configured) return { ...agent, runtimeStatus: "unconfigured" as const };
+      try {
+        const endpoint = this.endpoints.find((item) => item.id === agent.id)!;
+        const response = await fetch(new URL("/health", endpoint.url), { signal: AbortSignal.timeout(2000), redirect: "error" });
+        const body = await response.json();
+        const healthy = response.ok && body.status === "ok" && body.agentId === agent.id && body.configured === true;
+        return { ...agent, runtimeStatus: healthy ? "healthy" as const : "offline" as const, mode: body.mode === "local-demo" ? "local-demo" as const : "provider" as const };
+      } catch { return { ...agent, runtimeStatus: "offline" as const }; }
+    }));
+  }
 }

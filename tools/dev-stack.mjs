@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 
 import { spawn, spawnSync } from "node:child_process";
-import { resolve } from "node:path";
+import { watch } from "node:fs";
+import { relative, resolve } from "node:path";
 import { runPreflight } from "./preflight.mjs";
 
 const ROOT = resolve(import.meta.dirname, "..");
 const services = [
   {
-    args: ["apps/platform/core/api/src/server.ts"],
+    args: ["watch", "apps/platform/core/api/src/server.ts"],
     bin: resolve(ROOT, "node_modules", "tsx", "dist", "cli.mjs"),
     healthUrl: "http://127.0.0.1:4100/health",
     label: "api",
@@ -38,19 +39,29 @@ const services = [
   },
 ];
 const children = new Set();
+const runningServices = new Map();
+const restartingServices = new Set();
+const REFACTOR_RESTART_DELAY_MS = 800;
 let stopping = false;
 
 try {
   const { env } = await runPreflight({ ports: [4100, 4150, 5173, 5174, 5175] });
+  if (env.CODEXSUN_LOCAL_DEMO === "true") {
+    const result = spawnSync("docker", ["compose", "-f", resolve(ROOT, "tools/local-demo/compose.json"), "up", "-d", "--wait"], { cwd: ROOT, stdio: "inherit", windowsHide: true });
+    if (result.status !== 0) throw new Error("Local demonstration containers could not start.");
+    env.ZETRO_AGENTS_FILE = resolve(ROOT, "tools/local-demo/agents.json");
+    env.ZETRO_LOCAL_TOKEN = "local-demo-only";
+    env.VITE_CHAT_LOCAL_DEMO = "true";
+    console.log("Local simulation enabled. No production model or real contacts are connected.");
+  }
   console.log("CODEXSUN OS development runtime");
   for (const service of services) {
-    const child = startService(service, env);
+    startService(service, env);
     await waitForHealthyUrl(service.healthUrl, service.label);
     console.log(`  ok ${service.label} is ready`);
-    child.once("exit", (code) => {
-      if (!stopping && code !== 0) void shutdown(code ?? 1);
-    });
   }
+  if (env.CODEXSUN_VITE_HOT_RELOAD === "true") watchPlatformRefactors();
+  else console.log("  - Vite hot reload and refactor restarts are disabled.");
   console.log("\n  ok Platform, DevKit, and Zetro are ready");
   console.log("  - Web: http://127.0.0.1:5173");
   console.log("  - API: http://127.0.0.1:4100\n");
@@ -71,10 +82,75 @@ function startService(service, env) {
     stdio: ["ignore", "pipe", "pipe"],
   });
   children.add(child);
+  runningServices.set(service.label, { child, env, service });
   child.stdout.on("data", (chunk) => writeLines(service.label, chunk));
   child.stderr.on("data", (chunk) => writeLines(service.label, chunk));
-  child.once("exit", () => children.delete(child));
+  child.once("exit", (code) => {
+    children.delete(child);
+    if (runningServices.get(service.label)?.child === child) runningServices.delete(service.label);
+    if (!stopping && !restartingServices.has(service.label) && code !== 0) void shutdown(code ?? 1);
+  });
   return child;
+}
+
+function watchPlatformRefactors() {
+  const targets = [
+    resolve(ROOT, "apps/platform/core/api"),
+    resolve(ROOT, "apps/platform/core/web"),
+    resolve(ROOT, "packages/ui"),
+    resolve(ROOT, "packages/ui/desk"),
+  ];
+  const scheduled = new Set();
+  let timer;
+
+  for (const target of targets) {
+    watch(target, { recursive: true }, (_event, fileName) => {
+      if (!fileName || !requiresProcessRestart(fileName)) return;
+      for (const label of affectedServices(target, fileName)) scheduled.add(label);
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        for (const label of scheduled) void restartService(label);
+        scheduled.clear();
+      }, REFACTOR_RESTART_DELAY_MS);
+    });
+  }
+  console.log(`  - Platform source changes use hot reload after edits settle. Refactor changes restart once after ${REFACTOR_RESTART_DELAY_MS}ms.`);
+}
+
+function requiresProcessRestart(fileName) {
+  const name = String(fileName).replace(/\\/gu, "/");
+  return name === "package.json"
+    || name === "package-lock.json"
+    || /(^|\/)tsconfig(?:\.[^/]+)?\.json$/u.test(name)
+    || /(^|\/)vite\.config\.[^/]+$/u.test(name)
+    || /(^|\/)tsup\.config\.[^/]+$/u.test(name);
+}
+
+function affectedServices(target, fileName) {
+  const path = relative(ROOT, resolve(target, fileName)).replace(/\\/gu, "/");
+  if (path.startsWith("apps/platform/core/api/")) return ["api"];
+  return ["web"];
+}
+
+async function restartService(label) {
+  const running = runningServices.get(label);
+  if (!running || stopping || restartingServices.has(label)) return;
+
+  restartingServices.add(label);
+  console.log(`  ! Restarting ${label} after a platform refactor`);
+  try {
+    stopProcess(running.child);
+    await waitForExit(running.child, 3_000);
+    if (stopping) return;
+    startService(running.service, running.env);
+    await waitForHealthyUrl(running.service.healthUrl, running.service.label);
+    console.log(`  ok ${label} restarted`);
+  } catch (error) {
+    console.error(`  x ${label} restart failed: ${error instanceof Error ? error.message : String(error)}`);
+    await shutdown(1);
+  } finally {
+    restartingServices.delete(label);
+  }
 }
 
 async function waitForHealthyUrl(url, label) {

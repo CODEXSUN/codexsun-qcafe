@@ -2,11 +2,11 @@
 
 ## Version State
 
-Current version: 0.1.1
+Current version: 0.1.2
 
-Release tag: v-0.1.1
+Release tag: v-0.1.2
 
-Changelog label: v 0.1.1
+Changelog label: v 0.1.2
 
 ## Unreleased
 
@@ -25,6 +25,34 @@ Changelog label: v 0.1.1
 - Bound the shared ITO add-on to the DevKit and control-plane workspaces.
 - Added General and Developer settings pages to the control-plane workspace.
 - Connected the left-bottom Settings action to settings navigation in the workspace drawer.
+
+### Main MDI workspace and navigation rail
+
+#### Database Changes
+
+- Database update: No.
+
+#### App Codebase Changes
+
+- Added the shared Main MDI shell with a command bar, utility dock, context dock, workspace navigation, and workspace surface.
+- Added a full-height workspace navigation rail based on the shadcn `sidebar-05` interaction model.
+- Connected the command bar, rail click action, and Ctrl+B shortcut to the same workspace navigation state.
+- Added hover and keyboard-focus guidance for the navigation rail.
+- Added ITO entries for the workspace canvas, navigation, navigation rail, and workspace surface.
+- Cleared workspace canvas child blocks and reserved the full canvas for the next MDI feature.
+- Bound the shared AppSidebar and SidebarInset composition inside the workspace canvas.
+
+## v-0.1.2
+
+### [v 0.1.2] 2026-09-03 8:49 p.m. - working on frontend for chat and agent
+
+#### Database Changes
+
+- Database update: No.
+
+#### App Codebase Changes
+
+- Bumped the workspace version to 0.1.2.
 
 ## v-0.1.1
 

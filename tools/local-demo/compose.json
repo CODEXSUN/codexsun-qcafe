@@ -1,0 +1,221 @@
+{
+  "name": "codexsun-local-demo",
+  "services": {
+    "chat": {
+      "image": "node:24-alpine",
+      "command": [
+        "node",
+        "/service/server.mjs"
+      ],
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "ports": [
+        "127.0.0.1:9051:9051"
+      ],
+      "volumes": [
+        "./server.mjs:/service/server.mjs:ro",
+        "chat-state:/state"
+      ],
+      "environment": {},
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:9051/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+        ],
+        "interval": "5s",
+        "timeout": "3s",
+        "retries": 5
+      }
+    },
+    "image-agent": {
+      "image": "node:24-alpine",
+      "command": [
+        "node",
+        "/service/server.mjs"
+      ],
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "ports": [
+        "127.0.0.1:4211:9051"
+      ],
+      "volumes": [
+        "./server.mjs:/service/server.mjs:ro",
+        "image-agent-state:/state"
+      ],
+      "environment": {
+        "AGENT_ID": "image-agent"
+      },
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:9051/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+        ],
+        "interval": "5s",
+        "timeout": "3s",
+        "retries": 5
+      }
+    },
+    "article-agent": {
+      "image": "node:24-alpine",
+      "command": [
+        "node",
+        "/service/server.mjs"
+      ],
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "ports": [
+        "127.0.0.1:4212:9051"
+      ],
+      "volumes": [
+        "./server.mjs:/service/server.mjs:ro",
+        "article-agent-state:/state"
+      ],
+      "environment": {
+        "AGENT_ID": "article-agent"
+      },
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:9051/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+        ],
+        "interval": "5s",
+        "timeout": "3s",
+        "retries": 5
+      }
+    },
+    "sales-coach-agent": {
+      "image": "node:24-alpine",
+      "command": [
+        "node",
+        "/service/server.mjs"
+      ],
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "ports": [
+        "127.0.0.1:4213:9051"
+      ],
+      "volumes": [
+        "./server.mjs:/service/server.mjs:ro",
+        "sales-coach-agent-state:/state"
+      ],
+      "environment": {
+        "AGENT_ID": "sales-coach-agent"
+      },
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:9051/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+        ],
+        "interval": "5s",
+        "timeout": "3s",
+        "retries": 5
+      }
+    },
+    "social-agent": {
+      "image": "node:24-alpine",
+      "command": [
+        "node",
+        "/service/server.mjs"
+      ],
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "ports": [
+        "127.0.0.1:4214:9051"
+      ],
+      "volumes": [
+        "./server.mjs:/service/server.mjs:ro",
+        "social-agent-state:/state"
+      ],
+      "environment": {
+        "AGENT_ID": "social-agent"
+      },
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:9051/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+        ],
+        "interval": "5s",
+        "timeout": "3s",
+        "retries": 5
+      }
+    },
+    "zetro": {
+      "image": "node:24-alpine",
+      "command": [
+        "node",
+        "/service/server.mjs"
+      ],
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "ports": [
+        "127.0.0.1:4210:9051"
+      ],
+      "volumes": [
+        "./server.mjs:/service/server.mjs:ro",
+        "zetro-state:/state"
+      ],
+      "environment": {
+        "AGENT_ID": "zetro"
+      },
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:9051/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+        ],
+        "interval": "5s",
+        "timeout": "3s",
+        "retries": 5
+      }
+    }
+  },
+  "volumes": {
+    "chat-state": {},
+    "image-agent-state": {},
+    "article-agent-state": {},
+    "sales-coach-agent-state": {},
+    "social-agent-state": {},
+    "zetro-state": {}
+  }
+}

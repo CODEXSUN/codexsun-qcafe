@@ -1,6 +1,7 @@
 import { Activity, Bell, Bot, Box, ChevronDown, Code2, FolderTree, GitBranch, Play, Search, Settings2, Terminal, Wrench } from "lucide-react";
 import { useState } from "react";
-import { InterfaceTopologyDrawer, type InterfaceTopologySection, TopologyInspectionControl, TopologyMarker, useInterfaceTopologyOverlay } from "@codexsun/devkit-ito";
+import { InterfaceTopologyDrawer, type InterfaceTopologySection, TopologyInspectionControl, TopologyMarker } from "@codexsun/devkit-ito";
+import { useInterfaceTopologyOverlay } from "@codexsun/devkit-ito/use-interface-topology-overlay";
 
 const devKitTopology: InterfaceTopologySection[] = [
   { id: "01", name: "DevKit command bar", scope: "Application chrome", description: "Global developer workspace navigation and branch actions." },

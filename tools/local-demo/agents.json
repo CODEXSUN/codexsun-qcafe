@@ -1,0 +1,50 @@
+[
+  {
+    "id": "zetro",
+    "name": "Zetro",
+    "duty": "Plan, perform tasks, and combine specialist results. Local development simulation.",
+    "skills": [],
+    "url": "http://127.0.0.1:4210",
+    "tokenEnv": "ZETRO_LOCAL_TOKEN"
+  },
+  {
+    "id": "image-agent",
+    "name": "Image Agent",
+    "duty": "Local development simulation. Create image concepts and briefs.",
+    "skills": [
+      "image-brief.md"
+    ],
+    "url": "http://127.0.0.1:4211",
+    "tokenEnv": "ZETRO_LOCAL_TOKEN"
+  },
+  {
+    "id": "article-agent",
+    "name": "Article Agent",
+    "duty": "Local development simulation. Plan and draft accurate articles.",
+    "skills": [
+      "article-writing.md"
+    ],
+    "url": "http://127.0.0.1:4212",
+    "tokenEnv": "ZETRO_LOCAL_TOKEN"
+  },
+  {
+    "id": "sales-coach-agent",
+    "name": "Sales Coach Agent",
+    "duty": "Local development simulation. Coach ethical sales conversations.",
+    "skills": [
+      "sales-coaching.md"
+    ],
+    "url": "http://127.0.0.1:4213",
+    "tokenEnv": "ZETRO_LOCAL_TOKEN"
+  },
+  {
+    "id": "social-agent",
+    "name": "Social Agent",
+    "duty": "Local development simulation. Draft channel-specific social content.",
+    "skills": [
+      "social-content.md"
+    ],
+    "url": "http://127.0.0.1:4214",
+    "tokenEnv": "ZETRO_LOCAL_TOKEN"
+  }
+]

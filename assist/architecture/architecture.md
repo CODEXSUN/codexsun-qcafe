@@ -75,11 +75,13 @@ An agent can collect evidence and propose a refinement. A reviewer must accept a
 
 The first builder agent creates structured plans only. It has no mutation or deployment tools.
 
-## Interactive agent surface
+## Interactive workspaces
 
-The core web application talks to a versioned chat API. The API owns conversation identifiers and delegates turns to a replaceable sidecar adapter.
-
-The first adapter uses the Codex SDK with a read-only workspace sandbox and no approval prompts. It exposes structured activity summaries and usage without exposing private reasoning. Write-capable runs require a later persisted approval workflow.
+Core composes Chat and Zetro through public workspace add-on contracts.
+`packages/chat/web` owns the authenticated DevKit Messenger adapter and direct-message UI.
+`packages/zetro/web` owns specialist conversations and browser history.
+`packages/zetro/api` dispatches to the isolated Agent Crew runtimes.
+The shared desk owns navigation slots and layout. It does not contain chat records or agent behavior.
 
 ## Scale boundary
 

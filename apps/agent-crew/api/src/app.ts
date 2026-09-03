@@ -23,6 +23,7 @@ export function buildAgentApp(options: Options) {
   app.post("/api/v1/messages", async (request, reply) => {
     const input = messageInputSchema.safeParse(request.body);
     if (!input.success) return reply.code(400).send({ error: "Invalid message." });
+    if (input.data.attachments?.length) return reply.code(400).send({ error: "This provider does not support attachments yet." });
     if (busy) return reply.code(409).send({ error: "The agent is processing another turn." });
     if (!options.provider.configured()) return reply.code(503).send({ error: "Configure the model provider." });
     busy = true;

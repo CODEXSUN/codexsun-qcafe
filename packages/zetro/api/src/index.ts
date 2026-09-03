@@ -6,7 +6,7 @@ import { AgentRegistry } from "./registry.js";
 export { AgentRegistry } from "./registry.js";
 export { ZetroDispatcher } from "./dispatcher.js";
 export function registerZetro(app: FastifyInstance, dispatcher = new ZetroDispatcher(AgentRegistry.fromEnvironment())) {
-  app.get("/api/v1/zetro/agents", async () => dispatcher.registry.list());
+  app.get("/api/v1/zetro/agents", async () => dispatcher.registry.health());
   app.post("/api/v1/zetro/messages", async (request, reply) => {
     const result = dispatchInputSchema.safeParse(request.body);
     if (!result.success) return reply.code(400).send({ error: "Select an agent and provide a valid message." });

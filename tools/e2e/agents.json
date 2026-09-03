@@ -1,0 +1,10 @@
+[
+  {
+    "id": "article-agent",
+    "name": "E2E Article Agent",
+    "duty": "Deterministic test fixture only. No model execution.",
+    "skills": [],
+    "url": "http://127.0.0.1:9051",
+    "tokenEnv": "ZETRO_E2E_TOKEN"
+  }
+]

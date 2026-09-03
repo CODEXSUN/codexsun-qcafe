@@ -1,6 +1,6 @@
 {
   "name": "codexsun-os",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "CODEXSUN application core and agent-first orchestration runtime",
   "engines": {
@@ -18,8 +18,10 @@
     "esbuild": "^0.28.2"
   },
   "scripts": {
+    "assist:doctor": "node tools/assist-doctor.mjs",
+    "assist:validate": "node tools/assist-doctor.mjs --strict",
     "build": "npm run build --workspaces --if-present",
-    "check": "npm run check:versions && npm run test:tools && npm run typecheck --workspaces --if-present && npm run test --workspaces --if-present",
+    "check": "npm run assist:validate && npm run check:versions && npm run test:tools && npm run typecheck --workspaces --if-present && npm run test --workspaces --if-present",
     "check:versions": "node tools/check-versions.mjs",
     "changelog:append": "node tools/version/version.mjs append",
     "dev": "node tools/dev-stack.mjs",

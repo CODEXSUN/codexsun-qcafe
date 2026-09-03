@@ -1,3 +1,18 @@
 @import "tailwindcss";
-@source "../../../../packages/ui/desk/src";
+@import "@codexsun/ui/styles.css";
+@custom-variant dark (&:is(.dark *));
+@source "../../../../../packages/ui/desk/src";
+@source "../../../../../packages/ui/src";
 @import "@codexsun/ui-desk/styles.css";
+@import "@codexsun/devkit-ito/styles.css";
+
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
+}
+
+@source "../../../../../packages/zetro/web/src";
+
+@source "../../../../../packages/chat/web/src";

@@ -1,1 +1,29 @@
-{"name":"@codexsun/zetro-api","version":"0.1.1","private":true,"type":"module","exports":{".":"./src/index.ts","./contracts":"./src/contracts.ts"},"scripts":{"build":"tsup","dev":"tsx src/server.ts","start":"node dist/server.js","typecheck":"tsc --noEmit","test":"vitest run"},"dependencies":{"@fastify/cors":"latest","fastify":"latest","zod":"latest"},"devDependencies":{"@types/node":"latest","tsup":"latest","tsx":"latest","vitest":"latest"}}
+{
+  "name": "@codexsun/zetro-api",
+  "version": "0.1.2",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./contracts": "./src/contracts.ts",
+    "./runs": "./src/run-contracts.ts"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx src/server.ts",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fastify/cors": "latest",
+    "fastify": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "tsup": "latest",
+    "tsx": "latest",
+    "vitest": "latest"
+  }
+}

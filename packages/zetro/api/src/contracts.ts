@@ -1,9 +1,12 @@
 import { z } from "zod";
 
 export const agentIdSchema = z.string().regex(/^[a-z][a-z0-9-]{0,63}$/u);
+export const attachmentSchema = z.object({ name: z.string().min(1).max(255), mime: z.string().max(120), data: z.string().max(2_800_000).regex(/^[A-Za-z0-9+/]*={0,2}$/u) }).strict();
+export type PromptAttachment = z.infer<typeof attachmentSchema>;
 export const messageInputSchema = z.object({
   conversationId: z.string().uuid().optional(),
   message: z.string().trim().min(1).max(20_000),
+  attachments: z.array(attachmentSchema).max(3).refine((items) => items.reduce((size, item) => size + item.data.length, 0) <= 2_800_000, "Attachments exceed 2 MB.").optional(),
 }).strict();
 export const dispatchInputSchema = messageInputSchema.extend({ agentId: agentIdSchema });
 export const agentProfileSchema = z.object({
@@ -26,4 +29,4 @@ export const turnSchema = z.object({
 export type AgentProfile = z.infer<typeof agentProfileSchema>;
 export type MessageInput = z.infer<typeof messageInputSchema>;
 export type AgentTurn = z.infer<typeof turnSchema>;
-export type AgentSummary = AgentProfile & { configured: boolean };
+export type AgentSummary = AgentProfile & { configured: boolean; runtimeStatus?: "healthy" | "offline" | "unconfigured"; mode?: "local-demo" | "provider" };

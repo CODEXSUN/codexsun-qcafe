@@ -39,6 +39,11 @@
 - Use Tailwind utility classes for layout, spacing, typography, color, borders, and responsive behavior.
 - Use custom CSS only for selectors, browser-specific behavior, animation, or behavior that Tailwind cannot express clearly.
 - Use the shadcn configuration owned by each web workspace as the shared component foundation.
+- Use semantic shadcn theme tokens for surfaces, text, borders, focus rings, and interaction states.
+- Do not use hard-coded colors for theme-aware hover states.
+- Use `hover:bg-accent hover:text-accent-foreground` for neutral controls.
+- Add `cursor-pointer` to every enabled button, button-like link, menu item, and clickable control.
+- Keep hover, focus, active, open, and selected states in the same shadcn token family.
 - Use relaxed spacing for every CODEXSUN workspace. Do not add compact-density controls unless an accepted product requirement changes this rule.
 - Apply resizable panels only where users compare or navigate adjacent workspace content.
 - Use three light workspace surfaces: white for chrome, a soft neutral for drawers, and near-white for the active canvas.

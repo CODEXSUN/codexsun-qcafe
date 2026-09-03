@@ -1,10 +1,11 @@
 {
   "name": "@codexsun/devkit-ito",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "type": "module",
   "exports": {
     ".": "./src/index.tsx",
+    "./use-interface-topology-overlay": "./src/use-interface-topology-overlay.ts",
     "./styles.css": "./src/interface-topology-overlay.css"
   },
   "scripts": {

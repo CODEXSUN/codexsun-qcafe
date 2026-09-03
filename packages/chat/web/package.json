@@ -1,0 +1,26 @@
+{
+  "name": "@codexsun/chat-web",
+  "version": "0.1.2",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@codexsun/ui": "*",
+    "@codexsun/ui-desk": "*",
+    "@codexsun/devkit-ito": "*",
+    "react": "latest",
+    "react-dom": "latest",
+    "lucide-react": "latest"
+  },
+  "devDependencies": {
+    "vitest": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest"
+  }
+}

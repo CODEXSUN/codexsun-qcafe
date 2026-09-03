@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "modules": [
+    {
+      "id": "framework.kernel",
+      "owner": "Framework",
+      "roots": ["packages/framework"],
+      "publicContracts": ["@codexsun/framework"],
+      "protectedPaths": ["packages/framework/src"]
+    },
+    {
+      "id": "platform.runtime",
+      "owner": "Platform Runtime",
+      "roots": ["packages/runtime"],
+      "publicContracts": ["@codexsun/runtime"],
+      "protectedPaths": ["packages/runtime/src"]
+    },
+    {
+      "id": "platform.core",
+      "owner": "Platform Core",
+      "roots": ["apps/platform/core"],
+      "publicContracts": ["/api/v1/core", "@codexsun/core-api", "@codexsun/core-web"],
+      "protectedPaths": ["apps/platform/core/api/src", "apps/platform/core/web/src"]
+    },
+    {
+      "id": "shared.contracts",
+      "owner": "Shared Contracts",
+      "roots": ["packages/contracts"],
+      "publicContracts": ["@codexsun/contracts"],
+      "protectedPaths": ["packages/contracts/src"]
+    },
+    {
+      "id": "shared.ui",
+      "owner": "Shared UI",
+      "roots": ["packages/ui"],
+      "publicContracts": ["@codexsun/ui"],
+      "protectedPaths": ["packages/ui/src"]
+    },
+    {
+      "id": "shared.desk",
+      "owner": "Shared Desk",
+      "roots": ["packages/ui/desk"],
+      "publicContracts": ["@codexsun/ui-desk"],
+      "protectedPaths": ["packages/ui/desk/src"]
+    },
+    {
+      "id": "app.devkit",
+      "owner": "DevKit",
+      "roots": ["apps/devkit"],
+      "publicContracts": ["@codexsun/devkit-web"],
+      "protectedPaths": ["apps/devkit/web/src"]
+    },
+    {
+      "id": "addon.devkit-ito",
+      "owner": "DevKit",
+      "roots": ["packages/devkit-ito"],
+      "publicContracts": ["@codexsun/devkit-ito"],
+      "protectedPaths": ["packages/devkit-ito/src"]
+    },
+    {
+      "id": "app.zetro",
+      "owner": "Zetro",
+      "roots": ["packages/zetro"],
+      "publicContracts": ["@codexsun/zetro-api", "@codexsun/zetro-web"],
+      "protectedPaths": ["packages/zetro/api/src", "packages/zetro/web/src"]
+    },
+    {
+      "id": "app.agent-crew",
+      "owner": "Agent Crew",
+      "roots": ["apps/agent-crew"],
+      "publicContracts": ["/api/v1/messages"],
+      "protectedPaths": ["apps/agent-crew/api/src", "apps/agent-crew/docker"]
+    }
+  ]
+}

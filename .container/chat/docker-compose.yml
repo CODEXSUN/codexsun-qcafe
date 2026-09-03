@@ -1,0 +1,14 @@
+name: codexsun-chat
+
+services:
+  chat-api:
+    build:
+      context: ../..
+      dockerfile: .container/chat/Dockerfile.api
+    container_name: codexsun-chat-api
+    environment:
+      CHAT_API_HOST: 0.0.0.0
+      CHAT_API_PORT: 4160
+    ports:
+      - "${CHAT_BIND_ADDRESS:-127.0.0.1}:${CHAT_API_PORT:-4160}:4160"
+    restart: unless-stopped

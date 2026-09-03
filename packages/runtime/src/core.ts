@@ -1,5 +1,5 @@
 import type { CoreSnapshot, Deployment, RefinementProposal } from "@codexsun/contracts";
-import { FrameworkApplication } from "@codexsun/framework";
+import { FrameworkApplication, OwnershipRegistry } from "@codexsun/framework";
 
 const deployments: Deployment[] = [
   {
@@ -15,6 +15,7 @@ const refinements: RefinementProposal[] = [];
 
 export class PlatformCore {
   readonly framework = new FrameworkApplication();
+  readonly ownership = new OwnershipRegistry();
   readonly registry = this.framework.modules;
 
   snapshot(): CoreSnapshot {

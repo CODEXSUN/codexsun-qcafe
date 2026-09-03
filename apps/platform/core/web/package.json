@@ -1,6 +1,6 @@
 {
   "name": "@codexsun/core-web",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,6 +10,8 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@codexsun/devkit-ito": "*",
+    "@codexsun/ui": "*",
     "@codexsun/ui-desk": "*",
     "@radix-ui/react-avatar": "^1.2.6",
     "@radix-ui/react-collapsible": "^1.1.20",
@@ -22,7 +24,9 @@
     "clsx": "latest",
     "react": "latest",
     "react-dom": "latest",
-    "tailwind-merge": "latest"
+    "tailwind-merge": "latest",
+    "@codexsun/zetro-web": "*",
+    "@codexsun/chat-web": "*"
   },
   "devDependencies": {
     "@tailwindcss/vite": "latest",

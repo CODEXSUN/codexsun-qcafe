@@ -6,7 +6,10 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "noEmit": true,
-    "paths": { "@/*": ["./src/*"] },
+    "paths": {
+      "@/blocks/sidebar-08/*": ["../../../../packages/ui/desk/src/blocks/sidebar-08/*"],
+      "@/*": ["./src/*"]
+    },
     "types": ["vite/client"]
   },
   "include": ["src", "vite.config.ts"]

@@ -3,11 +3,14 @@ import Fastify from "fastify";
 import { PlatformCore } from "@codexsun/runtime";
 import { platformManifests } from "./manifests.js";
 import { installedApplications } from "./applications.js";
+import { registerPlatformOwnership, validatePlatformManifestOwnership } from "./ownership.js";
 
 export function buildApp(options: { applications?: ReturnType<typeof installedApplications> } = {}) {
   const app = Fastify({ logger: true });
   const core = new PlatformCore();
   const applications = options.applications ?? installedApplications();
+  registerPlatformOwnership(core);
+  validatePlatformManifestOwnership(core, platformManifests);
   for (const manifest of [...platformManifests, ...applications]) core.registry.register(manifest);
   core.registry.validateDependencies();
   app.addHook("onReady", async () => core.framework.start());

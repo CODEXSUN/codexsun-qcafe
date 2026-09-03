@@ -1,1 +1,22 @@
-{"name":"@codexsun/agent-crew-api","version":"0.1.1","private":true,"type":"module","scripts":{"build":"tsup","typecheck":"tsc --noEmit","test":"vitest run"},"dependencies":{"@codexsun/zetro-api":"*","@openai/codex-sdk":"0.153.0","fastify":"latest","zod":"latest"},"devDependencies":{"@types/node":"latest","tsup":"latest","vitest":"latest"}}
+{
+  "name": "@codexsun/agent-crew-api",
+  "version": "0.1.2",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@codexsun/zetro-api": "*",
+    "@openai/codex-sdk": "0.153.0",
+    "fastify": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "tsup": "latest",
+    "vitest": "latest"
+  }
+}

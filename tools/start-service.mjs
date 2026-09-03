@@ -8,7 +8,7 @@ const ROOT = resolve(import.meta.dirname, "..");
 const service = process.argv[2];
 const definitions = {
   api: {
-    args: ["apps/platform/core/api/src/server.ts"],
+    args: ["watch", "apps/platform/core/api/src/server.ts"],
     bin: resolve(ROOT, "node_modules", "tsx", "dist", "cli.mjs"),
     portIndex: 0,
   },
