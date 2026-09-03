@@ -17,15 +17,21 @@ const definitions = {
     bin: resolve(ROOT, "node_modules", "vite", "bin", "vite.js"),
     portIndex: 1,
   },
+  devkit: {
+    args: ["apps/devkit/web", "--config", "apps/devkit/web/vite.config.ts"],
+    bin: resolve(ROOT, "node_modules", "vite", "bin", "vite.js"),
+    portIndex: 2,
+  },
 };
 
 if (!service || !definitions[service]) {
-  console.error("Usage: node tools/start-service.mjs <api|web>");
+  console.error("Usage: node tools/start-service.mjs <api|web|devkit>");
   process.exit(1);
 }
 
 const definition = definitions[service];
-const { env, ports } = await runPreflight({ ports: [service === "api" ? 4100 : 5173] });
+const servicePort = service === "api" ? 4100 : service === "web" ? 5173 : 5174;
+const { env, ports } = await runPreflight({ ports: [servicePort] });
 const child = spawn(process.execPath, [definition.bin, ...definition.args], {
   cwd: ROOT,
   env: { ...env, ...process.env, OS_API_PORT: String(ports[0]) },

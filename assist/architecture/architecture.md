@@ -36,6 +36,10 @@ The first area is `apps/platform/control-plane`. It owns the `api` and `web` dep
 
 Future areas can own their own surfaces without placing unrelated code in a generic platform API.
 
+Product applications live in `apps/<application>/web`. DevKit owns developer-focused tools and user-experience features in `apps/devkit`.
+
+DevKit-owned reusable add-ons live in `packages/devkit-*`. Applications bind them through package exports and never import DevKit internals.
+
 ## Deployment lifecycle
 
 ```text

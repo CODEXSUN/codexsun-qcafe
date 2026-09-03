@@ -9,6 +9,7 @@
   },
   "workspaces": [
     "apps/platform/*/*",
+    "apps/*/web",
     "packages/*"
   ],
   "overrides": {
@@ -22,6 +23,7 @@
     "dev": "node tools/dev-stack.mjs",
     "dev:api": "node tools/start-service.mjs api",
     "dev:preflight": "node tools/preflight.mjs",
+    "dev:devkit": "node tools/start-service.mjs devkit",
     "dev:web": "node tools/start-service.mjs web",
     "github:now": "node tools/github-helper.mjs",
     "start": "npm run start -w @codexsun/os-api",

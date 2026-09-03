@@ -18,12 +18,18 @@ const services = [
     healthUrl: "http://127.0.0.1:5173/",
     label: "web",
   },
+  {
+    args: ["apps/devkit/web", "--config", "apps/devkit/web/vite.config.ts"],
+    bin: resolve(ROOT, "node_modules", "vite", "bin", "vite.js"),
+    healthUrl: "http://127.0.0.1:5174/",
+    label: "devkit",
+  },
 ];
 const children = new Set();
 let stopping = false;
 
 try {
-  const { env } = await runPreflight();
+  const { env } = await runPreflight({ ports: [4100, 5173, 5174] });
   console.log("CODEXSUN OS development runtime");
   for (const service of services) {
     const child = startService(service, env);
@@ -33,9 +39,10 @@ try {
       if (!stopping && code !== 0) void shutdown(code ?? 1);
     });
   }
-  console.log("\n  ok API and Web are ready");
+  console.log("\n  ok API, Web, and DevKit are ready");
   console.log("  - Web: http://127.0.0.1:5173");
   console.log("  - API: http://127.0.0.1:4100\n");
+  console.log("  - DevKit: http://127.0.0.1:5174\n");
 } catch (error) {
   console.error(`  x ${error instanceof Error ? error.message : String(error)}`);
   await shutdown(1);

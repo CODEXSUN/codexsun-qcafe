@@ -8,6 +8,22 @@ Release tag: v-0.1.1
 
 Changelog label: v 0.1.1
 
+## Unreleased
+
+### DevKit application and reusable ITO add-on
+
+#### Database Changes
+
+- Database update: No.
+
+#### App Codebase Changes
+
+- Added DevKit as a separate developer workspace application.
+- Added DevKit startup on port 5174 to the shared development preflight and stack.
+- Moved the Interface Topology Overlay into the DevKit-owned `@codexsun/devkit-ito` add-on.
+- Added a public registry and mapped-boundary API for any CODEXSUN web workspace.
+- Bound the shared ITO add-on to the DevKit and control-plane workspaces.
+
 ## v-0.1.1
 
 ### [v 0.1.1] 2026-09-03 10:17 a.m. - Interactive workspace and ITO inspection
