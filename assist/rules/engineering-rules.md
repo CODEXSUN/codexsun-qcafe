@@ -2,6 +2,9 @@
 
 ## Ownership
 
+- CODEXSUN OS is only the platform host. Keep every product feature in an application or add-on.
+- Keep agent behavior in standalone Zetro. Keep specialist runtimes in Docker-only Agent Crew. Neither belongs to the platform kernel.
+- A platform installation must work with no applications or add-ons enabled.
 - Give each module one owner.
 - Keep business rules inside the owning module.
 - Communicate through public contracts.
@@ -33,6 +36,8 @@
 
 ## Interface design
 
+- Use Tailwind utility classes for layout, spacing, typography, color, borders, and responsive behavior.
+- Use custom CSS only for selectors, browser-specific behavior, animation, or behavior that Tailwind cannot express clearly.
 - Use the shadcn configuration owned by each web workspace as the shared component foundation.
 - Use relaxed spacing for every CODEXSUN workspace. Do not add compact-density controls unless an accepted product requirement changes this rule.
 - Apply resizable panels only where users compare or navigate adjacent workspace content.

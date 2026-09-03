@@ -11,7 +11,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@codexsun/contracts": "*"
+    "@codexsun/contracts": "*",
+    "@codexsun/framework": "*"
   },
   "devDependencies": {
     "vitest": "latest"

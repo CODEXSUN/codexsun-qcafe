@@ -1,0 +1,48 @@
+name: codexsun-agent-crew
+x-agent: &agent
+  build:
+    context: ../../..
+    dockerfile: apps/agent-crew/docker/Dockerfile
+  restart: unless-stopped
+  read_only: true
+  tmpfs: ["/tmp:rw,noexec,nosuid,size=128m"]
+  cap_drop: ["ALL"]
+  cap_add: ["CHOWN", "SETGID", "SETUID"]
+  security_opt: ["no-new-privileges:true"]
+  pids_limit: 128
+  mem_limit: 1g
+  cpus: 1.0
+  expose: ["4200"]
+  networks: ["zetro"]
+  environment: &environment
+    AGENT_PROVIDER: ${AGENT_PROVIDER:-codex}
+    AGENT_MODEL: ${AGENT_MODEL:-gpt-5.3-codex}
+    AGENT_REASONING: ${AGENT_REASONING:-medium}
+    OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    LLM_BASE_URL: ${LLM_BASE_URL:-}
+    LLM_API_KEY: ${LLM_API_KEY:-}
+
+services:
+  image-agent:
+    <<: *agent
+    environment: { <<: *environment, AGENT_API_TOKEN: "${IMAGE_AGENT_TOKEN:?Set IMAGE_AGENT_TOKEN}" }
+    volumes: ["./profiles/image-agent:/profile:ro", "./state/image-agent:/state"]
+    ports: ["127.0.0.1:4211:4200"]
+  article-agent:
+    <<: *agent
+    environment: { <<: *environment, AGENT_API_TOKEN: "${ARTICLE_AGENT_TOKEN:?Set ARTICLE_AGENT_TOKEN}" }
+    volumes: ["./profiles/article-agent:/profile:ro", "./state/article-agent:/state"]
+    ports: ["127.0.0.1:4212:4200"]
+  sales-coach-agent:
+    <<: *agent
+    environment: { <<: *environment, AGENT_API_TOKEN: "${SALES_COACH_AGENT_TOKEN:?Set SALES_COACH_AGENT_TOKEN}" }
+    volumes: ["./profiles/sales-coach-agent:/profile:ro", "./state/sales-coach-agent:/state"]
+    ports: ["127.0.0.1:4213:4200"]
+  social-agent:
+    <<: *agent
+    environment: { <<: *environment, AGENT_API_TOKEN: "${SOCIAL_AGENT_TOKEN:?Set SOCIAL_AGENT_TOKEN}" }
+    volumes: ["./profiles/social-agent:/profile:ro", "./state/social-agent:/state"]
+    ports: ["127.0.0.1:4214:4200"]
+
+networks:
+  zetro: {}

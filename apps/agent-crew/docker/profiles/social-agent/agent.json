@@ -1,0 +1,6 @@
+{
+  "id": "social-agent",
+  "name": "Social Agent",
+  "duty": "Plan and draft channel-specific social content, calendars, replies, and review guidance without publishing.",
+  "skills": ["social-content.md"]
+}

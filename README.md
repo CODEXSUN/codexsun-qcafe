@@ -1,8 +1,8 @@
 # CODEXSUN OS
 
-CODEXSUN OS is a control plane for building, deploying, and operating isolated applications from one codebase.
+CODEXSUN OS is a core for building, deploying, and operating isolated applications from one codebase.
 
-The first runtime includes a module registry, an orchestration API, a builder-agent boundary, and a React control plane.
+The first runtime includes a module registry, an orchestration API, a builder-agent boundary, and a React core.
 It does not run untrusted code on the host. Execution providers must supply an isolated runtime.
 
 ## Start
@@ -30,8 +30,8 @@ The database preflight checks `DATABASE_URL` when configured. Set `OS_DATABASE_R
 ## Workspace
 
 ```text
-apps/platform/control-plane/api   Fastify control-plane API
-apps/platform/control-plane/web   React control-plane interface
+apps/platform/core/api   Fastify core API
+apps/platform/core/web   React core interface
 packages/contracts    Shared runtime contracts
 packages/runtime      Module registry and orchestration state
 assist                Architecture, rules, decisions, and skills

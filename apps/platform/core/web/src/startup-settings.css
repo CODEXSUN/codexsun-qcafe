@@ -1,0 +1,23 @@
+.startup-controls, .iot-panel, .iot-app, .iot-tag-form { display: flex; flex-direction: column; gap: 20px; }
+.startup-description, .iot-panel > p, .settings-group > p { color: #5f5e59; font-size: 14px; line-height: 1.6; }
+.startup-controls .setting-row > div:first-child, .iot-app .setting-row > div:first-child { min-width: 0; }
+.setting-switch { flex-shrink: 0; }
+.capability-tags { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 8px; }
+.capability-tags:empty { display: none; }
+.capability-tags span { padding: 4px 10px; border-radius: 6px; background: #e7f0df; color: #365323; font-size: 13px; overflow-wrap: anywhere; }
+.iot-search, .iot-tag-form label { display: flex; flex-direction: column; gap: 8px; color: #33332e; font-size: 14px; }
+.iot-search input, .iot-tag-form input { width: 100%; padding: 10px 12px; border: 1px solid #d5d5cc; border-radius: 6px; background: white; color: #242421; font: inherit; }
+.iot-tag-form { align-items: flex-start; padding-bottom: 20px; }
+.iot-tag-form label { width: 100%; }
+.iot-tag-form small { color: #5f5e59; font-size: 13px; }
+.settings-save-error { padding: 12px; color: #9b2525; background: #fff0f0; }
+.startup-tabs { display: flex; align-items: center; gap: 12px; padding: 10px 20px; border-bottom: 1px solid #e5e4de; background: white; }
+.startup-tabs button { padding: 6px 10px; background: transparent; border: 0; border-radius: 5px; }
+.startup-tabs button[aria-pressed="true"] { background: #e7f8c5; }
+.startup-tabs a { color: #365323; font-size: 14px; }
+.startup-app-frame { width: 100%; flex: 1; min-height: 0; border: 0; }
+.startup-tweaks { position: fixed; right: 64px; bottom: 120px; z-index: 20; padding: 10px 14px; border: 1px solid #d5d5cc; border-radius: 8px; background: white; font-size: 13px; }
+.startup-tweaks label { display: flex; gap: 10px; padding-top: 12px; }
+.settings-content[data-wide="true"] { width: min(1100px, calc(100% - 56px)); }
+.settings-group > .iot-panel { padding: 20px; }
+.startup-controls .settings-group { margin-top: 16px; }

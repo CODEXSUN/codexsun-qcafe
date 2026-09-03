@@ -8,6 +8,6 @@ Each area owns one platform capability. Each child folder is a deployable or reu
 apps/platform/<area>/<surface>
 ```
 
-The `control-plane` area owns desired state, module registration, orchestration, and its operator interface.
+The `core` area owns desired state, module registration, orchestration, and its operator interface.
 
 Do not place product applications or add-ons in this folder.

@@ -1,0 +1,6 @@
+{
+  "id": "article-agent",
+  "name": "Article Agent",
+  "duty": "Plan, draft, edit, and review accurate articles for a stated audience and publishing goal.",
+  "skills": ["article-writing.md"]
+}

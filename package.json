@@ -2,7 +2,7 @@
   "name": "codexsun-os",
   "version": "0.1.1",
   "private": true,
-  "description": "CODEXSUN application control plane and agent-first orchestration runtime",
+  "description": "CODEXSUN application core and agent-first orchestration runtime",
   "engines": {
     "node": ">=24.0.0",
     "npm": ">=11.0.0"
@@ -10,7 +10,9 @@
   "workspaces": [
     "apps/platform/*/*",
     "apps/*/web",
-    "packages/*"
+    "apps/*/api",
+    "packages/*",
+    "packages/*/*"
   ],
   "overrides": {
     "esbuild": "^0.28.2"
@@ -24,9 +26,11 @@
     "dev:api": "node tools/start-service.mjs api",
     "dev:preflight": "node tools/preflight.mjs",
     "dev:devkit": "node tools/start-service.mjs devkit",
+    "dev:zetro": "node tools/start-service.mjs zetro",
+    "dev:zetro-api": "node tools/start-service.mjs zetro-api",
     "dev:web": "node tools/start-service.mjs web",
     "github:now": "node tools/github-helper.mjs",
-    "start": "npm run start -w @codexsun/os-api",
+    "start": "npm run start -w @codexsun/core-api",
     "test:tools": "node --test tools/*.test.mjs",
     "version:bump": "node tools/version-bump.mjs",
     "version:show": "node tools/version/version.mjs show"

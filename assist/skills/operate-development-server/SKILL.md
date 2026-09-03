@@ -13,6 +13,6 @@ The default port policy stops the process tree on ports 4100 and 5173. Set `OS_D
 
 Set `OS_DATABASE_REQUIRED=true` when the current runtime requires the configured database.
 
-Verify `/health`, the control-plane API, and the web root after startup.
+Verify `/health`, the core API, and the web root after startup.
 
 Do not report the database as verified when `DATABASE_URL` is absent.

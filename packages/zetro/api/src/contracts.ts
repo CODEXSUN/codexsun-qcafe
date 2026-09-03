@@ -1,0 +1,29 @@
+import { z } from "zod";
+
+export const agentIdSchema = z.string().regex(/^[a-z][a-z0-9-]{0,63}$/u);
+export const messageInputSchema = z.object({
+  conversationId: z.string().uuid().optional(),
+  message: z.string().trim().min(1).max(20_000),
+}).strict();
+export const dispatchInputSchema = messageInputSchema.extend({ agentId: agentIdSchema });
+export const agentProfileSchema = z.object({
+  id: agentIdSchema,
+  name: z.string().min(1).max(100),
+  duty: z.string().min(1).max(8_000),
+  skills: z.array(z.string().regex(/^[a-z0-9-]+\.md$/u)).max(30),
+}).strict();
+export const turnSchema = z.object({
+  agentId: agentIdSchema,
+  conversationId: z.string().uuid(),
+  message: z.string().min(1).max(100_000),
+  provider: z.enum(["codex", "openai-compatible"]),
+  runId: z.string().uuid(),
+  activities: z.array(z.object({
+    id: z.string(), kind: z.literal("tool"), label: z.string(), status: z.literal("completed"),
+  })),
+  usage: z.object({ inputTokens: z.number(), outputTokens: z.number(), cachedInputTokens: z.number() }).nullable(),
+});
+export type AgentProfile = z.infer<typeof agentProfileSchema>;
+export type MessageInput = z.infer<typeof messageInputSchema>;
+export type AgentTurn = z.infer<typeof turnSchema>;
+export type AgentSummary = AgentProfile & { configured: boolean };

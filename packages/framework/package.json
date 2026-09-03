@@ -1,0 +1,19 @@
+{
+  "name": "@codexsun/framework",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@codexsun/contracts": "*"
+  },
+  "devDependencies": {
+    "vitest": "latest"
+  }
+}

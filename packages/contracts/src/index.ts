@@ -11,6 +11,7 @@ export const moduleManifestSchema = z.object({
   kind: moduleKindSchema,
   name: z.string().min(1),
   runtime: runtimeSchema,
+  webUrl: z.string().url().refine((url) => ["http:", "https:"].includes(new URL(url).protocol)).optional(),
   version: z.string().regex(/^\d+\.\d+\.\d+$/u),
 });
 
@@ -44,7 +45,7 @@ export type RefinementProposal = {
   summary: string;
 };
 
-export type ControlPlaneSnapshot = {
+export type CoreSnapshot = {
   deployments: Deployment[];
   modules: ModuleManifest[];
   refinements: RefinementProposal[];
@@ -54,31 +55,4 @@ export type ControlPlaneSnapshot = {
     name: string;
     version: string;
   };
-};
-
-export const chatMessageInputSchema = z.object({
-  conversationId: z.string().uuid().optional(),
-  message: z.string().trim().min(1).max(20_000),
-});
-
-export type ChatMessageInput = z.infer<typeof chatMessageInputSchema>;
-
-export type ChatActivity = {
-  id: string;
-  kind: "command" | "error" | "file" | "reasoning" | "search" | "todo" | "tool";
-  label: string;
-  status: "completed" | "failed" | "running";
-};
-
-export type ChatTurnResponse = {
-  activities: ChatActivity[];
-  conversationId: string;
-  message: string;
-  provider: "codex-sidecar";
-  runId: string;
-  usage: {
-    cachedInputTokens: number;
-    inputTokens: number;
-    outputTokens: number;
-  } | null;
 };

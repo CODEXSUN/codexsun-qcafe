@@ -7,13 +7,13 @@ import { runPreflight } from "./preflight.mjs";
 const ROOT = resolve(import.meta.dirname, "..");
 const services = [
   {
-    args: ["apps/platform/control-plane/api/src/server.ts"],
+    args: ["apps/platform/core/api/src/server.ts"],
     bin: resolve(ROOT, "node_modules", "tsx", "dist", "cli.mjs"),
     healthUrl: "http://127.0.0.1:4100/health",
     label: "api",
   },
   {
-    args: ["apps/platform/control-plane/web", "--config", "apps/platform/control-plane/web/vite.config.ts"],
+    args: ["apps/platform/core/web", "--config", "apps/platform/core/web/vite.config.ts"],
     bin: resolve(ROOT, "node_modules", "vite", "bin", "vite.js"),
     healthUrl: "http://127.0.0.1:5173/",
     label: "web",
@@ -24,12 +24,24 @@ const services = [
     healthUrl: "http://127.0.0.1:5174/",
     label: "devkit",
   },
+  {
+    args: ["packages/zetro/api/src/server.ts"],
+    bin: resolve(ROOT, "node_modules", "tsx", "dist", "cli.mjs"),
+    healthUrl: "http://127.0.0.1:4150/health",
+    label: "zetro-api",
+  },
+  {
+    args: ["packages/zetro/web", "--config", "packages/zetro/web/vite.config.ts"],
+    bin: resolve(ROOT, "node_modules", "vite", "bin", "vite.js"),
+    healthUrl: "http://127.0.0.1:5175/",
+    label: "zetro-web",
+  },
 ];
 const children = new Set();
 let stopping = false;
 
 try {
-  const { env } = await runPreflight({ ports: [4100, 5173, 5174] });
+  const { env } = await runPreflight({ ports: [4100, 4150, 5173, 5174, 5175] });
   console.log("CODEXSUN OS development runtime");
   for (const service of services) {
     const child = startService(service, env);
@@ -39,10 +51,12 @@ try {
       if (!stopping && code !== 0) void shutdown(code ?? 1);
     });
   }
-  console.log("\n  ok API, Web, and DevKit are ready");
+  console.log("\n  ok Platform, DevKit, and Zetro are ready");
   console.log("  - Web: http://127.0.0.1:5173");
   console.log("  - API: http://127.0.0.1:4100\n");
   console.log("  - DevKit: http://127.0.0.1:5174\n");
+  console.log("  - Zetro API: http://127.0.0.1:4150");
+  console.log("  - Zetro Web: http://127.0.0.1:5175\n");
 } catch (error) {
   console.error(`  x ${error instanceof Error ? error.message : String(error)}`);
   await shutdown(1);

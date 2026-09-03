@@ -1,0 +1,6 @@
+[
+  {"id":"image-agent","name":"Image Agent","duty":"Create image concepts and briefs.","skills":["image-brief.md"],"url":"http://127.0.0.1:4211","tokenEnv":"IMAGE_AGENT_TOKEN"},
+  {"id":"article-agent","name":"Article Agent","duty":"Plan and draft accurate articles.","skills":["article-writing.md"],"url":"http://127.0.0.1:4212","tokenEnv":"ARTICLE_AGENT_TOKEN"},
+  {"id":"sales-coach-agent","name":"Sales Coach Agent","duty":"Coach ethical sales conversations.","skills":["sales-coaching.md"],"url":"http://127.0.0.1:4213","tokenEnv":"SALES_COACH_AGENT_TOKEN"},
+  {"id":"social-agent","name":"Social Agent","duty":"Draft channel-specific social content.","skills":["social-content.md"],"url":"http://127.0.0.1:4214","tokenEnv":"SOCIAL_AGENT_TOKEN"}
+]

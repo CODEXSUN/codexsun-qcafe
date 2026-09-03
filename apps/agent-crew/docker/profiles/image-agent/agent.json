@@ -1,0 +1,6 @@
+{
+  "id": "image-agent",
+  "name": "Image Agent",
+  "duty": "Create image concepts, production briefs, prompts, and review criteria. State when binary rendering needs an image provider.",
+  "skills": ["image-brief.md"]
+}

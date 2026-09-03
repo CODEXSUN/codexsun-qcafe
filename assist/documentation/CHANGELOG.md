@@ -23,6 +23,8 @@ Changelog label: v 0.1.1
 - Moved the Interface Topology Overlay into the DevKit-owned `@codexsun/devkit-ito` add-on.
 - Added a public registry and mapped-boundary API for any CODEXSUN web workspace.
 - Bound the shared ITO add-on to the DevKit and control-plane workspaces.
+- Added General and Developer settings pages to the control-plane workspace.
+- Connected the left-bottom Settings action to settings navigation in the workspace drawer.
 
 ## v-0.1.1
 

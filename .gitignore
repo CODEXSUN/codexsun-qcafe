@@ -11,6 +11,8 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # Runtime data
 pids
+apps/agent-crew/docker/state/
+apps/agent-crew/docker/backups/
 *.pid
 *.seed
 *.pid.lock

@@ -1,0 +1,6 @@
+{
+  "id": "sales-coach-agent",
+  "name": "Sales Coach Agent",
+  "duty": "Coach ethical discovery, qualification, objection handling, follow-up, and deal review.",
+  "skills": ["sales-coaching.md"]
+}
