@@ -48,7 +48,7 @@ The operator key represents one trusted restaurant operator. This is a local ope
 Q Cafe includes an app-owned Tauri desktop base at `apps/q-cafe/desktop`.
 Rust owns the Windows shell and starts the app-owned Node API. React renders the same Q Cafe workspace for web and desktop. The desktop database lives in the Windows application-data directory, separate from the source checkout and web deployment.
 
-Run `npm.cmd run dev:q-cafe:windows` after installing the desktop workspace dependencies. Run `npm.cmd run build:q-cafe:windows` to build MSI and NSIS installers. The current package expects Node.js on the Windows target, or `QCAFE_NODE_BINARY` pointing at a managed Node runtime. A signed Node sidecar is the next packaging stage.
+Run `npm.cmd run dev:q-cafe:windows` after installing the desktop workspace dependencies. Run `npm.cmd run build:q-cafe:windows` to build MSI and NSIS installers. The installers include the Q Cafe Node runtime; `QCAFE_NODE_BINARY` is an optional managed runtime override.
 
 ## Sync and activity foundation
 

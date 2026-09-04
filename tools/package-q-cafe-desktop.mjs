@@ -10,12 +10,17 @@ const release = resolve(root, 'apps', 'q-cafe', 'desktop', 'release');
 
 mkdirSync(release, { recursive: true });
 for (const name of [`qcafe-${version}-x64-setup.exe`, `qcafe-${version}-x64.msi`]) rmSync(resolve(release, name), { force: true });
-copyArtifact(resolve(bundle, 'nsis'), '.exe', resolve(release, `qcafe-${version}-x64-setup.exe`));
-copyArtifact(resolve(bundle, 'msi'), '.msi', resolve(release, `qcafe-${version}-x64.msi`));
+copyArtifact(resolve(bundle, 'nsis'), '.exe', resolve(release, `qcafe-${version}-x64-setup.exe`), version);
+copyArtifact(resolve(bundle, 'msi'), '.msi', resolve(release, `qcafe-${version}-x64.msi`), version);
 console.log(`Q Cafe installers ready in ${release}`);
 
-function copyArtifact(directory, extension, destination) {
-  const source = existsSync(directory) ? readdirSync(directory).map(name => resolve(directory, name)).find(path => path.toLowerCase().endsWith(extension)) : undefined;
+function copyArtifact(directory, extension, destination, version) {
+  const source = existsSync(directory)
+    ? readdirSync(directory)
+      .filter(name => name.includes(`_${version}_`) && name.toLowerCase().endsWith(extension))
+      .map(name => resolve(directory, name))
+      .at(0)
+    : undefined;
   if (!source) throw new Error(`Q Cafe ${extension} installer was not produced.`);
   cpSync(source, destination);
   console.log(destination);

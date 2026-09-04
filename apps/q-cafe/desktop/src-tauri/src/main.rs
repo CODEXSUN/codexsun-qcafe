@@ -7,8 +7,12 @@ fn application_data_dir(app: &AppHandle) -> PathBuf {
     app.path().app_data_dir().expect("Windows application data directory is available")
 }
 
-fn node_binary() -> String {
-    env::var("QCAFE_NODE_BINARY").unwrap_or_else(|_| "node.exe".to_string())
+fn node_binary(resource_dir: &PathBuf) -> PathBuf {
+    if let Some(path) = env::var_os("QCAFE_NODE_BINARY") {
+        return PathBuf::from(path);
+    }
+
+    resource_dir.join("node.exe")
 }
 
 fn start_api(app: &AppHandle) -> Result<Child, String> {
@@ -17,7 +21,12 @@ fn start_api(app: &AppHandle) -> Result<Child, String> {
     let resource_dir = app.path().resource_dir().map_err(|error| error.to_string())?;
     let api_root = resource_dir.join("api");
     let database_path = data_dir.join("q-cafe.sqlite");
-    Command::new(node_binary())
+    let node = node_binary(&resource_dir);
+    if !node.is_file() {
+        return Err(format!("Q Cafe Node runtime is missing: {}", node.display()));
+    }
+
+    Command::new(node)
         .arg(api_root.join("src").join("server.mjs"))
         .current_dir(&api_root)
         .env("QCAFE_DATABASE_PATH", database_path)

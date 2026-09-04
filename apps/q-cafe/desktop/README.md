@@ -1,8 +1,8 @@
 # Q Cafe Windows application
 
-The Windows application packages the Q Cafe React web build in Tauri. Rust starts the app-owned Node API, and the API creates its SQLite database at `%APPDATA%\\in.codexsun.qcafe\\q-cafe.sqlite` on first launch. It runs every Q Cafe migration and seeds the starter menu and floor tables without modifying an existing database.
+The Windows application packages the Q Cafe React web build, Node runtime, and app-owned API in Tauri. The API creates its SQLite database at `%APPDATA%\\in.codexsun.qcafe\\q-cafe.sqlite` on first launch. It runs every Q Cafe migration and seeds the starter menu and floor tables without modifying an existing database.
 
-Install Node.js on the target Windows machine or set `QCAFE_NODE_BINARY` to the bundled Node runtime path. The next packaging stage can replace this operating-system dependency with a signed Node sidecar.
+The MSI and NSIS installers include `node.exe`, so a Windows machine does not need a separate Node.js installation. `QCAFE_NODE_BINARY` remains available only for a managed runtime override.
 
 Run `npm.cmd run dev:q-cafe:windows` for desktop development. Run `npm.cmd run build:q-cafe:windows` to produce versioned `qcafe-<version>-x64-setup.exe` and `qcafe-<version>-x64.msi` installers after the Tauri dependencies are installed.
 

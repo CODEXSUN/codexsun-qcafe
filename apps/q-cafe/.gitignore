@@ -7,3 +7,4 @@ web/*.tsbuildinfo
 desktop/release/
 desktop/src-tauri/target/
 desktop/src-tauri/gen/
+desktop/src-tauri/resources/node.exe
