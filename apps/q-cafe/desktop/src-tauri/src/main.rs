@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use std::{env, fs, path::PathBuf, process::{Child, Command}, sync::Mutex};
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
