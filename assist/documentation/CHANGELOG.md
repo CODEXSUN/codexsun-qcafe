@@ -2,11 +2,11 @@
 
 ## Version State
 
-Current version: 0.1.7
+Current version: 0.1.8
 
-Release tag: v-0.1.7
+Release tag: v-0.1.8
 
-Changelog label: v 0.1.7
+Changelog label: v 0.1.8
 
 ## Unreleased
 
@@ -41,6 +41,19 @@ Changelog label: v 0.1.7
 - Added ITO entries for the workspace canvas, navigation, navigation rail, and workspace surface.
 - Cleared workspace canvas child blocks and reserved the full canvas for the next MDI feature.
 - Bound the shared AppSidebar and SidebarInset composition inside the workspace canvas.
+
+## v-0.1.8
+
+### [v 0.1.8] 2026-09-04 1:34 p.m. - Q Cafe Windows installer runtime
+
+#### Database Changes
+
+- Database update: No.
+
+#### App Codebase Changes
+
+- Bumped the workspace version to 0.1.8.
+- Rebuilt the self-contained Q Cafe Windows installers with the verified API runtime launcher.
 
 ## v-0.1.7
 
