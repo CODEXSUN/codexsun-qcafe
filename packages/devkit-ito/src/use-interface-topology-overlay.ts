@@ -47,13 +47,15 @@ export function useInterfaceTopologyOverlay(sections: readonly InterfaceTopology
   };
 }
 
-function readLabelsVisibility() {
-  if (typeof window === "undefined") return true;
+function readLabelsVisibility(): boolean {
+  if (typeof window === "undefined") return false;
 
   try {
-    return window.localStorage.getItem(labelsVisibilityStorageKey) !== "false";
+    const item = window.localStorage.getItem(labelsVisibilityStorageKey);
+    if (item === null) return false;
+    return item === "true";
   } catch {
-    return true;
+    return false;
   }
 }
 

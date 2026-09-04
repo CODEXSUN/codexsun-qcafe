@@ -7,6 +7,27 @@ import { createViteDevelopmentServer } from "../../../../tools/vite-development.
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   publicDir: path.resolve(import.meta.dirname, "../../../../packages/ui/desk/public"),
+  build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            { name: "react-runtime", test: /node_modules[\\/](?:react|react-dom|scheduler)[\\/]/, priority: 40 },
+            { name: "radix-ui", test: /node_modules[\\/]@radix-ui[\\/]/, priority: 35 },
+            { name: "tanstack-query", test: /node_modules[\\/]@tanstack[\\/]/, priority: 35 },
+            { name: "icons", test: /node_modules[\\/]lucide-react[\\/]/, priority: 30 },
+            { name: "zetro-workspace", test: /packages[\\/]zetro[\\/]web[\\/]/, priority: 25 },
+            { name: "chat-workspace", test: /packages[\\/]chat[\\/]web[\\/]/, priority: 25 },
+            { name: "task-workspace", test: /packages[\\/]ai-task-system[\\/]web[\\/]/, priority: 25 },
+            { name: "platform-ui", test: /packages[\\/]ui(?:[\\/]|$)/, priority: 20 },
+            { name: "topology", test: /packages[\\/]devkit-ito[\\/]/, priority: 20 },
+            { name: "vendor", test: /node_modules[\\/]/, minSize: 20_000, maxSize: 220_000, priority: 10 },
+            { name: "common", minShareCount: 2, minSize: 10_000, priority: 5 },
+          ],
+        },
+      },
+    },
+  },
   resolve: {
     alias: {
       "@/blocks/sidebar-08": path.resolve(import.meta.dirname, "../../../../packages/ui/desk/src/blocks/sidebar-08"),

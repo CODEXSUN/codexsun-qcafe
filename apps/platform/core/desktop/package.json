@@ -1,0 +1,17 @@
+{
+  "name": "@codexsun/core-desktop",
+  "version": "0.1.13",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "cargo tauri dev",
+    "build": "cargo tauri build",
+    "check": "cargo check --manifest-path src-tauri/Cargo.toml"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.10.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.10.0"
+  }
+}

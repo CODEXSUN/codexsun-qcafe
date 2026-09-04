@@ -11,11 +11,14 @@ import { Input } from "@codexsun/ui/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@codexsun/ui/components/ui/popover";
 import { Spinner } from "@codexsun/ui/components/ui/spinner";
 import { MdiTopologyRegion, type MdiTopologyAdapter } from "@codexsun/ui-desk";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { sendPrompt } from "./prompt-api.js";
 import { ComposerOptions } from "./ComposerOptions.js";
 import { createRun } from "./workflow-api.js";
 import { WorkflowPanel, type WorkflowMode } from "./WorkflowPanel.js";
+import { archiveProjectChats, deleteConversation as deleteStoredConversation, deleteProject as deleteStoredProject, getWorkspace, saveConversation as saveStoredConversation, saveProject as saveStoredProject } from "./workspace-api.js";
+import { getZetroSettings } from "./settings-api.js";
+import { TaskHandoffControls } from "./TaskHandoffControls.js";
 
 export const ZETRO_MODELS = [
   { id: "codex-specialist", name: "Codex Specialist", badge: "Docker · Sandbox", desc: "Isolated specialist container with code execution tools." },
@@ -36,6 +39,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
   const [conversations, setConversations] = useState<Conversation[]>(() => { try { return loadConversations(localStorage); } catch { return []; } });
   const [projects, setProjects] = useState<Project[]>(() => { try { return loadProjects(localStorage); } catch { return DEFAULT_PROJECTS; } });
   const [activeId, setActiveId] = useState<string>(() => crypto.randomUUID());
+  const [newConversationProjectId, setNewConversationProjectId] = useState<string | undefined>();
   const [selectedModelId, setSelectedModelId] = useState(() => {
     try { return localStorage.getItem("zetro.selected-model.v1") ?? "codex-specialist"; } catch { return "codex-specialist"; }
   });
@@ -61,6 +65,9 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [renameTargetId, setRenameTargetId] = useState<string | null>(null);
   const [newChatTitle, setNewChatTitle] = useState("");
+  const workspaceHydrated = useRef(false);
+  const workspace = useQuery({ queryKey: ["zetro-workspace"], queryFn: getWorkspace });
+  const zetroSettings = useQuery({ queryKey: ["zetro-settings"], queryFn: getZetroSettings, retry: 5 });
   const mutation = useMutation({ mutationFn: sendPrompt });
   const workflowMutation = useMutation({ mutationFn: createRun });
   const sending = mutation.isPending || workflowMutation.isPending;
@@ -69,9 +76,24 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
   const bottom = useRef<HTMLDivElement>(null);
   const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
   useEffect(() => () => request.current?.abort(), []);
+  useEffect(() => {
+    if (!workspace.data || workspaceHydrated.current) return;
+    workspaceHydrated.current = true;
+    if (workspace.data.projects.length || workspace.data.conversations.length) {
+      setProjects(workspace.data.projects);
+      setConversations(workspace.data.conversations);
+      return;
+    }
+    void Promise.all([...projects.map(saveStoredProject), ...conversations.map(saveStoredConversation)]);
+  }, [workspace.data, projects, conversations]);
   useEffect(() => { bottom.current?.scrollIntoView({ block: "end" }); }, [exchanges, sending]);
   useEffect(() => { promptInputRef.current?.focus(); }, [activeId]);
   useEffect(() => { if (!sending) promptInputRef.current?.focus(); }, [sending]);
+  useEffect(() => {
+    const refresh = () => void zetroSettings.refetch();
+    window.addEventListener("zetro-settings-updated", refresh);
+    return () => window.removeEventListener("zetro-settings-updated", refresh);
+  }, [zetroSettings.refetch]);
   useEffect(() => {
     let active = true;
     async function checkHealth() {
@@ -112,6 +134,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
       const next = [{ ...conversation, exchanges: nextExchanges, updatedAt: new Date().toISOString() }, ...conversations.filter((item) => item.id !== activeId)];
       setConversations(next);
       try { saveConversations(localStorage, next); } catch { /* ignore */ }
+      void saveStoredConversation(next[0]!);
     }
   }
 
@@ -123,7 +146,23 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
       const next = [{ ...conversation, exchanges: updated, updatedAt: new Date().toISOString() }, ...conversations.filter((item) => item.id !== activeId)];
       setConversations(next);
       try { saveConversations(localStorage, next); } catch { /* ignore */ }
+      void saveStoredConversation(next[0]!);
     }
+  }
+
+  function linkTask(exchangeId: string, taskId: string) {
+    const updated = exchanges.map((exchange) => exchange.id === exchangeId ? { ...exchange, taskId } : exchange);
+    setExchanges(updated);
+    const conversation = conversations.find((item) => item.id === activeId);
+    if (conversation) {
+      const saved = { ...conversation, exchanges: updated, updatedAt: new Date().toISOString() };
+      const next = [saved, ...conversations.filter((item) => item.id !== activeId)];
+      setConversations(next);
+      try { saveConversations(localStorage, next); } catch { /* ignore */ }
+      void saveStoredConversation(saved);
+    }
+    setActionNotice("Task started. Zetro will track its results here.");
+    setTimeout(() => setActionNotice(null), 2500);
   }
 
   function shareWhatsApp(text: string) {
@@ -159,6 +198,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
     setConversations(updated);
     try { saveConversations(localStorage, updated); } catch { /* ignore */ }
     const target = updated.find((item) => item.id === id);
+    if (target) void saveStoredConversation(target);
     setActionNotice(target?.pinned ? "Pinned chat to top!" : "Unpinned chat.");
     setTimeout(() => setActionNotice(null), 2000);
   }
@@ -169,25 +209,76 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
     const updated = conversations.map((item) => (item.id === id ? { ...item, title: trimmed } : item));
     setConversations(updated);
     try { saveConversations(localStorage, updated); } catch { /* ignore */ }
+    const target = updated.find((item) => item.id === id);
+    if (target) void saveStoredConversation(target);
     setActionNotice("Chat renamed.");
     setTimeout(() => setActionNotice(null), 2000);
   }
 
-  function handleCreateProject(name: string) {
+  function handleCreateProject(name: string, localFolder: string, kind: "project" | "addon" = "project") {
     const trimmed = name.trim();
     if (!trimmed) return;
-    const newProj: Project = { id: `proj-${Date.now()}`, name: trimmed };
+    const newProj: Project = { id: `${kind}-${Date.now()}`, name: trimmed, localFolder, kind };
     const updated = [...projects, newProj];
     setProjects(updated);
     try { saveProjects(localStorage, updated); } catch { /* ignore */ }
-    setActionNotice(`Project "${trimmed}" created.`);
+    void saveStoredProject(newProj);
+    setActionNotice(`${kind === "addon" ? "Add-on" : "Project"} "${trimmed}" created.`);
     setTimeout(() => setActionNotice(null), 2000);
+  }
+
+  function handleEditProject(id: string, name: string, localFolder: string) {
+    const target = projects.find((project) => project.id === id);
+    if (!target || !name.trim()) return;
+    const updatedProject = { ...target, name: name.trim(), localFolder };
+    setProjects(projects.map((project) => project.id === id ? updatedProject : project));
+    void saveStoredProject(updatedProject);
+    setActionNotice("Project updated.");
+  }
+
+  function handlePinProject(id: string) {
+    const target = projects.find((project) => project.id === id);
+    if (!target) return;
+    const updatedProject = { ...target, pinned: !target.pinned };
+    setProjects(projects.map((project) => project.id === id ? updatedProject : project));
+    void saveStoredProject(updatedProject);
+  }
+
+  async function handleArchiveProjectChats(id: string) {
+    try {
+      const snapshot = await archiveProjectChats(id);
+      setProjects(snapshot.projects);
+      setConversations(snapshot.conversations);
+      if (snapshot.conversations.find((item) => item.id === activeId)?.archived) handleNewChat();
+      setActionNotice("Project chats archived.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to archive project chats."); }
+  }
+
+  async function handleRemoveProject(id: string) {
+    try {
+      const snapshot = await deleteStoredProject(id);
+      setProjects(snapshot.projects);
+      setConversations(snapshot.conversations);
+      setActionNotice("Project removed. Its chats are now unassigned.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to remove project."); }
+  }
+
+  function handleNewChat(projectId?: string) {
+    setActiveId(crypto.randomUUID());
+    setNewConversationProjectId(projectId);
+    setExchanges([]);
+    setPrompt("");
+    setAttachments([]);
+    setError("");
+    setTimeout(() => promptInputRef.current?.focus(), 0);
   }
 
   function handleAssignProject(conversationId: string, projectId?: string) {
     const updated = conversations.map((item) => (item.id === conversationId ? { ...item, projectId } : item));
     setConversations(updated);
     try { saveConversations(localStorage, updated); } catch { /* ignore */ }
+    const target = updated.find((item) => item.id === conversationId);
+    if (target) void saveStoredConversation(target);
     const proj = projects.find((p) => p.id === projectId);
     setActionNotice(proj ? `Moved to "${proj.name}".` : "Moved to Conversations.");
     setTimeout(() => setActionNotice(null), 2000);
@@ -198,6 +289,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
     setConversations(updated);
     try { saveConversations(localStorage, updated); } catch { /* ignore */ }
     const target = updated.find((item) => item.id === id);
+    if (target) void saveStoredConversation(target);
     setActionNotice(target?.archived ? "Archived chat." : "Unarchived chat.");
     setTimeout(() => setActionNotice(null), 2000);
   }
@@ -206,6 +298,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
     const updated = conversations.filter((item) => item.id !== id);
     setConversations(updated);
     try { saveConversations(localStorage, updated); } catch { /* ignore */ }
+    void deleteStoredConversation(id);
     if (activeId === id) {
       if (updated.length > 0) {
         setActiveId(updated[0]!.id);
@@ -234,6 +327,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
       const next = [{ ...conversation, exchanges: updated, updatedAt: new Date().toISOString() }, ...conversations.filter((item) => item.id !== activeId)];
       setConversations(next);
       try { saveConversations(localStorage, next); } catch { /* ignore */ }
+      void saveStoredConversation(next[0]!);
     }
     setActionNotice("Message removed from history.");
     setTimeout(() => setActionNotice(null), 2000);
@@ -252,14 +346,16 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
         setTimeout(() => setActionNotice(null), 2500);
         return;
       }
-      const result = await mutation.mutateAsync({ message: submitted, signal: controller.signal, attachments });
+      const result = await mutation.mutateAsync({ agentId: zetroSettings.data?.defaultAgentId ?? "zetro", message: submitted, signal: controller.signal, attachments });
       const now = new Date().toISOString();
       const updated: Exchange[] = [...exchanges, { id: result.runId, prompt: submitted, result: result.message, timestamp: now, activities: result.activities }];
       setExchanges(updated);
-      const conversation: Conversation = { id: activeId, title: updated[0]!.prompt.slice(0, 100), updatedAt: now, exchanges: updated };
+      const prior = conversations.find((item) => item.id === activeId);
+      const conversation: Conversation = { id: activeId, title: updated[0]!.prompt.slice(0, 100), updatedAt: now, exchanges: updated, projectId: prior?.projectId ?? newConversationProjectId, pinned: prior?.pinned, archived: prior?.archived };
       const next = [conversation, ...conversations.filter((item) => item.id !== activeId)];
       setConversations(next);
       try { saveConversations(localStorage, next); } catch { setError("Unable to save chat history in this browser."); }
+      void saveStoredConversation(conversation).catch(() => setError("Unable to save chat history in Zetro."));
       setPrompt(""); setAttachments([]);
     } catch (cause) {
       if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Unable to connect to Zetro.");
@@ -276,14 +372,18 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
       projects={projects}
       activeId={activeId}
       disabled={sending || attachmentBusy}
-      onSelect={(item) => { setActiveId(item.id); setExchanges(item.exchanges); setPrompt(""); setAttachments([]); setError(""); setTimeout(() => promptInputRef.current?.focus(), 0); }}
-      onNew={() => { setActiveId(crypto.randomUUID()); setExchanges([]); setPrompt(""); setAttachments([]); setError(""); setTimeout(() => promptInputRef.current?.focus(), 0); }}
+      onSelect={(item) => { setActiveId(item.id); setNewConversationProjectId(item.projectId); setExchanges(item.exchanges); setPrompt(""); setAttachments([]); setError(""); setTimeout(() => promptInputRef.current?.focus(), 0); }}
+      onNew={handleNewChat}
       onPin={handlePinConversation}
       onRename={handleRenameConversation}
       onArchive={handleArchiveConversation}
       onDelete={handleDeleteConversation}
       onCopy={handleCopyConversation}
       onCreateProject={handleCreateProject}
+      onEditProject={handleEditProject}
+      onPinProject={handlePinProject}
+      onArchiveProjectChats={(id) => void handleArchiveProjectChats(id)}
+      onRemoveProject={(id) => void handleRemoveProject(id)}
       onAssignProject={handleAssignProject}
     />, sideCarTarget)}
     <header {...topology?.regionProps("z3")} className="ito-region relative flex items-center justify-between gap-4 border-b border-border px-6 py-2">
@@ -561,6 +661,13 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
                             </Popover>
                           </div>
                         </div>
+                        <TaskHandoffControls
+                          chatReview={exchanges.slice(0, index).map((item) => `You: ${item.prompt}\nZetro: ${item.result}`).join("\n\n")}
+                          onTaskCreated={(taskId) => linkTask(exchange.id, taskId)}
+                          prompt={exchange.prompt}
+                          response={exchange.result}
+                          taskId={exchange.taskId}
+                        />
                       </div>
                     </div>
                     {showActivity && <div className="ml-9 space-y-1 border-l border-border pl-3 text-xs text-muted-foreground">{exchange.activities?.length ? exchange.activities.map((item) => <p key={item.id}>{item.label} · {item.status}</p>) : <p>No tool evidence reported.</p>}</div>}

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300">
+  <defs>
+    <linearGradient id="bg-croissant.svg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#5c4033"/>
+      <stop offset="100%" stop-color="#291810"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <rect width="400" height="300" rx="16" fill="url(#bg-croissant.svg)"/>
+  <circle cx="200" cy="150" r="130" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="2"/>
+  <circle cx="200" cy="150" r="95" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="1.5"/>
+  <g filter="url(#shadow)">
+    <ellipse cx="200" cy="240" rx="100" ry="18" fill="rgba(0,0,0,0.3)"/>
+           <path d="M110 200 C120 160 160 140 200 140 C240 140 280 160 290 200 C270 215 240 210 200 210 C160 210 130 215 110 200 Z" fill="#dda15e" stroke="#b07d3b" stroke-width="6"/>
+           <path d="M165 145 C175 170 175 195 170 210 M235 145 C225 170 225 195 230 210" stroke="#b07d3b" stroke-width="4"/>
+           <path d="M195 140 C200 165 200 185 200 210" stroke="#b07d3b" stroke-width="4"/>
+  </g>
+  <rect x="20" y="240" width="110" height="26" rx="13" fill="rgba(0,0,0,0.45)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+  <text x="75" y="257" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="600" fill="#ddb892" text-anchor="middle">Dessert</text>
+  <text x="380" y="258" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="700" fill="#ffffff" text-anchor="end">Butter Croissant</text>
+</svg>

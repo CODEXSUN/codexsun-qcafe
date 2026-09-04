@@ -1,4 +1,6 @@
 import { type CafeSettings } from './Settings';
+import type { PaymentRecord } from './pos1-sections/types';
+import type { PosBill, PosItem, ReceiptTransaction } from './api';
 
 type EntryLine = {
   key: string;
@@ -20,16 +22,20 @@ type OrderTab = {
 
 type ThermalBillReceiptProps = {
   settings: CafeSettings;
-  tab: OrderTab;
-  tableName: string;
-  lines: EntryLine[];
-  subtotal: number;
-  totalQuantity: number;
-  gstApplied: boolean;
-  gstAmount: number;
-  total: number;
+  tab?: OrderTab;
+  tableName?: string;
+  lines?: EntryLine[];
+  subtotal?: number;
+  totalQuantity?: number;
+  gstApplied?: boolean;
+  gstAmount?: number;
+  total?: number;
   className?: string;
   billNumber?: string;
+  payment?: PaymentRecord | null;
+  bill?: PosBill;
+  items?: PosItem[];
+  transactions?: ReceiptTransaction[];
 };
 
 function formatChair(table: string, chair: number | string) {
@@ -44,23 +50,64 @@ function formatChair(table: string, chair: number | string) {
 export function ThermalBillReceipt({
   settings,
   tab,
-  tableName,
-  lines,
-  subtotal,
-  totalQuantity,
-  gstApplied,
-  gstAmount,
-  total,
+  tableName: explicitTableName,
+  lines: explicitLines,
+  subtotal: explicitSubtotal,
+  totalQuantity: explicitTotalQuantity,
+  gstApplied: explicitGstApplied,
+  gstAmount: explicitGstAmount,
+  total: explicitTotal,
   className = '',
   billNumber,
+  payment: explicitPayment,
+  bill,
+  items,
+  transactions,
 }: ThermalBillReceiptProps) {
-  const now = new Date();
-  const dateStr = now.toLocaleDateString('en-GB', {
+  const resolvedTableName = explicitTableName ?? bill?.table_no ?? tab?.tableName ?? 'T01';
+  const resolvedLines: EntryLine[] =
+    explicitLines ??
+    (items && items.length > 0
+      ? items.map((it) => ({
+          key: String(it.id),
+          menuId: it.menu_id ?? undefined,
+          code: it.item_code,
+          name: it.item_name,
+          quantity: it.quantity,
+          price: it.rate,
+        }))
+      : tab?.lines ?? []);
+
+  const resolvedSubtotal = explicitSubtotal ?? bill?.taxable_amount ?? resolvedLines.reduce((s, l) => s + l.price * l.quantity, 0);
+  const resolvedTotalQuantity = explicitTotalQuantity ?? resolvedLines.reduce((s, l) => s + l.quantity, 0);
+  const resolvedGstApplied = explicitGstApplied ?? (bill ? bill.gst_percent > 0 : false);
+  const resolvedGstAmount = explicitGstAmount ?? bill?.gst_amount ?? 0;
+  const resolvedTotal = explicitTotal ?? bill?.grand_total ?? (resolvedSubtotal + resolvedGstAmount);
+
+  const resolvedPayment: PaymentRecord | null =
+    explicitPayment ??
+    (transactions && transactions.length > 0
+      ? {
+          mode: (transactions[0]!.transaction_mode === 'bank' || transactions[0]!.transaction_mode === 'other') ? 'card' : transactions[0]!.transaction_mode,
+          amount: transactions[0]!.amount,
+          referenceNo: transactions[0]!.reference_no ?? '-',
+          timestamp: new Date(transactions[0]!.created_at).toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+          }),
+        }
+      : null);
+  const billDate = bill?.created_at
+    ? (isNaN(new Date(bill.created_at.replace(' ', 'T')).getTime()) ? new Date() : new Date(bill.created_at.replace(' ', 'T')))
+    : new Date();
+
+  const dateStr = billDate.toLocaleDateString('en-GB', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
   });
-  const timeStr = now.toLocaleTimeString('en-US', {
+  const timeStr = billDate.toLocaleTimeString('en-US', {
     hour: '2-digit',
     minute: '2-digit',
     hour12: true,
@@ -68,15 +115,16 @@ export function ThermalBillReceipt({
 
   const generatedBillNo =
     billNumber ??
-    `QC-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(
-      now.getDate()
-    ).padStart(2, '0')}-${tab.id.replace(/\D/g, '') || '01'}`;
+    bill?.bill_no ??
+    `QC-${billDate.getFullYear()}${String(billDate.getMonth() + 1).padStart(2, '0')}${String(
+      billDate.getDate()
+    ).padStart(2, '0')}-${tab?.id.replace(/\D/g, '') || '01'}`;
 
-  const isTakeaway = tableName.toLowerCase().includes('takeaway') || tableName.toLowerCase().includes('parcel');
+  const isTakeaway = resolvedTableName.toLowerCase().includes('takeaway') || resolvedTableName.toLowerCase().includes('parcel');
   const serviceType = isTakeaway ? 'TAKEAWAY / PARCEL' : 'DINE-IN';
 
-  const cgst = gstApplied ? Math.round(gstAmount / 2) : 0;
-  const sgst = gstApplied ? gstAmount - cgst : 0;
+  const cgst = resolvedGstApplied ? Math.round(resolvedGstAmount / 2) : 0;
+  const sgst = resolvedGstApplied ? resolvedGstAmount - cgst : 0;
 
   return (
     <div
@@ -114,7 +162,7 @@ export function ThermalBillReceipt({
 
       {/* Bill Type Header */}
       <div className="border-t border-b border-dashed border-black py-1 my-1 text-center font-bold text-[11px] uppercase tracking-wider text-black">
-        {gstApplied ? 'TAX INVOICE' : 'RESTAURANT BILL'}
+        {resolvedGstApplied ? 'TAX INVOICE' : 'RESTAURANT BILL'}
       </div>
 
       {/* Order Meta Info */}
@@ -126,7 +174,7 @@ export function ThermalBillReceipt({
           <span className="font-bold">Date:</span> {dateStr}
         </div>
         <div>
-          <span className="font-bold">Table:</span> {isTakeaway ? 'PARCEL' : tableName}
+          <span className="font-bold">Table:</span> {isTakeaway ? 'PARCEL' : resolvedTableName}
         </div>
         <div className="text-right">
           <span className="font-bold">Time:</span> {timeStr}
@@ -135,7 +183,7 @@ export function ThermalBillReceipt({
           <span className="font-bold">Type:</span> {serviceType}
         </div>
         <div className="text-right">
-          <span className="font-bold">Tab:</span> {tab.name}
+          <span className="font-bold">Tab:</span> {tab?.name ?? 'Desk'}
         </div>
       </div>
 
@@ -151,14 +199,14 @@ export function ThermalBillReceipt({
 
       {/* Items List */}
       <div className="divide-y divide-dashed divide-black/30 py-0.5">
-        {lines.map((line, idx) => (
+        {resolvedLines.map((line, idx) => (
           <div key={line.key} className="py-1 text-[10.5px] text-black">
             <div className="flex items-start justify-between">
               <div className="flex-1 pr-1 font-semibold leading-tight">
                 <span>{line.name}</span>
                 {!isTakeaway && (
                   <span className="block text-[8.5px] font-normal text-black/85">
-                    Seat: {formatChair(tableName, line.chair ?? (idx + 1))} ({line.code})
+                    Seat: {formatChair(resolvedTableName, line.chair ?? (idx + 1))} ({line.code})
                   </span>
                 )}
               </div>
@@ -170,25 +218,25 @@ export function ThermalBillReceipt({
             </div>
           </div>
         ))}
-        {lines.length === 0 && (
+        {resolvedLines.length === 0 && (
           <div className="py-3 text-center text-[10px] italic text-black">No items in bill</div>
         )}
       </div>
 
       {/* Summary Counts */}
       <div className="border-t border-dashed border-black pt-1 mt-1 text-[9.5px] flex justify-between text-black font-semibold">
-        <span>Total Items: {lines.length}</span>
-        <span>Total Qty: {totalQuantity}</span>
+        <span>Total Items: {resolvedLines.length}</span>
+        <span>Total Qty: {resolvedTotalQuantity}</span>
       </div>
 
       {/* Financial Breakdown */}
       <div className="border-t border-dashed border-black pt-1 mt-1 space-y-0.5 text-[10px] text-black">
         <div className="flex justify-between">
           <span>Sub Total:</span>
-          <span className="font-mono">₹{(subtotal / 100).toFixed(2)}</span>
+          <span className="font-mono">₹{(resolvedSubtotal / 100).toFixed(2)}</span>
         </div>
 
-        {gstApplied && (
+        {resolvedGstApplied && (
           <>
             <div className="flex justify-between text-[9.5px]">
               <span>CGST @ 2.5%:</span>
@@ -204,15 +252,51 @@ export function ThermalBillReceipt({
         {/* Grand Total Net Payable */}
         <div className="border-t-2 border-b-2 border-black border-double py-1 my-1 flex items-baseline justify-between font-bold text-black">
           <span className="text-[12px] uppercase">NET PAYABLE:</span>
-          <span className="text-[14px] font-mono">₹{(total / 100).toFixed(2)}</span>
+          <span className="text-[14px] font-mono">₹{(resolvedTotal / 100).toFixed(2)}</span>
         </div>
       </div>
 
-      {/* Bill Footer & Greetings */}
+      {/* Bill Footer & Payment Info */}
       <div className="text-center pt-1.5 space-y-1 text-black">
-        <p className="text-[8.5px] uppercase font-semibold text-black">
-          Mode: Cash / UPI (Bill Generated)
-        </p>
+        {resolvedPayment ? (
+          <div className="border border-dashed border-black py-1 px-1.5 text-left text-[9px] space-y-0.5 my-1">
+            <div className="flex justify-between font-bold">
+              <span>SETTLED VIA:</span>
+              <span className="uppercase">{resolvedPayment.mode}</span>
+            </div>
+            {resolvedPayment.mode === 'cash' ? (
+              <>
+                <div className="flex justify-between">
+                  <span>Cash Tendered:</span>
+                  <span>₹{((resolvedPayment.tendered ?? resolvedPayment.amount) / 100).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between font-semibold">
+                  <span>Change Return:</span>
+                  <span>₹{((resolvedPayment.balance ?? 0) / 100).toFixed(2)}</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex justify-between">
+                  <span>POS Terminal:</span>
+                  <span>{resolvedPayment.machineNo || 'POS Machine'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Ref / Auth:</span>
+                  <span className="font-mono">{resolvedPayment.referenceNo || '-'}</span>
+                </div>
+              </>
+            )}
+            <div className="flex justify-between text-[8px] text-black/70 pt-0.5 border-t border-dotted border-black/50">
+              <span>Time:</span>
+              <span>{resolvedPayment.timestamp}</span>
+            </div>
+          </div>
+        ) : (
+          <p className="text-[8.5px] uppercase font-semibold text-black">
+            Mode: Cash / UPI (Bill Generated)
+          </p>
+        )}
         <p className="text-[9.5px] font-bold text-black leading-tight pt-0.5">
           {settings.receiptFooter || 'Thank you for dining with us! Please visit again.'}
         </p>

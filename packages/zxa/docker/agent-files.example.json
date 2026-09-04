@@ -1,0 +1,10 @@
+{
+  "agents": [
+    {
+      "id": "zxa",
+      "name": "ZXA",
+      "duty": "Coordinate prompts through isolated model connections.",
+      "skills": []
+    }
+  ]
+}

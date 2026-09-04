@@ -1,6 +1,6 @@
 {
   "name": "@codexsun/zetro-web",
-  "version": "0.1.10",
+  "version": "0.1.13",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@codexsun/ai-task-contracts": "^0.1.11",
     "@codexsun/devkit-ito": "*",
     "@codexsun/ui": "*",
     "@codexsun/ui-desk": "*",

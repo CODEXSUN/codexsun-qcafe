@@ -1,0 +1,33 @@
+{
+  "name": "zxa",
+  "services": {
+    "zxa": {
+      "image": "zxa:v1",
+      "build": { "context": "../../..", "dockerfile": "packages/zxa/docker/Dockerfile" },
+      "container_name": "zxa",
+      "init": true,
+      "read_only": true,
+      "cap_drop": ["ALL"],
+      "security_opt": ["no-new-privileges:true"],
+      "ports": ["127.0.0.1:4230:4200"],
+      "volumes": ["zxa-state:/state", "zxa-runtime:/runtime", "zxa-workspace:/workspace"],
+      "tmpfs": ["/tmp:rw,nosuid,size=256m"],
+      "environment": {
+        "ZXA_TOKEN": "${ZXA_LOCAL_TOKEN:-local-zxa-only}",
+        "ZXA_DEFAULT_PROVIDER": "${ZXA_DEFAULT_PROVIDER:-c}",
+        "ZXA_REQUEST_TIMEOUT_MS": "${ZXA_REQUEST_TIMEOUT_MS:-120000}",
+        "CODEX_MODEL": "${ZXA_CODEX_MODEL:-}",
+        "GEMINI_MODEL": "${ZXA_GEMINI_MODEL:-gemini-2.5-flash}",
+        "GEMINI_API_KEY": "${ZXA_GEMINI_API_KEY:-}",
+        "OPENCODE_MODEL": "${ZXA_OPENCODE_MODEL:-}",
+        "OPENCODE_API_KEY": "${ZXA_OPENCODE_API_KEY:-}",
+        "OPENCODE_BASE_URL": "${ZXA_OPENCODE_BASE_URL:-}",
+        "OPENAI_API_KEY": "${ZXA_OPENAI_API_KEY:-}",
+        "ANTHROPIC_API_KEY": "${ZXA_ANTHROPIC_API_KEY:-}",
+        "GOOGLE_GENERATIVE_AI_API_KEY": "${ZXA_GEMINI_API_KEY:-}"
+      },
+      "healthcheck": { "test": ["CMD", "node", "-e", "fetch('http://127.0.0.1:4200/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"], "interval": "10s", "timeout": "3s", "retries": 8 }
+    }
+  },
+  "volumes": { "zxa-state": {}, "zxa-runtime": {}, "zxa-workspace": {} }
+}

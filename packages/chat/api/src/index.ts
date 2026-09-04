@@ -1,4 +1,4 @@
-export { createChatModule, type ChatModuleOptions } from "./chat-module.js";
+export { createChatModule, type ChatModuleOptions, type LocalAccessTokenIssuer } from "./chat-module.js";
 export { ChatService } from "./application/chat-service.js";
 export type { ChatClock, ChatEventPublisher, ChatIdentityProvider, ChatRepository } from "./application/ports.js";
 export { Conversation, type ConversationState } from "./domain/conversation.js";

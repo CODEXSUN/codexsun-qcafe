@@ -13,6 +13,28 @@ describe("Chat HTTP module", () => {
     finally { await app.close(); }
   });
 
+  it("issues a short-lived local token only when the issuer is enabled", async () => {
+    const provider = identities();
+    const { app } = createChatModule({
+      identities: provider,
+      localAccessTokenIssuer: { issue: () => provider.issue("alice", 60_000) },
+    });
+    try {
+      const issued = await app.inject({ method: "POST", url: "/api/v1/chat/access-tokens/local" });
+      expect(issued.statusCode).toBe(200);
+      const token = issued.json().data.accessToken as string;
+      expect(token.length).toBeGreaterThan(30);
+      const profile = await app.inject({ method: "GET", url: "/api/v1/chat/profile", headers: { authorization: `Bearer ${token}` } });
+      expect(profile.json().data.uuid).toBe("alice");
+    } finally { await app.close(); }
+  });
+
+  it("keeps local token generation disabled by default", async () => {
+    const { app } = createChatModule({ identities: identities() });
+    try { expect((await app.inject({ method: "POST", url: "/api/v1/chat/access-tokens/local" })).statusCode).toBe(404); }
+    finally { await app.close(); }
+  });
+
   it("opens, sends, reads, and archives a direct conversation", async () => {
     const { app } = createChatModule({ identities: identities() });
     const auth = { authorization: "Bearer alice-token" };

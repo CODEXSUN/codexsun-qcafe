@@ -1,6 +1,6 @@
 {
   "name": "codexsun-os",
-  "version": "0.1.10",
+  "version": "0.1.13",
   "private": true,
   "description": "CODEXSUN application core and agent-first orchestration runtime",
   "engines": {
@@ -23,6 +23,8 @@
     "assist:validate": "node tools/assist-doctor.mjs --strict",
     "build": "npm run build --workspaces --if-present",
     "build:q-cafe": "npm run build -w @codexsun/q-cafe-web",
+    "build:desktop": "npm run build -w @codexsun/core-desktop",
+    "build:desktop:web": "node tools/build-codexsun-desktop-web.mjs",
     "build:q-cafe:windows": "npm.cmd --prefix apps/q-cafe/desktop run build && node tools/package-q-cafe-desktop.mjs",
     "check": "npm run assist:validate && npm run check:versions && npm run test:tools && npm run typecheck --workspaces --if-present && npm run test --workspaces --if-present",
     "check:versions": "node tools/check-versions.mjs",
@@ -34,6 +36,7 @@
     "dev:api": "node tools/start-service.mjs api",
     "dev:preflight": "node tools/preflight.mjs",
     "dev:devkit": "node tools/start-service.mjs devkit",
+    "dev:desktop": "npm run dev -w @codexsun/core-desktop",
     "dev:chat": "concurrently --names chat-api,chat-web \"npm:dev:chat-api\" \"npm:dev:chat-web\"",
     "dev:chat-api": "node tools/start-service.mjs chat-api",
     "dev:chat-web": "node tools/start-service.mjs chat",
@@ -41,11 +44,15 @@
     "dev:zetro-api": "node tools/start-service.mjs zetro-api",
     "dev:web": "node tools/start-service.mjs web",
     "github:now": "node tools/github-helper.mjs",
+    "check:desktop": "npm run check -w @codexsun/core-desktop",
     "q-cafe:token": "node tools/q-cafe-token.mjs --replace",
     "start": "npm run start -w @codexsun/core-api",
     "test:tools": "node --test tools/*.test.mjs",
     "version:bump": "node tools/version-bump.mjs",
-    "version:show": "node tools/version/version.mjs show"
+    "version:show": "node tools/version/version.mjs show",
+    "zxa:build": "docker compose -f packages/zxa/docker/compose.json build",
+    "zxa:up": "docker compose -f packages/zxa/docker/compose.json up -d --wait",
+    "zxa:down": "docker compose -f packages/zxa/docker/compose.json down"
   },
   "devDependencies": {
     "concurrently": "latest",

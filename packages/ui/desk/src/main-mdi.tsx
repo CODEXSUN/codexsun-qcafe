@@ -12,7 +12,7 @@ import { MdiWorkspaceCanvas } from "./blocks/workspace/mdi-workspace-canvas.js";
 import { WorkspaceContent } from "./blocks/workspace/workspace-content.js";
 import { getDefaultWorkspaceItem, getWorkspaceContent, getWorkspaceNavigation, type WorkspaceNavigationView } from "./blocks/workspace/workspace-navigation-data.js";
 
-export type MdiWorkspaceAddon = { id: string; label: string; icon: LucideIcon; navigation: AppSidebarNavigation; placement?: "primary" | "utility"; renderSideCar?: () => ReactNode; renderPage: (pageId: string, topology?: MdiTopologyAdapter, sideCarTarget?: HTMLElement | null) => ReactNode };
+export type MdiWorkspaceAddon = { id: string; label: string; icon: LucideIcon; navigation: AppSidebarNavigation; placement?: "primary" | "utility"; renderSideCar?: () => ReactNode; renderProperties?: (open: boolean, onOpenChange: (open: boolean) => void) => ReactNode; renderPage: (pageId: string, topology?: MdiTopologyAdapter, sideCarTarget?: HTMLElement | null) => ReactNode };
 
 export type MdiPage = { view: WorkspaceNavigationView; addonId?: string; pageId?: string };
 
@@ -23,6 +23,7 @@ export function MainMdi({ applications, topology, addons = [], requestedPage, on
   const { addonId, pageId: selectedItemId = "", view: workspaceView } = page;
   const addon = addons.find((item) => item.id === addonId);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [propertiesOpen, setPropertiesOpen] = useState(false);
   const previousRequest = useRef(requestedPage);
   const changePage = useCallback((next: MdiPage) => {
     const url = writePageUrl(new URL(window.location.href), next);
@@ -43,6 +44,7 @@ export function MainMdi({ applications, topology, addons = [], requestedPage, on
     previousRequest.current = requestedPage;
   }, [requestedPage, changePage]);
   useEffect(() => { onPageChange?.(page); }, [page, onPageChange]);
+  useEffect(() => { setPropertiesOpen(false); }, [addonId]);
   const toggleSidebar = useCallback(() => setSidebarOpen((open) => !open), []);
   const changeWorkspaceView = useCallback((view: WorkspaceNavigationView) => changePage({ view, pageId: getDefaultWorkspaceItem(view) }), [changePage]);
   return <main aria-label="Main MDI" className="grid h-screen w-screen grid-cols-[3rem_minmax(0,1fr)_3rem] grid-rows-[3.5rem_minmax(0,1fr)] bg-background text-foreground" {...topology?.rootAttributes}>
@@ -63,7 +65,8 @@ export function MainMdi({ applications, topology, addons = [], requestedPage, on
         />
       </div>
     </section>
-    <RightIconDock topology={topology} />
+    <RightIconDock propertiesOpen={propertiesOpen} onPropertiesClick={addon?.renderProperties ? () => setPropertiesOpen((open) => !open) : undefined} topology={topology} />
+    {addon?.renderProperties?.(propertiesOpen, setPropertiesOpen)}
     {topology?.drawer}
   </main>;
 }

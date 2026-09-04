@@ -1,6 +1,6 @@
 {
   "name": "@codexsun/platform-host-contracts",
-  "version": "0.1.10",
+  "version": "0.1.13",
   "private": true,
   "type": "module",
   "exports": {

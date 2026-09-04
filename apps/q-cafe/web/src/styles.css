@@ -116,6 +116,24 @@ html.hide-ito-icon .topology-inspection-control.floating {
   background: rgba(100, 116, 139, 0.65);
 }
 
+/* Completely hidden scrollbar with no scroll buttons or tracks */
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.no-scrollbar::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
 /* Dark mode adjustments */
 .dark ::-webkit-scrollbar-thumb,
 html.dark ::-webkit-scrollbar-thumb {

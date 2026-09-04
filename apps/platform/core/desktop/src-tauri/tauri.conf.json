@@ -1,0 +1,36 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "CODEXSUN",
+  "version": "0.1.11",
+  "identifier": "in.codexsun.desktop",
+  "build": {
+    "beforeDevCommand": "node ../../../../tools/start-codexsun-desktop-runtime.mjs",
+    "devUrl": "http://127.0.0.1:5173/?app=zetro",
+    "beforeBuildCommand": "node ../../../../tools/build-codexsun-desktop-web.mjs",
+    "frontendDist": "../../web/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "CODEXSUN",
+        "width": 1500,
+        "height": 940,
+        "minWidth": 1080,
+        "minHeight": 720,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:4100 http://127.0.0.1:4150 http://127.0.0.1:4165; img-src 'self' asset: http://asset.localhost data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "icon": ["icons/icon.ico"],
+    "targets": ["nsis", "msi"],
+    "windows": {
+      "wix": { "language": "en-US" },
+      "nsis": { "displayLanguageSelector": true }
+    }
+  }
+}

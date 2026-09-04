@@ -5,6 +5,7 @@ import {
   Coffee,
   Edit3,
   Filter,
+  FolderCheck,
   Image as ImageIcon,
   LayoutGrid,
   Plus,
@@ -28,6 +29,9 @@ import {
   PRESET_FOOD_IMAGES,
   saveCustomMenuItem,
   saveTableConfig,
+  DEMO_10_ITEMS,
+  getImageStorageSettings,
+  installDemoItemsAndImages,
   type CustomMenuItem,
   type TableMasterConfig,
 } from './mastersStore';
@@ -144,6 +148,8 @@ function ItemMasterSection({
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [showForm, setShowForm] = useState(false);
   const [editingItem, setEditingItem] = useState<CustomMenuItem | null>(null);
+  const [storageSettings, setStorageSettings] = useState(() => getImageStorageSettings());
+  const [demoNotice, setDemoNotice] = useState('');
 
   // Form states
   const [formCode, setFormCode] = useState('');
@@ -153,6 +159,21 @@ function ItemMasterSection({
   const [formImage, setFormImage] = useState('');
   const [formError, setFormError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleSettingsUpdate = () => {
+      setStorageSettings(getImageStorageSettings());
+    };
+    window.addEventListener('q-cafe-settings-updated', handleSettingsUpdate);
+    return () => window.removeEventListener('q-cafe-settings-updated', handleSettingsUpdate);
+  }, []);
+
+  function handleInstall10Demo() {
+    const res = installDemoItemsAndImages();
+    setDemoNotice(`Installed ${res.count} demo items with offline images!`);
+    onRefresh();
+    setTimeout(() => setDemoNotice(''), 4000);
+  }
 
   const categories = useMemo(() => {
     const set = new Set(menuItems.map((i) => i.category).filter(Boolean));
@@ -212,6 +233,12 @@ function ItemMasterSection({
       setFormError('Please select a valid image file.');
       return;
     }
+    if (storageSettings.imageWriteProtection && editingItem?.image) {
+      if (!window.confirm('Write protection is active in Settings. Do you want to proceed and overwrite the current image for this item?')) {
+        event.target.value = '';
+        return;
+      }
+    }
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === 'string') {
@@ -268,15 +295,23 @@ function ItemMasterSection({
     const priceInPaise = Math.round(parsedRate * 100);
     const id = editingItem?.id ?? Date.now();
 
-    saveCustomMenuItem({
-      id,
-      code: formCode.trim().toUpperCase(),
-      name: formName.trim(),
-      category: formCategory.trim() || 'General',
-      price: priceInPaise,
-      image: formImage || undefined,
-      isCustom: true,
-    });
+    const result = saveCustomMenuItem(
+      {
+        id,
+        code: formCode.trim().toUpperCase(),
+        name: formName.trim(),
+        category: formCategory.trim() || 'General',
+        price: priceInPaise,
+        image: formImage || undefined,
+        isCustom: true,
+      },
+      { bypassWriteProtection: true }
+    );
+
+    if (!result.success && result.error) {
+      setFormError(result.error);
+      return;
+    }
 
     setShowForm(false);
     onRefresh();
@@ -284,13 +319,57 @@ function ItemMasterSection({
 
   function handleDelete(item: CustomMenuItem) {
     if (window.confirm(`Delete item "${item.name}" (${item.code})?`)) {
-      deleteCustomMenuItem(item.code);
+      const result = deleteCustomMenuItem(item.code);
+      if (!result.success && result.error) {
+        alert(result.error);
+        return;
+      }
       onRefresh();
     }
   }
 
   return (
     <div className="space-y-5">
+      {/* Image Storage Folder & Write Protection Status Banner */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-3.5 shadow-2xs">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="font-semibold text-foreground flex items-center gap-1.5">
+            <FolderCheck size={15} className="text-primary" />
+            Image Storage Folder:
+          </span>
+          <code className="rounded-md bg-muted px-2 py-0.5 font-mono text-[11px] font-semibold text-foreground border border-border">
+            {storageSettings.imageFolderPath}
+          </code>
+          <span
+            className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+              storageSettings.imageWriteProtection
+                ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+            }`}
+          >
+            {storageSettings.imageWriteProtection ? 'Write Protected (Locked)' : 'Writable (Read/Write)'}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {demoNotice && (
+            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+              ✓ {demoNotice}
+            </span>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleInstall10Demo}
+            className="cursor-pointer gap-1.5 text-xs h-8 px-3 border-primary/30 text-primary hover:bg-primary/5 font-semibold"
+            title="Populate catalog with 10 bundled offline demo food items and images"
+          >
+            <Sparkles size={13} />
+            <span>Install 10 Demo Items</span>
+          </Button>
+        </div>
+      </div>
+
       {/* Action Strip: Search, Filters, Stats & Add Button */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between rounded-xl border border-border bg-card p-3 shadow-2xs">
         <div className="flex flex-1 flex-wrap items-center gap-2">
@@ -498,19 +577,19 @@ function ItemMasterSection({
                     <span>Upload photo</span>
                   </Button>
 
-                  <span className="text-xs text-muted-foreground">or select a cafe preset:</span>
+                  <span className="text-xs text-muted-foreground">or select a bundled demo photo:</span>
 
                   {/* Preset quick buttons */}
                   <div className="flex flex-wrap items-center gap-1 max-w-lg">
-                    {PRESET_FOOD_IMAGES.slice(0, 6).map((preset) => (
+                    {DEMO_10_ITEMS.map((demo) => (
                       <button
-                        key={preset.label}
+                        key={demo.code}
                         type="button"
-                        onClick={() => setFormImage(preset.url)}
+                        onClick={() => setFormImage(demo.image)}
                         className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground hover:border-primary hover:bg-accent hover:text-foreground"
                       >
                         <Sparkles size={10} className="text-primary" />
-                        {preset.label}
+                        {demo.name}
                       </button>
                     ))}
                   </div>

@@ -3,10 +3,16 @@
 }
 
 [data-ito-labels="false"] .technical-label {
+  display: none !important;
   visibility: hidden;
 }
 
-[data-ito-highlighted="true"] {
+[data-ito-highlight="false"] [data-ito-highlighted="true"],
+[data-ito-highlighted="false"] {
+  box-shadow: none !important;
+}
+
+[data-ito-highlight="true"] [data-ito-highlighted="true"] {
   box-shadow: inset 0 0 0 2px rgba(117, 55, 216, 0.92);
 }
 

@@ -7,7 +7,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@codexsun/ui/components/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@codexsun/ui/components/ui/popover";
 import { MdiTopologyRegion, type MdiTopologyAdapter } from "@codexsun/ui-desk";
-import { CentralChatClient, DevKitChatClient, mergeMessages, type ChatTransport, type ChatTransportFactory, type Contact, type Conversation, type Message } from "./client.js";
+import { CentralChatClient, mergeMessages, type ChatTransport, type ChatTransportFactory, type Contact, type Conversation, type Message } from "./client.js";
+import { clearChatConnection, readChatConnection, subscribeToChatConnection } from "./connection-session.js";
 
 export type ChatWorkspaceOptions = {
   id?: string;
@@ -38,10 +39,10 @@ export function createChatWorkspaceAddon(options: ChatWorkspaceOptions = {}) {
 }
 
 export const chatWorkspaceAddon = createChatWorkspaceAddon({
-  defaultApiUrl: "http://127.0.0.1:9050",
-  demoApiUrl: "http://127.0.0.1:9051",
-  localDemo: import.meta.env.DEV && import.meta.env.VITE_CHAT_LOCAL_DEMO === "true",
-  transportFactory: (baseUrl, token) => new DevKitChatClient(baseUrl, token),
+  defaultApiUrl: import.meta.env.VITE_CHAT_API_URL || "http://127.0.0.1:4165",
+  demoApiUrl: import.meta.env.VITE_CHAT_DEMO_API_URL || "http://127.0.0.1:4165",
+  demoToken: import.meta.env.VITE_CHAT_DEMO_TOKEN || "local-demo-only",
+  localDemo: import.meta.env.VITE_CHAT_LOCAL_DEMO === "true",
 });
 
 function isLoopbackBrowser() {
@@ -51,8 +52,9 @@ function isLoopbackBrowser() {
 export function ChatWorkspace({ options = defaultOptions, topology, target }: { options?: ChatWorkspaceOptions; topology?: MdiTopologyAdapter; target?: HTMLElement | null }) {
   const resolved = { ...defaultOptions, ...options };
   const localDemo = resolved.localDemo && isLoopbackBrowser();
-  const [url, setUrl] = useState(localDemo ? resolved.demoApiUrl : resolved.defaultApiUrl);
-  const [token, setToken] = useState(localDemo ? resolved.demoToken : "");
+  const initialConnection = useRef(readChatConnection());
+  const [url, setUrl] = useState(initialConnection.current?.apiUrl ?? (localDemo ? resolved.demoApiUrl : resolved.defaultApiUrl));
+  const [token, setToken] = useState(initialConnection.current?.accessToken ?? (localDemo ? resolved.demoToken : ""));
   const [client, setClient] = useState<ChatTransport>();
   const [profile, setProfile] = useState<Contact>();
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -110,14 +112,22 @@ export function ChatWorkspace({ options = defaultOptions, topology, target }: { 
     try { await operation(); } catch (cause) { setError(cause instanceof Error ? cause.message : "The connection failed."); }
     finally { setBusy(false); }
   }
-  useEffect(() => { if (localDemo) void connect(); }, []);
+  useEffect(() => {
+    if (initialConnection.current) void connect(undefined, initialConnection.current);
+    else if (localDemo) void connect();
+    return subscribeToChatConnection((connection) => {
+      setUrl(connection.apiUrl);
+      setToken(connection.accessToken);
+      void connect(undefined, connection);
+    });
+  }, []);
 
-  async function connect(event?: FormEvent) {
+  async function connect(event?: FormEvent, override?: { apiUrl: string; accessToken: string }) {
     event?.preventDefault();
     await action(async () => {
-      const endpoint = new URL(url);
-      if (endpoint.protocol !== "https:" && !(endpoint.protocol === "http:" && ["127.0.0.1", "localhost"].includes(endpoint.hostname))) throw new Error("Use HTTPS for a remote DevKit connection.");
-      const credential = localDemo && endpoint.origin === new URL(resolved.demoApiUrl).origin ? resolved.demoToken : token;
+      const endpoint = new URL(override?.apiUrl ?? url);
+      if (endpoint.protocol !== "https:" && !(endpoint.protocol === "http:" && ["127.0.0.1", "localhost"].includes(endpoint.hostname))) throw new Error("Use HTTPS for a remote Chat connection.");
+      const credential = override?.accessToken ?? (localDemo && endpoint.origin === new URL(resolved.demoApiUrl).origin ? resolved.demoToken : token);
       const connection = resolved.transportFactory?.(endpoint.origin, credential) ?? new CentralChatClient(endpoint.origin, credential);
       const [identity, threads, people] = await Promise.all([connection.profile(), connection.conversations(), connection.contacts()]);
       setProfile(identity); setConversations(threads.filter((item) => item.kind === "direct")); setContacts(people); setClient(connection); setToken("");
@@ -158,7 +168,7 @@ export function ChatWorkspace({ options = defaultOptions, topology, target }: { 
     return () => { stopped = true; clearInterval(timer); };
   }, [client, active?.id]);
   function disconnect() {
-    setToken(localDemo ? resolved.demoToken : ""); generation.current++; setClient(undefined); setProfile(undefined); setConversations([]); setContacts([]); setActive(undefined); setMessages([]); setDrafts({}); setError("");
+    clearChatConnection(); setToken(localDemo ? resolved.demoToken : ""); generation.current++; setClient(undefined); setProfile(undefined); setConversations([]); setContacts([]); setActive(undefined); setMessages([]); setDrafts({}); setError("");
   }
   async function send(event: FormEvent) {
     event.preventDefault();
@@ -186,7 +196,7 @@ export function ChatWorkspace({ options = defaultOptions, topology, target }: { 
       topology={topology}
     />
     {error && <MdiTopologyRegion id="c1.2" topology={topology}><div role="alert" className="border-b border-border p-4 text-sm text-destructive">{error}</div></MdiTopologyRegion>}
-    {!client ? <form {...topology?.regionProps("c4")} onSubmit={(event) => void connect(event)} className="ito-region relative mx-auto flex w-full max-w-lg flex-col gap-4 p-8">{topology?.marker("c4")}<h2 className="text-xl font-medium">Your conversations, connected</h2><p className="text-sm leading-6 text-muted-foreground">Use your DevKit API URL and an existing access token. The token stays in memory for this session.</p><MdiTopologyRegion id="c4.1" topology={topology}><label className="grid gap-2 text-sm">DevKit API URL<input required type="url" className="rounded-lg border border-input bg-background p-3" value={url} onChange={(event) => setUrl(event.target.value)} /></label></MdiTopologyRegion><MdiTopologyRegion id="c4.2" topology={topology}><label className="grid gap-2 text-sm">Access token<input required autoComplete="off" type="password" className="rounded-lg border border-input bg-background p-3" value={token} onChange={(event) => setToken(event.target.value)} /></label></MdiTopologyRegion><MdiTopologyRegion id="c4.3" topology={topology}><Button disabled={busy || !token.trim()}>{busy ? "Connecting…" : "Connect DevKit"}</Button></MdiTopologyRegion></form>
+    {!client ? <form {...topology?.regionProps("c4")} onSubmit={(event) => void connect(event)} className="ito-region relative mx-auto flex w-full max-w-lg flex-col gap-4 p-8">{topology?.marker("c4")}<h2 className="text-xl font-medium">Your conversations, connected</h2><p className="text-sm leading-6 text-muted-foreground">Use the local Chat API and a token generated in Settings. The token stays in memory for this session.</p><MdiTopologyRegion id="c4.1" topology={topology}><label className="grid gap-2 text-sm">Chat API URL<input required type="url" className="rounded-lg border border-input bg-background p-3" value={url} onChange={(event) => setUrl(event.target.value)} /></label></MdiTopologyRegion><MdiTopologyRegion id="c4.2" topology={topology}><label className="grid gap-2 text-sm">Access token<input required autoComplete="off" type="password" className="rounded-lg border border-input bg-background p-3" value={token} onChange={(event) => setToken(event.target.value)} /></label></MdiTopologyRegion><MdiTopologyRegion id="c4.3" topology={topology}><Button disabled={busy || !token.trim()}>{busy ? "Connecting…" : "Connect Chat"}</Button></MdiTopologyRegion></form>
     : newChat ? <div {...topology?.regionProps("c5")} className="ito-region relative overflow-y-auto p-6">{topology?.marker("c5")}<h2 className="mb-4 font-medium">Start a conversation</h2>{contacts.filter((contact) => contact.uuid !== profile?.uuid).map((contact) => <Button key={contact.uuid} className="mb-2 flex w-full justify-start" variant="ghost" disabled={busy} onClick={() => void action(async () => { const conversation = await client.open(contact.uuid); generation.current++; setActive(conversation); setMessages([]); setBefore(null); setNewChat(false); const page = await client.history(conversation.id); setMessages(mergeMessages([], page.items)); setBefore(page.nextCursor); await refresh(); })}>{contact.name} · {contact.email}</Button>)}{!contacts.length && <p className="text-muted-foreground">No contacts available in DevKit.</p>}</div>
     : !active ? <MdiTopologyRegion id="c1.1" topology={topology} className="flex-1"><div className="grid flex-1 place-content-center gap-3 p-8 text-center"><MessageSquare className="mx-auto size-8 text-muted-foreground" /><h2 className="text-xl font-medium">Choose a conversation</h2><p className="text-sm text-muted-foreground">Your direct messages appear in the left navigation.</p></div></MdiTopologyRegion>
     : <><MdiTopologyRegion id="c7" topology={topology} className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6">
@@ -232,7 +242,7 @@ export function ChatWorkspace({ options = defaultOptions, topology, target }: { 
             aria-label="Private message"
             maxLength={8000}
             disabled={busy}
-            className="min-h-20 w-full resize-none bg-transparent p-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="min-h-20 w-full resize-none bg-transparent px-2 pt-0.5 pb-2 text-sm border-0 shadow-none outline-none focus:outline-none focus:ring-0 focus:border-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
             placeholder="Write a private message"
             value={draft}
             onChange={(event) => setDrafts((current) => ({ ...current, [active.id]: event.target.value }))}

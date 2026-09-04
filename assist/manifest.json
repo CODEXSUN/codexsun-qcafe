@@ -74,6 +74,13 @@
       "protectedPaths": ["packages/zetro/api/src", "packages/zetro/web/src"]
     },
     {
+      "id": "runtime.zxa",
+      "owner": "ZXA",
+      "roots": ["packages/zxa"],
+      "publicContracts": ["/api/v1/zxa", "/c/messages", "/g/messages", "/o/messages"],
+      "protectedPaths": ["packages/zxa/docker"]
+    },
+    {
       "id": "app.ai-task-system",
       "owner": "AI Task System",
       "roots": ["packages/ai-task-system"],

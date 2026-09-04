@@ -2,11 +2,11 @@
 
 ## Version State
 
-Current version: 0.1.10
+Current version: 0.1.13
 
-Release tag: v-0.1.10
+Release tag: v-0.1.13
 
-Changelog label: v 0.1.10
+Changelog label: v 0.1.13
 
 ## Unreleased
 
@@ -41,6 +41,93 @@ Changelog label: v 0.1.10
 - Added ITO entries for the workspace canvas, navigation, navigation rail, and workspace surface.
 - Cleared workspace canvas child blocks and reserved the full canvas for the next MDI feature.
 - Bound the shared AppSidebar and SidebarInset composition inside the workspace canvas.
+
+## v-0.1.13
+
+### [v 0.1.13] 2026-09-05 12:59 a.m. - ZXA controlled updates, image processing, and commit hygiene
+
+#### Database Changes
+
+- Database update: No.
+
+#### App Codebase Changes
+
+- Bumped the workspace version to 0.1.13.
+- Added a persistent ZXA runtime volume for CLI releases.
+- Added a shell command and API routes to check and apply Codex, Gemini, and OpenCode CLI updates.
+- Installed each CLI update in a new release directory before switching the active runtime link.
+- Added checksum validation, staging, and reviewed activation for agent definition files.
+- Added isolated PNG, JPEG, WebP, and GIF metadata inspection.
+- Passed image inputs to Codex and shared local image references with Gemini and OpenCode.
+- Removed temporary image files after each request.
+- Kept the ZXA root filesystem read-only with dropped capabilities and no-new-privileges enabled.
+- Excluded Rust build output and generated Tauri schemas from Git commit candidates.
+- Disabled Interface Topology Overlay (ITO) by default across production and clean installations:
+  - Defaulted label visibility to `false` in `@codexsun/devkit-ito`, omitting marker DOM elements unless explicitly enabled.
+  - Initialized highlight states to `false` and strictly suppressed highlight outlines and box shadows when disabled.
+  - Defaulted `showItoIcon` to `false` in Q-Cafe settings, requiring explicit user activation in Settings before mounting the floating inspection button or drawer.
+  - Added CSS safeguards ensuring `.technical-label` has `display: none !important` when labels are inactive.
+
+## v-0.1.12
+
+### [v 0.1.12] 2026-09-05 12:44 a.m. - Visual POS unification, offline image storage folder with write protection, and bundled demo media
+
+#### Database Changes
+
+- Database update: No.
+
+#### App Codebase Changes
+
+- Bumped the workspace version to 0.1.12.
+- Unified POS navigation: Retired the separate `POS-1` menu entry and connected `POS` directly to the visual billing desk (`Pos1`). Added automatic hash redirection from `#POS-1` to `#POS`, updated global search palette, user actions, and header labels.
+- Added configurable Image Storage Folder path in Settings allowing cashiers and store owners to keep restaurant media anywhere on their local computer or network drive (defaulting to `C:\q-cafe\images`).
+- Added Write Protection Permission toggle for image uploads to safeguard existing item photos from accidental overwrite or deletion on production counter terminals.
+- Added "Test & Verify Folder" action button with test tube / flask icon to validate folder path syntax and verify active read/write permissions.
+- Pre-bundled 10 self-contained, offline demo food and drink SVG illustrations into `public/demo-images/` and added a 1-click "Install 10 Demo Items & Images" button in Settings and Masters.
+- Updated Item Master to display the active image storage folder path, write-protection status, and quick-select demo photo presets.
+- Updated Tauri Content Security Policy (CSP) in `tauri.conf.json` to permit `data:`, `blob:`, and `https:` in `img-src` so custom uploaded and demo images render reliably across offline desktop installations.
+- Updated desktop packaging (`tools/package-q-cafe-desktop.mjs`) to produce a compressed zip archive (`qcafe-0.1.12-x64-setup.zip`) alongside the setup `.exe` and `.msi` installers.
+
+## v-0.1.11
+
+### [v 0.1.11] 2026-09-04 11:29 p.m. - Zetro desktop agent workspace
+
+#### Database Changes
+
+- Database update: Yes.
+- Added SQLite storage for Zetro projects, conversations, settings, agent runs, and AI tasks.
+- Added repeatable table creation for local development and desktop runtime state.
+- Kept Redis optional through the `OS_REDIS_ENABLED` development switch.
+
+#### App Codebase Changes
+
+- Bumped the workspace version to 0.1.11.
+- Updated the CODEXSUN and Q Cafe Tauri package metadata to 0.1.11.
+- Defined CODEXSUN OS as the application holder and kept product behavior in module-owned packages.
+- Added Zetro as a standalone agent module with its own API, web workspace, Docker runtime, conversations, and project settings.
+- Connected Zetro to isolated Docker agents and exposed agent health, selection, and orchestration controls.
+- Added Sequential and LangGraph workflow modes with review steps, evidence, and manual approval gates.
+- Added the reusable AI Task System with task planning, execution steps, status tracking, and Zetro coordination.
+- Added the Zetro side car with projects, conversation groups, search, new chat, rename, pin, archive, and removal actions.
+- Kept the unassigned Conversations group visible directly below Projects, including its empty state.
+- Added persistent Add-ons groups to the Zetro side car with create, edit, pin, archive, remove, and nested-chat actions.
+- Connected Zetro conclusions to the AI Task System with prompt and chat review, task execution, live status checks, returned agent evidence, capability details, step counts, and duration metrics.
+- Added a Zetro Review Library page with prompt, result, and task tabs, multi-select controls, consolidated review, re-analysis, task handoff, and evidence-backed skill refinement proposals.
+- Added the `zxa:v1` reference Docker runtime with isolated Codex, Gemini, and OpenCode connections, provider-specific APIs, parallel dispatch, safe connection metadata, and frontend scaffolds for ZXA, Nexus, Orbis, Axon, and Kore.
+- Reconciled persisted Zetro agent settings with the active Docker registry so changing from the former Zetro runtime to ZXA selects a valid agent automatically.
+- Added repository root, GitHub URL, and Docker agent settings through the workspace properties drawer.
+- Added repository-scoped folder browsing and nested folder creation with explicit user confirmation.
+- Rejected absolute paths, parent traversal, invalid Windows names, and folder paths outside the configured repository root.
+- Connected the central Chat workspace to the local Chat API on port 4165.
+- Added a loopback-only generator for short-lived Chat access tokens in Platform Settings.
+- Kept generated Chat access tokens in application memory and allowed the Tauri desktop origin through CORS.
+- Added the Tauri desktop package, local runtime launcher, production web builder, Windows executable, MSI, and NSIS installer.
+- Added stable query-string routing so active workspaces and pages survive browser refreshes.
+- Renamed the workspace navigation panel to `mdi.sideCar` and bound module-owned side car content to the shared MDI canvas.
+- Added responsive Zetro prompt controls for text, image, file, and voice input.
+- Split Platform and Zetro production JavaScript through Vite 8 Rolldown chunk groups.
+- Reduced the Platform entry chunk from about 832 KB to about 19 KB and removed the 500 KB build warning.
+- Verified module contracts, type checks, API tests, workspace tests, production web builds, and Windows desktop bundles.
 
 ## v-0.1.10
 

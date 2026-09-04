@@ -1,0 +1,13 @@
+[package]
+name = "codexsun-desktop"
+version = "0.1.11"
+description = "CODEXSUN Windows desktop host"
+authors = ["CODEXSUN"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2.4.1", features = [] }
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+tauri = { version = "2.10.3", features = [] }

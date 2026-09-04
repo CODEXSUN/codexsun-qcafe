@@ -95,6 +95,13 @@ try {
     env.ZETRO_LOCAL_TOKEN ||= "local-demo-only";
     console.log("Zetro Codex container connected. Device sign-in is required for model responses.");
   }
+  if (!qCafeOnly && env.CODEXSUN_ZXA_DOCKER === "true") {
+    const result = spawnSync("docker", ["compose", "-f", resolve(ROOT, "packages/zxa/docker/compose.json"), "up", "-d", "--wait"], { cwd: ROOT, env, stdio: "inherit", windowsHide: true });
+    if (result.status !== 0) throw new Error("ZXA container could not start. Build zxa:v1 first.");
+    env.ZETRO_AGENTS_FILE = resolve(ROOT, "packages/zxa/docker/agents.json");
+    env.ZXA_LOCAL_TOKEN ||= "local-zxa-only";
+    console.log("ZXA multi-provider container connected. Configure at least one provider connection.");
+  }
   console.log("CODEXSUN OS development runtime");
   for (const service of services) {
     const child = startService(service, env);

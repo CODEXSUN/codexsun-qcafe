@@ -27,13 +27,6 @@ import type { AiTask } from "@codexsun/ai-task-contracts";
 import { approveTask, createTask, listTasks, startTask } from "./api.js";
 import { TaskSideCar } from "./TaskSideCar.js";
 
-const QUICK_STARTERS = [
-  "Analyze architecture and list dependencies",
-  "Create unit tests for message transport",
-  "Draft release changelog for current version",
-  "Inspect security boundaries for agent sandboxes",
-];
-
 export function TaskWorkspace({
   pageId,
   sideCarTarget,
@@ -72,10 +65,10 @@ export function TaskWorkspace({
   const approve = useMutation({ mutationFn: approveTask, onSuccess: refresh });
 
   useEffect(() => {
-    if (pageId) setSelectedId(pageId);
+    setSelectedId(pageId || null);
   }, [pageId]);
 
-  const selected = tasks.data?.find((t) => t.id === selectedId) ?? (selectedId ? undefined : tasks.data?.[0]);
+  const selected = tasks.data?.find((task) => task.id === selectedId);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -88,8 +81,13 @@ export function TaskWorkspace({
 
   function handleNewTask() {
     setSelectedId(null);
+    setRequest("");
+    create.reset();
     updateUrl("");
-    textareaRef.current?.focus();
+    requestAnimationFrame(() => {
+      textareaRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      textareaRef.current?.focus({ preventScroll: true });
+    });
   }
 
   function handleSend(event?: FormEvent) {
@@ -143,14 +141,7 @@ export function TaskWorkspace({
               onStart={() => start.mutate(selected.id)}
               task={selected}
             />
-          ) : (
-            <TaskWelcomeState
-              onSelectPrompt={(prompt) => {
-                setRequest(prompt);
-                textareaRef.current?.focus();
-              }}
-            />
-          )}
+          ) : <TaskWelcomeState />}
           <div ref={bottomRef} />
         </div>
       </MdiTopologyRegion>
@@ -589,29 +580,13 @@ function TaskTranscript({
   );
 }
 
-function TaskWelcomeState({ onSelectPrompt }: { onSelectPrompt: (p: string) => void }) {
+function TaskWelcomeState() {
   return (
-    <div className="grid min-h-[50vh] place-content-center gap-4 text-center py-12">
+    <div className="grid min-h-[50vh] place-content-center gap-3 py-12 text-center">
       <div className="mx-auto size-12 rounded-2xl bg-muted border border-border flex items-center justify-center text-primary">
         <ClipboardList className="size-6" />
       </div>
       <h2 className="text-xl font-semibold text-foreground">Task System</h2>
-      <p className="text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
-        Describe what you want to achieve below. Agents will analyze your request, formulate a machine-ready prompt,
-        plan sequential work, and report evidence.
-      </p>
-      <div className="flex flex-wrap items-center justify-center gap-2 pt-2 max-w-xl mx-auto">
-        {QUICK_STARTERS.map((starter) => (
-          <button
-            key={starter}
-            type="button"
-            onClick={() => onSelectPrompt(starter)}
-            className="rounded-full border border-border/80 bg-background px-3.5 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer transition-colors shadow-2xs"
-          >
-            {starter}
-          </button>
-        ))}
-      </div>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import cors from "@fastify/cors";
 import Fastify, { type FastifyRequest } from "fastify";
 import {
   CHAT_API_PREFIX,
+  CHAT_LOCAL_ACCESS_TOKEN_PATH,
   conversationPreferencesSchema,
   createConversationSchema,
   historyQuerySchema,
@@ -12,19 +13,26 @@ import {
 import { ChatService } from "../../application/chat-service.js";
 import type { ChatIdentityProvider } from "../../application/ports.js";
 import { ChatAccessError, ChatNotFoundError } from "../../domain/chat-errors.js";
+import type { LocalAccessTokenIssuer } from "../../chat-module.js";
 
-export function buildChatApp(service: ChatService, identities: ChatIdentityProvider, allowedOrigins: string[] = []) {
+export function buildChatApp(service: ChatService, identities: ChatIdentityProvider, allowedOrigins: string[] = [], localAccessTokenIssuer?: LocalAccessTokenIssuer) {
   const app = Fastify({ logger: true });
   const actors = new WeakMap<FastifyRequest, ChatActor>();
   void app.register(cors, { origin: allowedOrigins });
 
   app.get("/health", async () => ({ status: "ok", service: "chat" }));
   app.addHook("preHandler", async (request, reply) => {
-    if (request.url === "/health") return;
+    if (request.url === "/health" || request.url === CHAT_LOCAL_ACCESS_TOKEN_PATH) return;
     const token = bearerToken(request.headers.authorization);
     const actor = token ? await identities.authenticate(token) : undefined;
     if (!actor) return reply.code(401).send(failure("CHAT_UNAUTHORIZED", "A valid Chat access token is required."));
     actors.set(request, actor);
+  });
+
+  app.post(CHAT_LOCAL_ACCESS_TOKEN_PATH, async (request, reply) => {
+    if (!localAccessTokenIssuer) return reply.code(404).send(failure("CHAT_TOKEN_ISSUER_DISABLED", "Local Chat token generation is disabled."));
+    if (!isLoopbackAddress(request.ip)) return reply.code(403).send(failure("CHAT_TOKEN_ISSUER_LOCAL_ONLY", "Local Chat tokens can only be issued from this device."));
+    return success(localAccessTokenIssuer.issue());
   });
 
   app.get(`${CHAT_API_PREFIX}/profile`, async (request) => success(await service.profile(actor(request).uuid)));
@@ -68,6 +76,10 @@ export function buildChatApp(service: ChatService, identities: ChatIdentityProvi
     if (!value) throw new ChatAccessError("Actor context is unavailable.");
     return value;
   }
+}
+
+function isLoopbackAddress(address: string) {
+  return address === "127.0.0.1" || address === "::1" || address === "::ffff:127.0.0.1";
 }
 
 function bearerToken(value: string | undefined) {

@@ -1,6 +1,6 @@
 {
   "name": "@codexsun/zetro-api",
-  "version": "0.1.10",
+  "version": "0.1.13",
   "private": true,
   "type": "module",
   "exports": {
@@ -19,10 +19,12 @@
     "@codexsun/ai-task-api": "*",
     "@fastify/cors": "latest",
     "@langchain/langgraph": "1.4.13",
+    "better-sqlite3": "^13.0.3",
     "fastify": "latest",
     "zod": "latest"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "latest",
     "tsup": "latest",
     "tsx": "latest",

@@ -14,9 +14,9 @@ export class RulePlanner implements TaskPlanner {
       refinedPrompt: `Analyze the request, preserve stated constraints, produce verifiable output, and report evidence and limitations.\n\nRequest:\n${request.trim()}`,
       acceptanceCriteria: ["The requested outcome is addressed.", "Claims are supported by execution evidence.", "Limitations and unfinished work are explicit."],
       work: [
-        { title: "Analyze and plan", instruction: "Create an ordered execution plan with risks and evidence requirements. Do not perform external or destructive actions.", capability: "planning", agentId: coordinator.id },
-        { title: `Execute with ${specialist.name}`, instruction: "Perform the approved work within your assigned duty. Return the result, tool evidence, and any approval requirement.", capability: inferCapability(request), agentId: specialist.id },
-        { title: "Review completion", instruction: "Review prior results against every acceptance criterion. Identify unsupported claims and provide a concise completion report.", capability: "review", agentId: coordinator.id },
+        { title: "Analyze and plan", instruction: "Create an ordered execution plan with risks and evidence requirements. Do not perform external or destructive actions.", capability: "planning", agentId: coordinator.id, skills: coordinator.skills },
+        { title: `Execute with ${specialist.name}`, instruction: "Perform the approved work within your assigned duty. Return the result, tool evidence, and any approval requirement.", capability: inferCapability(request), agentId: specialist.id, skills: specialist.skills },
+        { title: "Review completion", instruction: "Review prior results against every acceptance criterion. Identify unsupported claims and provide a concise completion report.", capability: "review", agentId: coordinator.id, skills: coordinator.skills },
       ],
     };
   }

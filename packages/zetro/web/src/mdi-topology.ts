@@ -5,7 +5,7 @@ const zetroTopology: InterfaceTopologySection[] = [
   { id: "z2", technicalName: "zetro.sideCar.panel", name: "Zetro side car", scope: "Zetro", description: "Companion panel owned by Zetro." },
   { id: "z2.1", technicalName: "zetro.sideCar.content", name: "Side car content", scope: "Zetro", description: "Searchable chats grouped by date with a New Chat action." },
   { id: "z2.1.1", technicalName: "zetro.sideCar.searchInput", name: "Chat search input", scope: "Zetro", description: "Filter conversations and projects." },
-  { id: "z2.1.2", technicalName: "zetro.sideCar.conversationGroups", name: "Conversation groups", scope: "Zetro", description: "Show pinned, project, unassigned, and archived conversations." },
+  { id: "z2.1.2", technicalName: "zetro.sideCar.conversationGroups", name: "Conversation groups", scope: "Zetro", description: "Show pinned, project, add-on, unassigned, and archived conversations." },
   { id: "z2.1.3", technicalName: "zetro.sideCar.newChatButton", name: "New chat button", scope: "Zetro", description: "Start a new Zetro conversation." },
   { id: "z2.1.4", technicalName: "zetro.sideCar.projectDialog", name: "Create project dialog", scope: "Zetro", description: "Name and save a conversation project." },
   { id: "z2.2", technicalName: "zetro.sideCar.railToggle", name: "Side car rail toggle", scope: "Zetro", description: "Collapse or expand the companion panel." },
@@ -18,9 +18,16 @@ const zetroTopology: InterfaceTopologySection[] = [
   { id: "z5.3", technicalName: "zetro.composer.sendButton", name: "Send prompt", scope: "Zetro", description: "Submit the prompt to Zetro." },
   { id: "z5.4", technicalName: "zetro.composer.errorAlert", name: "Request error", scope: "Zetro", description: "Actionable feedback when a request fails." },
   { id: "z5.5", technicalName: "zetro.composer.agentFlow", name: "Agent flow options", scope: "Zetro", description: "Toggle tool evidence and response motion." },
+  { id: "z4.4", technicalName: "zetro.chat.taskHandoff", name: "Task handoff controls", scope: "Zetro chat", description: "Review a prompt and discussion, send approved work to the AI Task System, and inspect returned evidence and metrics." },
   { id: "z5.6", technicalName: "zetro.composer.orchestration", name: "Orchestration control", scope: "Zetro", description: "Select Sequential or LangGraph execution and control approval gates from Agent flow." },
 ];
 
 export function zetroPageTopology(_page: string): InterfaceTopologySection[] {
+  if (_page === "review") return [
+    { id: "zr1", technicalName: "zetro.reviewLibrary.workspace", name: "Review Library workspace", scope: "Zetro review", description: "Combine prompts, agent results, and task evidence in one review space." },
+    { id: "zr2", technicalName: "zetro.reviewLibrary.tabs", name: "Library tabs", scope: "Zetro review", description: "Filter all, prompts, results, tasks, or improvement evidence." },
+    { id: "zr3", technicalName: "zetro.reviewLibrary.bulkActions", name: "Bulk review actions", scope: "Zetro review", description: "Consolidate, re-analyze, send tasks, or propose skill refinements from selected evidence." },
+    { id: "zr4", technicalName: "zetro.reviewLibrary.list", name: "Review evidence list", scope: "Zetro review", description: "Select prompt, result, and task records for reviewed follow-up work." },
+  ];
   return zetroTopology;
 }

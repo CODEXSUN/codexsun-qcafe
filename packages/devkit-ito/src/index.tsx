@@ -16,6 +16,7 @@ function subLabelStyle(id: string): CSSProperties | undefined {
 export function TopologyMarker({ id, topology }: { id: string; topology: InterfaceTopologyController }) {
   const section = topology.sections.find((candidate) => candidate.id === id);
   if (!section) return null;
+  if (!topology.labelsVisible) return null;
   if (!isHierarchyLabelVisible(id, topology.selected, topology.rootAttributes["data-ito-highlight"] === "true")) return null;
   const technicalName = section.technicalName ?? section.name;
   const selected = topology.open && topology.selected === id;

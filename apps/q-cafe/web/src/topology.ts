@@ -68,4 +68,18 @@ export const qCafeTopology: InterfaceTopologySection[] = [
   item('q11.1', 'qCafe.settings.tabs', 'Settings navigation tabs', 'Settings', 'Switch between General, POS & Tax, Appearance, and System settings.'),
   item('q11.2', 'qCafe.settings.form', 'Settings configuration form', 'Settings', 'Edit restaurant configuration options and preferences.'),
   item('q11.3', 'qCafe.settings.saveButton', 'Save settings button', 'Settings', 'Persist updated settings locally.'),
+  item('q12', 'qCafe.pos1.billingDesk', 'POS-1 Visual Desk', 'POS-1', 'Visual photo-grid and touch/keyboard point of sale.'),
+  item('q12.1', 'qCafe.pos1.searchAndCategories', 'Top Header & Order Desk Actions', 'POS-1', 'Search catalog items on left; order tabs, slip preview, print, and kitchen dispatch on right.'),
+  item('q12.2', 'qCafe.pos1.catalogGrid', 'Product Cards Grid & Categories', 'POS-1', 'Category pills and touch product cards grid.'),
+  item('q12.3', 'qCafe.pos1.cartPanel', 'Interactive Cart Panel', 'POS-1', 'Order line items table, inline steppers, GST toggle, and totals below header.'),
+  item('q12.4', 'qCafe.pos1.bottomEntryBar', 'Bottom Fast Entry Strip', 'POS-1', 'Table, chair, item details, quantity, and add to order.'),
+  item('q13', 'qCafe.overview.container', 'Bills & Settlement Overview', 'Overview', 'Daily sales overview, date-wise summary, bills history, and end-of-day cashier settlement.'),
+  item('q13.1', 'qCafe.overview.kpis', 'Overview KPI Cards', 'Overview', 'Total revenue, bill count, cash, UPI, card, and GST aggregates.'),
+  item('q13.2', 'qCafe.overview.dateWiseSummary', 'Date-wise Sales Summary', 'Overview', 'Aggregated summary table grouped by date.'),
+  item('q13.3', 'qCafe.overview.billsTable', 'Bills & Receipts List', 'Overview', 'Comprehensive bill list with payment mode badges, status, and slip preview.'),
+  item('q13.4', 'qCafe.overview.dailySettlement', 'Daily Settlement Dialog', 'Overview', 'End-of-day cashier register reconciliation with cash denomination count and Z-report slip print.'),
+  item('q14', 'qCafe.tables.floorDesk', 'Floor & Tables Desk', 'Tables', 'Floor management with visual chair selector, table occupancy statistics, and duration tickers.'),
+  item('q14.1', 'qCafe.tables.chairSelector', 'Visual Chair & Guest Selector', 'Tables', 'Touch presets and steppers to choose chair/guest count before seating.'),
+  item('q14.2', 'qCafe.tables.gridCards', 'Table Floor Grid', 'Tables', 'Touch-first table cards showing occupancy, active order total, elapsed duration badge, and rolling tickers.'),
 ];
+

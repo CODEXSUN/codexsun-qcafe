@@ -5,12 +5,16 @@ export type Exchange = {
   timestamp?: string;
   feedback?: "up" | "down";
   activities?: { id: string; label: string; status: string }[];
+  taskId?: string;
 };
 export type Project = {
   id: string;
   name: string;
   description?: string;
   createdAt?: string;
+  pinned?: boolean;
+  localFolder?: string;
+  kind?: "project" | "addon";
 };
 
 export type Conversation = {

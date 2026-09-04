@@ -1,10 +1,16 @@
 import { useState, useEffect } from 'react';
-import { Store, Receipt, Palette, Server, Check, RotateCcw } from 'lucide-react';
+import { Store, Receipt, Palette, Server, Check, RotateCcw, HardDrive, FlaskConical, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
 import { Button } from '@codexsun/ui/components/ui/button';
 import type { InterfaceTopologyController } from '@codexsun/devkit-ito';
 import { type Snapshot } from './api';
 import { field } from './Workspaces';
 import { ItoRegion } from './ItoRegion';
+import {
+  DEMO_10_ITEMS,
+  installDemoItemsAndImages,
+  verifyImageStorageFolder,
+  type StorageVerificationResult,
+} from './mastersStore';
 
 export type CafeSettings = {
   restaurantName: string;
@@ -21,6 +27,8 @@ export type CafeSettings = {
   autoPrintBill: boolean;
   theme: 'system' | 'light' | 'dark';
   showItoIcon: boolean;
+  imageFolderPath?: string;
+  imageWriteProtection?: boolean;
 };
 
 const DEFAULT_SETTINGS: CafeSettings = {
@@ -37,16 +45,25 @@ const DEFAULT_SETTINGS: CafeSettings = {
   currency: 'INR (₹)',
   autoPrintBill: false,
   theme: 'system',
-  showItoIcon: true,
+  showItoIcon: false,
+  imageFolderPath: 'C:\\q-cafe\\images',
+  imageWriteProtection: false,
 };
 
 const STORAGE_KEY = 'q-cafe-settings';
+const ITO_EXPLICIT_KEY = 'q-cafe-ito-explicitly-enabled';
 
 export function loadSettings(): CafeSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_SETTINGS;
-    return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw);
+    const explicitlyEnabled = localStorage.getItem(ITO_EXPLICIT_KEY) === 'true';
+    return {
+      ...DEFAULT_SETTINGS,
+      ...parsed,
+      showItoIcon: explicitlyEnabled ? Boolean(parsed.showItoIcon) : false,
+    };
   } catch {
     return DEFAULT_SETTINGS;
   }
@@ -75,12 +92,14 @@ type Props = {
   onToggleItoIcon?: (show: boolean) => void;
 };
 
-type TabId = 'general' | 'pos' | 'appearance' | 'system';
+type TabId = 'general' | 'pos' | 'media' | 'appearance' | 'system';
 
 export function Settings({ data, topology, onToggleItoIcon }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>('general');
   const [settings, setSettings] = useState<CafeSettings>(() => loadSettings());
   const [savedNotice, setSavedNotice] = useState(false);
+  const [verificationResult, setVerificationResult] = useState<StorageVerificationResult | null>(null);
+  const [demoInstallNotice, setDemoInstallNotice] = useState('');
 
   useEffect(() => {
     if (!savedNotice) return;
@@ -99,12 +118,22 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
     handleChange('showItoIcon', visible);
     const updated = { ...settings, showItoIcon: visible };
     saveSettings(updated);
+    if (visible) {
+      localStorage.setItem(ITO_EXPLICIT_KEY, 'true');
+    } else {
+      localStorage.removeItem(ITO_EXPLICIT_KEY);
+    }
     window.dispatchEvent(new CustomEvent('q-cafe-settings-updated', { detail: updated }));
     if (onToggleItoIcon) onToggleItoIcon(visible);
   }
 
   function handleSave(event: React.FormEvent) {
     event.preventDefault();
+    if (settings.showItoIcon) {
+      localStorage.setItem(ITO_EXPLICIT_KEY, 'true');
+    } else {
+      localStorage.removeItem(ITO_EXPLICIT_KEY);
+    }
     saveSettings(settings);
     applyTheme(settings.theme);
     window.dispatchEvent(new CustomEvent('q-cafe-settings-updated', { detail: settings }));
@@ -113,17 +142,34 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
   }
 
   function handleReset() {
+    localStorage.removeItem(ITO_EXPLICIT_KEY);
     setSettings(DEFAULT_SETTINGS);
     saveSettings(DEFAULT_SETTINGS);
     applyTheme(DEFAULT_SETTINGS.theme);
     window.dispatchEvent(new CustomEvent('q-cafe-settings-updated', { detail: DEFAULT_SETTINGS }));
     if (onToggleItoIcon) onToggleItoIcon(DEFAULT_SETTINGS.showItoIcon);
     setSavedNotice(true);
+    setVerificationResult(null);
+  }
+
+  function handleTestFolder() {
+    const result = verifyImageStorageFolder(
+      settings.imageFolderPath ?? 'C:\\q-cafe\\images',
+      Boolean(settings.imageWriteProtection)
+    );
+    setVerificationResult(result);
+  }
+
+  function handleInstallDemo() {
+    const res = installDemoItemsAndImages();
+    setDemoInstallNotice(`Successfully installed ${res.count} demo menu items with high-resolution offline images!`);
+    setTimeout(() => setDemoInstallNotice(''), 4000);
   }
 
   const tabs: { id: TabId; label: string; icon: typeof Store }[] = [
     { id: 'general', label: 'General & Profile', icon: Store },
     { id: 'pos', label: 'POS & Billing', icon: Receipt },
+    { id: 'media', label: 'Image Storage & Media', icon: HardDrive },
     { id: 'appearance', label: 'Appearance', icon: Palette },
     { id: 'system', label: 'System & Runtime', icon: Server },
   ];
@@ -326,6 +372,179 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                       <li><kbd className="font-mono bg-background border px-1.5 py-0.5 rounded text-foreground">F8</kbd> : Print current bill immediately</li>
                       <li><kbd className="font-mono bg-background border px-1.5 py-0.5 rounded text-foreground">Ctrl + K</kbd> : Open global search palette</li>
                     </ul>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'media' && (
+                <div className="space-y-6">
+                  <div>
+                    <h2 className="text-lg font-semibold tracking-tight text-foreground flex items-center gap-2">
+                      <span className="grid size-7 place-items-center rounded-lg bg-primary/10 text-primary">
+                        <HardDrive size={16} />
+                      </span>
+                      Image Storage & File Permissions
+                    </h2>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      Configure your system image directory, manage write protection locks, and install bundled demo photos for offline use.
+                    </p>
+                  </div>
+
+                  {/* Folder Configuration */}
+                  <div className="rounded-2xl border border-border bg-card p-5 shadow-xs space-y-4">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-sm font-semibold text-foreground flex items-center justify-between">
+                        <span>Image Storage Folder Path</span>
+                        <span className="text-xs font-normal text-muted-foreground">User can keep anywhere on system</span>
+                      </label>
+                      <p className="text-xs text-muted-foreground">
+                        Directory on this PC or network drive where item photos and uploaded images are stored.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          className={`${field} w-full font-mono text-xs`}
+                          value={settings.imageFolderPath ?? 'C:\\q-cafe\\images'}
+                          onChange={(e) => handleChange('imageFolderPath', e.target.value)}
+                          placeholder="e.g. C:\q-cafe\images or D:\CafeData\Images"
+                          required
+                        />
+                      </div>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleTestFolder}
+                        className="cursor-pointer gap-2 shrink-0 border-primary/40 hover:border-primary hover:bg-primary/5 text-primary text-xs font-semibold h-10 px-4"
+                        title="Verify folder path and read/write permission"
+                      >
+                        <FlaskConical size={15} className="stroke-[2.2]" />
+                        <span>Test & Verify Folder</span>
+                      </Button>
+                    </div>
+
+                    {verificationResult && (
+                      <div
+                        className={`flex items-start gap-3 rounded-xl border p-3.5 text-xs transition-all ${
+                          verificationResult.ok
+                            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-900 dark:text-emerald-200'
+                            : 'border-destructive/30 bg-destructive/10 text-destructive'
+                        }`}
+                      >
+                        <div className="mt-0.5 shrink-0">
+                          {verificationResult.ok ? (
+                            <CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-400" />
+                          ) : (
+                            <AlertCircle size={16} className="text-destructive" />
+                          )}
+                        </div>
+                        <div className="space-y-1 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold uppercase tracking-wider text-[10px]">
+                              {verificationResult.ok ? '✓ Folder Storage Status: Verified' : '✕ Verification Issue'}
+                            </span>
+                            <span className="text-[10px] opacity-75">{verificationResult.timestamp}</span>
+                          </div>
+                          <p className="font-medium leading-relaxed">{verificationResult.message}</p>
+                          <div className="flex flex-wrap gap-2 pt-1 font-mono text-[10px]">
+                            <span className="rounded bg-background/60 px-1.5 py-0.5 border border-border/50">
+                              Target: {verificationResult.folderPath}
+                            </span>
+                            <span className="rounded bg-background/60 px-1.5 py-0.5 border border-border/50">
+                              Mode: {verificationResult.isWriteProtected ? 'Locked (Write-Protected)' : 'Writable (Read & Write)'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Write Protection Permission */}
+                  <div className="rounded-2xl border border-border bg-card p-5 shadow-xs flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="space-y-1 max-w-xl">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-foreground">Write Protection Permission</span>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                            settings.imageWriteProtection
+                              ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                              : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                          }`}
+                        >
+                          {settings.imageWriteProtection ? 'Protected / Read-Only' : 'Writable / Editable'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        When write protection is enabled, existing images and item assets cannot be overwritten or deleted without administrative bypass. Turn this on after setting up your menu to lock images safely.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0">
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={Boolean(settings.imageWriteProtection)}
+                        aria-label="Toggle write protection permission for images"
+                        onClick={() => handleChange('imageWriteProtection', !settings.imageWriteProtection)}
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                          settings.imageWriteProtection ? 'bg-amber-500' : 'bg-muted-foreground/30'
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block size-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                            settings.imageWriteProtection ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Bundled Demo Media (10 Items) */}
+                  <div className="rounded-2xl border border-border bg-card p-5 shadow-xs space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-border pb-3">
+                      <div className="space-y-0.5">
+                        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                          <Sparkles size={15} className="text-primary" />
+                          Bundled Offline Demo Images (10 Items)
+                        </h3>
+                        <p className="text-xs text-muted-foreground">
+                          Install 10 packaged cafe food & drink illustrations directly into your catalog so images show immediately without internet.
+                        </p>
+                      </div>
+
+                      <Button
+                        type="button"
+                        onClick={handleInstallDemo}
+                        className="cursor-pointer gap-2 shrink-0 text-xs font-semibold h-9"
+                      >
+                        <Sparkles size={14} />
+                        <span>Install 10 Demo Items & Images</span>
+                      </Button>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-1">
+                      {DEMO_10_ITEMS.map((item) => (
+                        <div
+                          key={item.code}
+                          className="flex flex-col rounded-xl border border-border bg-muted/30 p-2 text-center overflow-hidden hover:border-primary/40 transition-colors"
+                        >
+                          <div className="aspect-video w-full rounded-lg bg-black/10 overflow-hidden mb-1.5 border border-border/40">
+                            <img src={item.image} alt={item.name} className="size-full object-cover" />
+                          </div>
+                          <span className="text-[11px] font-bold text-foreground truncate">{item.name}</span>
+                          <span className="text-[10px] text-muted-foreground font-mono">{item.code} · ₹{(item.price / 100).toFixed(0)}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {demoInstallNotice && (
+                      <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-800 dark:text-emerald-200 font-medium flex items-center gap-2">
+                        <CheckCircle2 size={15} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        <span>{demoInstallNotice}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
