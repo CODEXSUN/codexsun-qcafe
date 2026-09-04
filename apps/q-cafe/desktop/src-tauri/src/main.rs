@@ -1,4 +1,6 @@
 use std::{env, fs, path::PathBuf, process::{Child, Command}, sync::Mutex};
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 use tauri::{AppHandle, Manager};
 
 struct ApiProcess(Mutex<Option<Child>>);
@@ -50,15 +52,18 @@ fn start_api(app: &AppHandle) -> Result<Child, String> {
         return Err(format!("Q Cafe Node runtime is missing: {}", node.display()));
     }
 
-    Command::new(node)
+    let mut command = Command::new(node);
+    command
         .arg(api_root.join("src").join("server.mjs"))
         .current_dir(&api_root)
         .env("QCAFE_DATABASE_PATH", database_path)
         .env("QCAFE_API_PORT", "4180")
         .env("QCAFE_DEMO", env::var("QCAFE_DEMO").unwrap_or_else(|_| "true".to_string()))
         .env("QCAFE_API_TOKEN", "desktop-local-operator")
-        .env("QCAFE_CASHIER_PIN", env::var("QCAFE_CASHIER_PIN").unwrap_or_else(|_| "1234".to_string()))
-        .spawn()
+        .env("QCAFE_CASHIER_PIN", env::var("QCAFE_CASHIER_PIN").unwrap_or_else(|_| "1234".to_string()));
+    #[cfg(target_os = "windows")]
+    command.creation_flags(0x08000000);
+    command.spawn()
         .map_err(|error| format!("Q Cafe API could not start: {error}"))
 }
 
