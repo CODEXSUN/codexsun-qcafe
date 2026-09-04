@@ -1,30 +1,11 @@
-import { useState } from 'react';
 import { Button } from '@codexsun/ui/components/ui/button';
-import { money, type Snapshot } from './api';
+import { type Snapshot } from './api';
 
 export const field = 'rounded-lg border border-input bg-background px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 type Props = { data: Snapshot; busy: boolean; mutate: (path: string, body: unknown) => Promise<boolean> };
 const tables = Array.from({ length: 12 }, (_, index) => `T${String(index + 1).padStart(2, '0')}`);
 export function TableSelect({ takeaway = false }: { takeaway?: boolean }) {
   return <select className={field + ' cursor-pointer'} name="table_name" aria-label="Table">{takeaway && <option>Takeaway</option>}{tables.map(table => <option key={table}>{table}</option>)}</select>;
-}
-export function Pos({ data, busy, mutate }: Props) {
-  const [cart, setCart] = useState<Record<number, number>>({});
-  const [query, setQuery] = useState('');
-  const total = data.menu.reduce((sum, item) => sum + item.price * (cart[item.id] ?? 0), 0);
-  return <div className="grid gap-8 xl:grid-cols-[1fr_340px]">
-    <section className="space-y-5"><input className={field + ' w-full'} placeholder="Search the menu…" aria-label="Search menu" value={query} onChange={event => setQuery(event.target.value)} />
-      <div className="divide-y divide-border">{data.menu.filter(item => item.name.toLowerCase().includes(query.toLowerCase())).map(item => <div key={item.id} className="flex items-center gap-4 py-4"><div className="flex-1"><p className="font-medium">{item.name}</p><p className="text-sm text-muted-foreground">{item.category}</p></div><span>{money(item.price)}</span><Button variant="outline" className="cursor-pointer" onClick={() => setCart({ ...cart, [item.id]: Math.min(99, (cart[item.id] ?? 0) + 1) })}>Add</Button></div>)}</div>
-    </section>
-    <form className="space-y-5 rounded-2xl border border-border bg-card p-6" onSubmit={async event => { event.preventDefault(); const form = new FormData(event.currentTarget); if (await mutate('/orders', { table_name: form.get('table_name'), lines: Object.entries(cart).filter(([, quantity]) => quantity > 0).map(([id, quantity]) => ({ menu_id: Number(id), quantity })) })) setCart({}); }}>
-      <h2 className="text-xl font-semibold">Current order</h2><TableSelect takeaway />
-      {data.menu.filter(item => cart[item.id]).map(item => <label key={item.id} className="flex items-center justify-between gap-3 text-sm">{item.name}<input className={field + ' w-20'} aria-label={`${item.name} quantity`} type="number" min="0" max="99" value={cart[item.id]} onChange={event => setCart({ ...cart, [item.id]: Number(event.target.value) })} /></label>)}
-      {!total && <p className="py-8 text-sm text-muted-foreground">Add menu items to start an order.</p>}
-      <div className="flex justify-between border-t border-border pt-5 text-xl font-semibold"><span>Total</span><span>{money(total)}</span></div>
-      <p className="text-sm text-muted-foreground">Kitchen order only. Payments and tax invoices are not enabled.</p>
-      <Button disabled={busy || !total} className="w-full cursor-pointer" type="submit">Send to kitchen</Button>
-    </form>
-  </div>;
 }
 export function Kitchen({ data, busy, mutate }: Props) {
   return <div className="grid gap-6 lg:grid-cols-3">{['queued', 'preparing', 'ready'].map((status, index) => <section key={status} className="space-y-4"><h2 className="flex justify-between text-lg font-semibold capitalize">{status}<span className="text-muted-foreground">{data.orders.filter(order => order.status === status).length}</span></h2>{data.orders.filter(order => order.status === status).map(order => <article className="space-y-4 rounded-xl border border-border bg-card p-5" key={order.id}><div className="flex justify-between font-semibold"><span>#{String(order.id).padStart(3, '0')}</span><span>{order.table_name}</span></div>{data.order_lines.filter(line => line.order_id === order.id).map((line, lineIndex) => <p className="text-sm" key={lineIndex}>{line.quantity} × {line.name}</p>)}<Button disabled={busy} className="w-full cursor-pointer" variant="outline" onClick={() => void mutate('/kitchen', { id: order.id, status: ['preparing', 'ready', 'served'][index] })}>{['Start preparing', 'Mark ready', 'Mark served'][index]}</Button></article>)}{!data.orders.some(order => order.status === status) && <p className="rounded-xl border border-dashed border-border p-8 text-sm text-muted-foreground">No {status} tickets.</p>}</section>)}</div>;

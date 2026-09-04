@@ -5,14 +5,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CafeStore } from './store.mjs';
 
-test('order prices are authoritative and kitchen transitions cannot skip states', () => {
+test('editable order lines persist their item snapshot and kitchen transitions cannot skip states', () => {
   const store = new CafeStore(':memory:'); store.seed();
-  const order = store.order({ table_name: 'T01', lines: [{ menu_id: 1, quantity: 2, price: 1 }] });
-  assert.equal(order.total, 16000);
+  const order = store.order({ table_name: 'T01', lines: [{ menu_id: 1, item_code: 'COF-1', name: 'House coffee', quantity: 1.5, price: 9500 }] });
+  assert.equal(order.total, 14250);
+  assert.deepEqual({ ...store.snapshot().order_lines[0] }, { order_id: 1, menu_id: 1, item_code: 'COF-1', name: 'House coffee', quantity: 1.5, price: 9500 });
   assert.throws(() => store.advance({ id: order.id, status: 'served' }));
   for (const status of ['preparing', 'ready', 'served']) store.advance({ id: order.id, status });
   assert.equal(store.snapshot().orders[0].status, 'served');
-  assert.throws(() => store.order({ table_name: 'T01', lines: [{ menu_id: 999, quantity: 1 }] }));
+  assert.throws(() => store.order({ table_name: 'T01', lines: [{ item_code: '', name: 'Invalid', quantity: 1, price: 100 }] }));
   assert.equal(store.snapshot().orders.length, 1);
   store.db.close();
 });
@@ -29,7 +30,7 @@ test('migrations are repeatable, databases isolated, and orders survive reopenin
   const directory = mkdtempSync(join(tmpdir(), 'q-cafe-'));
   try {
     const path = join(directory, 'cafe.sqlite');
-    const first = new CafeStore(path); first.seed(); first.order({ table_name: 'Takeaway', lines: [{ menu_id: 1, quantity: 1 }] }); first.db.close();
+    const first = new CafeStore(path); first.seed(); first.order({ table_name: 'Takeaway', lines: [{ menu_id: 1, item_code: 'ITM-001', name: 'Filter coffee', quantity: 1, price: 8000 }] }); first.db.close();
     const second = new CafeStore(path); second.seed(); assert.equal(second.snapshot().orders.length, 1); assert.equal(second.snapshot().menu.length, 8); second.db.close();
     const isolated = new CafeStore(':memory:'); assert.equal(isolated.snapshot().orders.length, 0); isolated.db.close();
   } finally { rmSync(directory, { recursive: true, force: true }); }

@@ -1,9 +1,11 @@
 import { Fragment, useEffect, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
-import { AtSign, CheckCheck, CircleHelp, Copy, EllipsisVertical, Hash, MessageSquare, Paperclip, Phone, Plus, Search, Send, Slash, Video } from "lucide-react";
+import { AtSign, Calendar, Check, CheckCheck, ChevronDown, CircleHelp, Copy, EllipsisVertical, Forward, Hash, Info, MessageSquare, Paperclip, Phone, Plus, Reply, Search, Send, Slash, Smile, Video } from "lucide-react";
 import { Avatar, AvatarFallback } from "@codexsun/ui/components/avatar";
 import { Button } from "@codexsun/ui/components/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@codexsun/ui/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@codexsun/ui/components/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@codexsun/ui/components/ui/popover";
 import { MdiTopologyRegion, type MdiTopologyAdapter } from "@codexsun/ui-desk";
 import { ChatClient, mergeMessages, type Contact, type Conversation, type Message } from "./client.js";
 
@@ -37,7 +39,37 @@ export function ChatWorkspace({ topology, target }: { topology?: MdiTopologyAdap
   useEffect(() => {
     bottom.current?.scrollIntoView({ block: "end" });
   }, [latestMessageId]);
+  const [reactions, setReactions] = useState<Record<string, string[]>>({});
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const draft = active ? drafts[active.id] ?? "" : "";
+
+  function handleToggleReaction(messageId: string, emoji: string) {
+    setReactions((prev) => {
+      const current = prev[messageId] ?? [];
+      const exists = current.includes(emoji);
+      const updated = exists ? current.filter((e) => e !== emoji) : [...current, emoji];
+      return { ...prev, [messageId]: updated };
+    });
+  }
+
+  function handleReply(message: Message) {
+    if (!active) return;
+    setDrafts((prev) => ({
+      ...prev,
+      [active.id]: `> ${message.body}\n\n${prev[active.id] ?? ""}`,
+    }));
+    textareaRef.current?.focus();
+  }
+
+  function handleForward(message: Message) {
+    if (!active) return;
+    void navigator.clipboard.writeText(message.body);
+    setDrafts((prev) => ({
+      ...prev,
+      [active.id]: `Forwarded: "${message.body}"\n\n${prev[active.id] ?? ""}`,
+    }));
+    textareaRef.current?.focus();
+  }
 
   async function action(operation: () => Promise<void>) {
     if (busy) return;
@@ -109,20 +141,65 @@ export function ChatWorkspace({ topology, target }: { topology?: MdiTopologyAdap
   return <section aria-label="Chat workspace" className="ito-region relative flex h-full min-h-0 flex-col bg-background [&>.technical-label]:!left-auto [&>.technical-label]:!right-3" {...topology?.regionProps("c1")}>
     {topology?.marker("c1")}
     {target && createPortal(navigation, target)}
-    <ChatConversationHeader active={active} busy={busy} client={client} onArchive={() => void action(async () => { if (!active || !client) return; await client.preferences(active.id, { archived: !active.archivedAt }); await refresh(); })} onUnavailable={(feature) => setError(`${feature} is not available from the connected DevKit account.`)} topology={topology} />
+    <ChatConversationHeader
+      active={active}
+      busy={busy}
+      client={client}
+      contact={contacts.find((c) => c.name.toLowerCase() === active?.title.toLowerCase() || c.uuid === active?.id)}
+      messageCount={messages.length}
+      onArchive={() => void action(async () => { if (!active || !client) return; await client.preferences(active.id, { archived: !active.archivedAt }); await refresh(); })}
+      onUnavailable={(feature) => setError(`${feature} is not available from the connected DevKit account.`)}
+      topology={topology}
+    />
     {error && <MdiTopologyRegion id="c1.2" topology={topology}><div role="alert" className="border-b border-border p-4 text-sm text-destructive">{error}</div></MdiTopologyRegion>}
     {!client ? <form {...topology?.regionProps("c4")} onSubmit={(event) => void connect(event)} className="ito-region relative mx-auto flex w-full max-w-lg flex-col gap-4 p-8">{topology?.marker("c4")}<h2 className="text-xl font-medium">Your conversations, connected</h2><p className="text-sm leading-6 text-muted-foreground">Use your DevKit API URL and an existing access token. The token stays in memory for this session.</p><MdiTopologyRegion id="c4.1" topology={topology}><label className="grid gap-2 text-sm">DevKit API URL<input required type="url" className="rounded-lg border border-input bg-background p-3" value={url} onChange={(event) => setUrl(event.target.value)} /></label></MdiTopologyRegion><MdiTopologyRegion id="c4.2" topology={topology}><label className="grid gap-2 text-sm">Access token<input required autoComplete="off" type="password" className="rounded-lg border border-input bg-background p-3" value={token} onChange={(event) => setToken(event.target.value)} /></label></MdiTopologyRegion><MdiTopologyRegion id="c4.3" topology={topology}><Button disabled={busy || !token.trim()}>{busy ? "Connecting…" : "Connect DevKit"}</Button></MdiTopologyRegion></form>
     : newChat ? <div {...topology?.regionProps("c5")} className="ito-region relative overflow-y-auto p-6">{topology?.marker("c5")}<h2 className="mb-4 font-medium">Start a conversation</h2>{contacts.filter((contact) => contact.uuid !== profile?.uuid).map((contact) => <Button key={contact.uuid} className="mb-2 flex w-full justify-start" variant="ghost" disabled={busy} onClick={() => void action(async () => { const conversation = await client.open(contact.uuid); generation.current++; setActive(conversation); setMessages([]); setBefore(null); setNewChat(false); const page = await client.history(conversation.id); setMessages(mergeMessages([], page.items)); setBefore(page.nextCursor); await refresh(); })}>{contact.name} · {contact.email}</Button>)}{!contacts.length && <p className="text-muted-foreground">No contacts available in DevKit.</p>}</div>
     : !active ? <MdiTopologyRegion id="c1.1" topology={topology} className="flex-1"><div className="grid flex-1 place-content-center gap-3 p-8 text-center"><MessageSquare className="mx-auto size-8 text-muted-foreground" /><h2 className="text-xl font-medium">Choose a conversation</h2><p className="text-sm text-muted-foreground">Your direct messages appear in the left navigation.</p></div></MdiTopologyRegion>
-    : <><MdiTopologyRegion id="c7" topology={topology} className="min-h-0 flex-1 overflow-y-auto p-6"><div className="mx-auto max-w-3xl space-y-5">{before && <MdiTopologyRegion id="c7.1" topology={topology}><Button variant="outline" disabled={busy} onClick={() => void action(async () => { const page = await client.history(active.id, before); setMessages((current) => mergeMessages(page.items, current)); setBefore(page.nextCursor); })}>Load older messages</Button></MdiTopologyRegion>}<MdiTopologyRegion id="c7.2" topology={topology} className="space-y-5">{messages.map((message, index) => <Fragment key={message.uuid}>{showDateSeparator(messages[index - 1], message) && <MessageDateSeparator date={message.createdAt} />}<article className={`max-w-[90%] rounded-2xl border border-border px-4 py-3 shadow-sm ${message.actorId === profile?.uuid ? "ml-auto bg-accent" : "bg-muted/40"}`}><p className="mb-2 text-xs text-muted-foreground">{message.actorId === profile?.uuid ? "You" : active.title}</p><p className="whitespace-pre-wrap text-sm leading-6">{message.body}</p><div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground"><span>{new Date(message.createdAt).toLocaleString()} · {message.readAt ? "Read" : message.deliveredAt ? "Delivered" : "Sent"}</span><Button aria-label="Copy message" title="Copy message" variant="ghost" size="icon" onClick={() => void action(async () => navigator.clipboard.writeText(message.body))}><Copy className="size-3" /></Button></div></article></Fragment>)}{!messages.length && <p className="text-sm text-muted-foreground">No messages in this conversation.</p>}<div ref={bottom} /></MdiTopologyRegion></div></MdiTopologyRegion>
-    <MdiTopologyRegion id="c8" topology={topology} className="shrink-0 border-t border-border bg-background p-4"><form onSubmit={(event) => void send(event)} className="rounded-xl border border-input bg-card p-3 shadow-sm"><MdiTopologyRegion id="c8.1" topology={topology}><textarea aria-label="Private message" maxLength={8000} disabled={busy} className="min-h-20 w-full resize-none bg-transparent p-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" placeholder="Write a private message" value={draft} onChange={(event) => setDrafts((current) => ({ ...current, [active.id]: event.target.value }))} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} /></MdiTopologyRegion><div className="flex items-center justify-between gap-3 px-1 pt-2"><MdiTopologyRegion id="c8.2" topology={topology} className="flex items-center gap-1"><MdiTopologyRegion id="c8.2.1" topology={topology}><ComposerTool icon={Paperclip} label="Attach a file" /></MdiTopologyRegion><MdiTopologyRegion id="c8.2.2" topology={topology}><ComposerTool icon={AtSign} label="Mention someone" /></MdiTopologyRegion><MdiTopologyRegion id="c8.2.3" topology={topology}><ComposerTool icon={Slash} label="Commands" /></MdiTopologyRegion><MdiTopologyRegion id="c8.2.4" topology={topology}><ComposerTool icon={Hash} label="Add topic" /></MdiTopologyRegion><MdiTopologyRegion id="c8.2.5" topology={topology}><ComposerTool icon={CircleHelp} label="Composer help" /></MdiTopologyRegion></MdiTopologyRegion><MdiTopologyRegion id="c8.3" topology={topology}><Button type="submit" aria-label="Send private message" disabled={busy || !draft.trim()} className="rounded-full bg-muted text-muted-foreground shadow-none hover:bg-muted enabled:bg-foreground enabled:text-background enabled:hover:bg-foreground/90" size="icon"><Send className="size-4" /></Button></MdiTopologyRegion></div></form></MdiTopologyRegion></>}
+    : <><MdiTopologyRegion id="c7" topology={topology} className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6">
+        <div className="mx-auto w-full md:w-[75%] space-y-4">
+          {before && (
+            <MdiTopologyRegion id="c7.1" topology={topology} className="flex justify-center pb-2">
+              <Button variant="outline" size="sm" disabled={busy} onClick={() => void action(async () => { const page = await client.history(active.id, before); setMessages((current) => mergeMessages(page.items, current)); setBefore(page.nextCursor); })}>
+                Load older messages
+              </Button>
+            </MdiTopologyRegion>
+          )}
+          <MdiTopologyRegion id="c7.2" topology={topology} className="space-y-4">
+            {[...messages]
+              .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.uuid.localeCompare(b.uuid))
+              .map((message, index, sortedList) => {
+                const isMe = message.actorId === profile?.uuid;
+                return (
+                  <Fragment key={message.uuid}>
+                    {showDateSeparator(sortedList[index - 1], message) && <MessageDateSeparator date={message.createdAt} />}
+                    <ChatMessageItem
+                      message={message}
+                      isMe={isMe}
+                      authorName={active.title}
+                      reactions={reactions[message.uuid] ?? []}
+                      onToggleReaction={(emoji) => handleToggleReaction(message.uuid, emoji)}
+                      onCopy={() => void action(async () => navigator.clipboard.writeText(message.body))}
+                      onReply={() => handleReply(message)}
+                      onForward={() => handleForward(message)}
+                    />
+                  </Fragment>
+                );
+              })}
+            {!messages.length && <p className="text-sm text-muted-foreground text-center py-8">No messages in this conversation.</p>}
+            <div ref={bottom} />
+          </MdiTopologyRegion>
+        </div>
+      </MdiTopologyRegion>
+    <MdiTopologyRegion id="c8" topology={topology} className="shrink-0 border-t border-border bg-background p-4"><form onSubmit={(event) => void send(event)} className="mx-auto w-full md:w-[75%] rounded-xl border border-input bg-card p-3 shadow-sm"><MdiTopologyRegion id="c8.1" topology={topology}><textarea ref={textareaRef} aria-label="Private message" maxLength={8000} disabled={busy} className="min-h-20 w-full resize-none bg-transparent p-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" placeholder="Write a private message" value={draft} onChange={(event) => setDrafts((current) => ({ ...current, [active.id]: event.target.value }))} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} /></MdiTopologyRegion><div className="flex items-center justify-between gap-3 px-1 pt-2"><MdiTopologyRegion id="c8.2" topology={topology} className="flex items-center gap-1"><MdiTopologyRegion id="c8.2.1" topology={topology}><ComposerTool icon={Paperclip} label="Attach a file" /></MdiTopologyRegion><MdiTopologyRegion id="c8.2.2" topology={topology}><ComposerTool icon={AtSign} label="Mention someone" /></MdiTopologyRegion><MdiTopologyRegion id="c8.2.3" topology={topology}><ComposerTool icon={Slash} label="Commands" /></MdiTopologyRegion><MdiTopologyRegion id="c8.2.4" topology={topology}><ComposerTool icon={Hash} label="Add topic" /></MdiTopologyRegion><MdiTopologyRegion id="c8.2.5" topology={topology}><ComposerTool icon={CircleHelp} label="Composer help" /></MdiTopologyRegion></MdiTopologyRegion><MdiTopologyRegion id="c8.3" topology={topology}><Button type="submit" aria-label="Send private message" disabled={busy || !draft.trim()} className="rounded-full bg-muted text-muted-foreground shadow-none hover:bg-muted enabled:bg-foreground enabled:text-background enabled:hover:bg-foreground/90" size="icon"><Send className="size-4" /></Button></MdiTopologyRegion></div></form></MdiTopologyRegion></>}
   </section>;
 }
 
-function ChatConversationHeader({ active, busy, client, onArchive, onUnavailable, topology }: {
+function ChatConversationHeader({ active, busy, client, contact, messageCount = 0, onArchive, onUnavailable, topology }: {
   active?: Conversation;
   busy: boolean;
   client?: ChatClient;
+  contact?: Contact;
+  messageCount?: number;
   onArchive: () => void;
   onUnavailable: (feature: string) => void;
   topology?: MdiTopologyAdapter;
@@ -130,36 +207,125 @@ function ChatConversationHeader({ active, busy, client, onArchive, onUnavailable
   const name = active?.title ?? "Chat";
   const canManageConversation = Boolean(active && client);
 
-  return <header {...topology?.regionProps("c3")} className="ito-region relative flex min-h-20 items-center justify-between gap-4 border-b border-border bg-background px-5 py-4">
+  return <header {...topology?.regionProps("c3")} className="ito-region relative flex items-center justify-between gap-4 border-b border-border bg-background px-5 py-2">
     {topology?.marker("c3")}
     <MdiTopologyRegion id="c3.1" topology={topology} className="flex min-w-0 items-center gap-3">
       <MdiTopologyRegion id="c3.1.1" topology={topology} className="relative">
-        <Avatar aria-hidden="true" className="size-10 border border-border bg-muted">
-          <AvatarFallback>{initials(name)}</AvatarFallback>
+        <Avatar aria-hidden="true" className="size-8 border border-border bg-muted">
+          <AvatarFallback className="text-xs font-medium">{initials(name)}</AvatarFallback>
         </Avatar>
-        {canManageConversation && <span aria-label="Online" className="absolute bottom-0 right-0 size-3 rounded-full border-2 border-background bg-emerald-500" />}
+        {canManageConversation && <span aria-label="Online" className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-background bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]" />}
       </MdiTopologyRegion>
-      <MdiTopologyRegion id="c3.1.2" topology={topology} className="min-w-0">
-        <h1 className="truncate text-sm font-semibold text-foreground">{name}</h1>
-        <p role="status" className="text-xs text-emerald-700 dark:text-emerald-400">{canManageConversation ? "Online" : "Select a conversation"}</p>
+      <MdiTopologyRegion id="c3.1.2" topology={topology} className="flex min-w-0 items-center gap-2.5 text-xs">
+        <h1 className="truncate text-sm font-semibold leading-none text-foreground">{name}</h1>
+        <span className="text-muted-foreground/40">·</span>
+        <span role="status" className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground">
+          <span className={`size-2 rounded-full ${canManageConversation ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]" : "bg-amber-500"}`} />
+          <span>{canManageConversation ? "Online" : "Select a conversation"}</span>
+        </span>
+        {contact?.email && (
+          <>
+            <span className="text-muted-foreground/40 hidden sm:inline">·</span>
+            <span className="truncate text-muted-foreground hidden sm:inline">{contact.email}</span>
+          </>
+        )}
       </MdiTopologyRegion>
     </MdiTopologyRegion>
-    {canManageConversation && <MdiTopologyRegion id="c3.2" topology={topology} className="flex shrink-0 items-center gap-1">
+    {canManageConversation && <MdiTopologyRegion id="c3.2" topology={topology} className="flex shrink-0 items-center gap-2">
       <MdiTopologyRegion id="c3.2.1" topology={topology}>
-        <Button aria-label="Start video call" className="rounded-full" disabled={busy} onClick={() => onUnavailable("Video calls")} size="icon" title="Start video call" variant="outline"><Video /></Button>
+        <Button aria-label="Start video call" className="size-8 rounded-full border-border bg-background hover:bg-accent cursor-pointer" disabled={busy} onClick={() => onUnavailable("Video calls")} size="icon" title="Start video call" variant="outline"><Video className="size-4 text-foreground" /></Button>
       </MdiTopologyRegion>
       <MdiTopologyRegion id="c3.2.2" topology={topology}>
-        <Button aria-label="Start audio call" className="rounded-full" disabled={busy} onClick={() => onUnavailable("Audio calls")} size="icon" title="Start audio call" variant="outline"><Phone /></Button>
+        <Button aria-label="Start audio call" className="size-8 rounded-full border-border bg-background hover:bg-accent cursor-pointer" disabled={busy} onClick={() => onUnavailable("Audio calls")} size="icon" title="Start audio call" variant="outline"><Phone className="size-4 text-foreground" /></Button>
+      </MdiTopologyRegion>
+      <MdiTopologyRegion id="c3.2.4" topology={topology}>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="size-8 rounded-full border-border bg-background hover:bg-accent cursor-pointer"
+              title="Chat details"
+              aria-label="Chat details"
+            >
+              <Info className="size-4 text-foreground" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-80 rounded-2xl border-border p-3 shadow-lg">
+            <div className="flex items-center gap-3 border-b border-border pb-3">
+              <Avatar className="size-10 border border-border bg-muted">
+                <AvatarFallback>{initials(name)}</AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <h3 className="truncate text-sm font-semibold text-foreground">{name}</h3>
+                {contact?.email ? (
+                  <p className="truncate text-xs text-muted-foreground">{contact.email}</p>
+                ) : (
+                  <p className="truncate text-xs text-muted-foreground capitalize">{active?.kind ?? "Direct"} conversation</p>
+                )}
+                <div className="mt-1 flex items-center gap-1.5">
+                  <span className="size-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]" />
+                  <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">Online</span>
+                </div>
+              </div>
+            </div>
+            <div className="py-2.5 space-y-2 text-xs">
+              <div className="flex items-center justify-between py-1 text-muted-foreground">
+                <span>Conversation ID</span>
+                <span className="font-mono text-[11px] text-foreground truncate max-w-[160px]">{active?.id}</span>
+              </div>
+              <div className="flex items-center justify-between py-1 text-muted-foreground">
+                <span>Type</span>
+                <span className="font-medium text-foreground capitalize">{active?.kind ?? "Direct"}</span>
+              </div>
+              <div className="flex items-center justify-between py-1 text-muted-foreground">
+                <span>Last updated</span>
+                <span className="text-foreground">{active?.updatedAt ? formatConversationTime(active.updatedAt) : "Recently"}</span>
+              </div>
+              <div className="flex items-center justify-between py-1 text-muted-foreground">
+                <span>Messages loaded</span>
+                <span className="font-medium text-foreground">{messageCount}</span>
+              </div>
+              <div className="flex items-center justify-between py-1 text-muted-foreground">
+                <span>Archive status</span>
+                <span className="text-foreground">{active?.archivedAt ? "Archived" : "Active"}</span>
+              </div>
+            </div>
+            <div className="border-t border-border pt-2 flex items-center justify-between">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs cursor-pointer"
+                onClick={onArchive}
+              >
+                {active?.archivedAt ? "Unarchive" : "Archive"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs cursor-pointer text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={() => onUnavailable("Deleting chats")}
+              >
+                Delete
+              </Button>
+            </div>
+          </PopoverContent>
+        </Popover>
       </MdiTopologyRegion>
       <MdiTopologyRegion id="c3.2.3" topology={topology}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button aria-label="Conversation options" className="rounded-full" disabled={busy} size="icon" title="Conversation options" variant="ghost"><EllipsisVertical /></Button>
+            <Button aria-label="Conversation options" className="size-8 rounded-full border-border bg-background hover:bg-accent cursor-pointer" disabled={busy} size="icon" title="Conversation options" variant="outline">
+              <EllipsisVertical className="size-4" />
+            </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="ito-inspector-popover min-w-44">
-            <DropdownMenuItem {...topology?.regionProps("c3.2.3.1")} className="ito-region cursor-pointer" onSelect={onArchive}>{active?.archivedAt ? "Unarchive this chat" : "Archive this chat"}</DropdownMenuItem>
+          <DropdownMenuContent align="end" className="ito-inspector-popover min-w-44 rounded-xl shadow-md border-border">
+            <DropdownMenuItem {...topology?.regionProps("c3.2.3.1")} className="ito-region cursor-pointer text-xs" onSelect={onArchive}>{active?.archivedAt ? "Unarchive this chat" : "Archive this chat"}</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem {...topology?.regionProps("c3.2.3.2")} className="ito-region cursor-pointer text-destructive focus:text-destructive" onSelect={() => onUnavailable("Deleting chats")}>Delete this chat</DropdownMenuItem>
+            <DropdownMenuItem {...topology?.regionProps("c3.2.3.2")} className="ito-region cursor-pointer text-xs text-destructive focus:text-destructive" onSelect={() => onUnavailable("Deleting chats")}>Delete this chat</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </MdiTopologyRegion>
@@ -183,7 +349,7 @@ function ChatSidecar({ active, archived, busy, client, conversations, onNewChat,
   const visibleConversations = conversations
     .filter((item) => Boolean(item.archivedAt) === archived)
     .filter((item) => `${item.title} ${item.lastMessage}`.toLowerCase().includes(query.toLowerCase()))
-    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    .sort((left, right) => left.updatedAt.localeCompare(right.updatedAt));
 
   return <aside aria-label="Chat conversations" className="ito-region relative flex h-full min-h-0 flex-col bg-background" {...topology?.regionProps("c2.1.1")}>
     {topology?.marker("c2.1.1")}
@@ -228,8 +394,299 @@ function ComposerTool({ icon: Icon, label }: { icon: typeof Paperclip; label: st
   return <Button aria-label={label} className="text-muted-foreground" size="icon" title={label} type="button" variant="ghost"><Icon aria-hidden="true" className="size-4" /></Button>;
 }
 
+const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+
+function formatDateSeparator(dateStr: string) {
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return dateStr;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const msgDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+  if (msgDate.getTime() === today.getTime()) return "Today";
+  if (msgDate.getTime() === yesterday.getTime()) return "Yesterday";
+  return date.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+}
+
+function formatMessageTimestamp(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const day = date.toLocaleDateString([], { day: "2-digit", month: "short" });
+  const time = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }).toLowerCase();
+
+  const diffMs = Date.now() - date.getTime();
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffHours / 24);
+  const remainingHours = diffHours % 24;
+
+  let ago = "";
+  if (diffDays > 0) {
+    ago = ` (${diffDays}d ${remainingHours}h ago)`;
+  } else if (diffHours > 0) {
+    ago = ` (${diffHours}h ago)`;
+  } else {
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    ago = diffMins > 1 ? ` (${diffMins}m ago)` : " (just now)";
+  }
+
+  return `${day} - ${time}${ago}`;
+}
+
+function ChatMessageItem({
+  message,
+  isMe,
+  authorName,
+  reactions = [],
+  onToggleReaction,
+  onCopy,
+  onReply,
+  onForward,
+}: {
+  message: Message;
+  isMe: boolean;
+  authorName: string;
+  reactions?: string[];
+  onToggleReaction: (emoji: string) => void;
+  onCopy: () => void;
+  onReply: () => void;
+  onForward: () => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    onCopy();
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <>
+      <div
+        className={`flex flex-col ${isMe ? "items-end ml-auto" : "items-start mr-auto"} max-w-[75%] w-fit`}
+      >
+        <div
+          className={`group/row relative flex items-center gap-1.5 w-full ${
+            isMe ? "justify-end" : "justify-start"
+          }`}
+        >
+          <article
+            className={`group/msg relative w-fit rounded-2xl p-3 shadow-2xs transition-colors ${
+              isMe
+                ? "bg-card text-foreground rounded-tr-xs border border-border/60"
+                : "bg-muted/70 text-foreground rounded-tl-xs border border-border/50"
+            }`}
+          >
+            <div className="flex items-center justify-between gap-4 mb-1">
+              <span className="text-[11px] font-semibold text-muted-foreground">{isMe ? "You" : authorName}</span>
+              <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className={`size-5 rounded p-0 transition-opacity cursor-pointer ${
+                      menuOpen ? "opacity-100" : "opacity-0 group-hover/msg:opacity-100"
+                    } hover:bg-muted text-muted-foreground hover:text-foreground`}
+                    title="Message options"
+                    aria-label="Message options"
+                  >
+                    <ChevronDown className="size-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align={isMe ? "end" : "start"} className="w-52 rounded-xl border border-border p-1.5 shadow-lg bg-background">
+                  <div className="flex items-center justify-between gap-1 px-1 py-1 mb-1 border-b border-border/70">
+                    {QUICK_EMOJIS.map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => {
+                          onToggleReaction(emoji);
+                          setMenuOpen(false);
+                        }}
+                        className="size-7 flex items-center justify-center rounded-full hover:bg-muted hover:scale-125 transition-transform text-base cursor-pointer"
+                        title={`React ${emoji}`}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                  <DropdownMenuItem className="cursor-pointer text-xs flex items-center gap-2" onSelect={() => setInfoOpen(true)}>
+                    <Info className="size-3.5 text-muted-foreground" />
+                    <span>Message info</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="cursor-pointer text-xs flex items-center gap-2" onSelect={onReply}>
+                    <Reply className="size-3.5 text-muted-foreground" />
+                    <span>Reply</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="cursor-pointer text-xs flex items-center gap-2" onSelect={handleCopy}>
+                    <Copy className="size-3.5 text-muted-foreground" />
+                    <span>{copied ? "Copied!" : "Copy"}</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="cursor-pointer text-xs flex items-center gap-2" onSelect={onForward}>
+                    <Forward className="size-3.5 text-muted-foreground" />
+                    <span>Forward</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            <p className="whitespace-pre-wrap break-words text-sm leading-6 pr-1">{message.body}</p>
+
+            {reactions.length > 0 && (
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {reactions.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => onToggleReaction(emoji)}
+                    className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-background/90 px-1.5 py-0.5 text-xs shadow-2xs hover:bg-muted cursor-pointer transition-colors"
+                    title="Remove reaction"
+                  >
+                    <span>{emoji}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </article>
+
+          <div
+            className={`flex flex-col gap-1 items-center shrink-0 transition-opacity ${
+              emojiOpen ? "opacity-100" : "opacity-0 group-hover/row:opacity-100 focus-within:opacity-100"
+            }`}
+          >
+            <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-6 rounded-full bg-background border border-border/60 shadow-2xs hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+                  title="React with emoji"
+                  aria-label="React with emoji"
+                >
+                  <Smile className="size-3.5" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                side="top"
+                align="center"
+                className="flex items-center gap-1 rounded-full border border-border bg-background/95 px-2 py-1 shadow-lg backdrop-blur-sm w-auto"
+              >
+                {QUICK_EMOJIS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => {
+                      onToggleReaction(emoji);
+                      setEmojiOpen(false);
+                    }}
+                    className="size-7 flex items-center justify-center rounded-full hover:bg-muted hover:scale-125 transition-transform text-base cursor-pointer"
+                    title={`React ${emoji}`}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </PopoverContent>
+            </Popover>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={onForward}
+              className="size-6 rounded-full bg-background border border-border/60 shadow-2xs hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+              title="Forward message"
+              aria-label="Forward message"
+            >
+              <Forward className="size-3.5" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Status and timestamp at bottom below card as small */}
+        <div
+          className={`mt-1 flex items-center gap-1.5 px-1 text-[10px] text-muted-foreground ${
+            isMe ? "justify-end" : "justify-start"
+          }`}
+        >
+          <span>{formatMessageTimestamp(message.createdAt)}</span>
+          {isMe && (
+            message.readAt ? (
+              <span title="Read" className="inline-flex items-center gap-1 font-medium text-blue-500">
+                <CheckCheck className="size-3 text-blue-500 shrink-0" />
+                <span>Read</span>
+              </span>
+            ) : message.deliveredAt ? (
+              <span title="Delivered" className="inline-flex items-center gap-1 text-muted-foreground">
+                <CheckCheck className="size-3 text-muted-foreground/75 shrink-0" />
+                <span>Delivered</span>
+              </span>
+            ) : (
+              <span title="Sent" className="inline-flex items-center gap-1 text-muted-foreground">
+                <Check className="size-3 text-muted-foreground/75 shrink-0" />
+                <span>Sent</span>
+              </span>
+            )
+          )}
+        </div>
+      </div>
+
+      <Dialog open={infoOpen} onOpenChange={setInfoOpen}>
+        <DialogContent className="sm:max-w-md rounded-2xl border-border bg-background">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <Info className="size-4 text-primary" />
+              Message Info
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Delivery details and timestamps for this message.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2 text-xs">
+            <div className="flex items-center justify-between py-1 border-b border-border/50">
+              <span className="text-muted-foreground">Sender</span>
+              <span className="font-medium text-foreground">{isMe ? "You" : authorName}</span>
+            </div>
+            <div className="flex items-center justify-between py-1 border-b border-border/50">
+              <span className="text-muted-foreground">Sent</span>
+              <span className="text-foreground">{new Date(message.createdAt).toLocaleString()}</span>
+            </div>
+            <div className="flex items-center justify-between py-1 border-b border-border/50">
+              <span className="text-muted-foreground">Delivered</span>
+              <span className="text-foreground">{message.deliveredAt ? new Date(message.deliveredAt).toLocaleString() : "Delivered to recipient"}</span>
+            </div>
+            <div className="flex items-center justify-between py-1 border-b border-border/50">
+              <span className="text-muted-foreground">Read</span>
+              <span className="text-foreground">{message.readAt ? new Date(message.readAt).toLocaleString() : (isMe ? "Read by recipient" : "Read")}</span>
+            </div>
+            <div className="flex items-center justify-between py-1">
+              <span className="text-muted-foreground">Message ID</span>
+              <span className="font-mono text-[10px] text-muted-foreground truncate max-w-[200px]">{message.uuid}</span>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 function MessageDateSeparator({ date }: { date: string }) {
-  return <div className="flex items-center gap-3 py-2 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border" /><span className="rounded-full border border-border bg-background px-3 py-1">{new Date(date).toLocaleDateString()}</span><span className="h-px flex-1 bg-border" /></div>;
+  return (
+    <div className="relative my-4 flex items-center justify-center">
+      <div className="absolute inset-0 flex items-center" aria-hidden="true">
+        <div className="w-full border-t border-border/60" />
+      </div>
+      <div className="relative flex items-center gap-1.5 rounded-full border border-border/70 bg-background px-3 py-1 text-xs font-medium text-muted-foreground shadow-2xs">
+        <Calendar className="size-3 text-muted-foreground" />
+        <span>{formatDateSeparator(date)}</span>
+      </div>
+    </div>
+  );
 }
 
 function showDateSeparator(previous: Message | undefined, current: Message) {

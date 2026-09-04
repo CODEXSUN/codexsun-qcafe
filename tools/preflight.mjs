@@ -16,7 +16,8 @@ export async function runPreflight(options = {}) {
   ];
 
   console.log("\nCODEXSUN OS development preflight");
-  for (const port of ports) await freePort(port, "127.0.0.1", env.OS_DEV_PORT_POLICY);
+  const host = options.host ?? "127.0.0.1";
+  for (const port of ports) await freePort(port, host, env.OS_DEV_PORT_POLICY);
   await checkDatabase(env);
   console.log("  ok Preflight complete\n");
   return { env, ports };

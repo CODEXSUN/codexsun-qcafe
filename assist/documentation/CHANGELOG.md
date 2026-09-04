@@ -2,11 +2,11 @@
 
 ## Version State
 
-Current version: 0.1.3
+Current version: 0.1.4
 
-Release tag: v-0.1.3
+Release tag: v-0.1.4
 
-Changelog label: v 0.1.3
+Changelog label: v 0.1.4
 
 ## Unreleased
 
@@ -41,6 +41,18 @@ Changelog label: v 0.1.3
 - Added ITO entries for the workspace canvas, navigation, navigation rail, and workspace surface.
 - Cleared workspace canvas child blocks and reserved the full canvas for the next MDI feature.
 - Bound the shared AppSidebar and SidebarInset composition inside the workspace canvas.
+
+## v-0.1.4
+
+### [v 0.1.4] 2026-09-04 7:35 a.m. - working on q-cafe pos
+
+#### Database Changes
+
+- Database update: Yes.
+
+#### App Codebase Changes
+
+- Bumped the workspace version to 0.1.4.
 
 ## v-0.1.3
 

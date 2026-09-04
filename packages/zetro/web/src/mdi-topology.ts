@@ -14,6 +14,7 @@ const zetroTopology: InterfaceTopologySection[] = [
   { id: "z5.3", technicalName: "zetro.composer.sendButton", name: "Send prompt", scope: "Zetro", description: "Submit the prompt to Zetro." },
   { id: "z5.4", technicalName: "zetro.composer.errorAlert", name: "Request error", scope: "Zetro", description: "Actionable feedback when a request fails." },
   { id: "z5.5", technicalName: "zetro.composer.agentFlow", name: "Agent flow options", scope: "Zetro", description: "Toggle tool evidence and response motion." },
+  { id: "z5.6", technicalName: "zetro.composer.orchestration", name: "Orchestration control", scope: "Zetro", description: "Select Sequential or LangGraph execution and control approval gates from Agent flow." },
 ];
 
 export function zetroPageTopology(_page: string): InterfaceTopologySection[] {

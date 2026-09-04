@@ -6,12 +6,15 @@ Chat and Zetro links open their existing workspaces. They do not receive restaur
 
 ## Start locally
 
-Set `QCAFE_API_TOKEN` to a private operator key in your PowerShell session.
 Run `npm run dev:q-cafe` from the repository root for local development.
-The script starts the API and web app with Q Cafe port and database startup checks.
-Open http://127.0.0.1:5180 and enter that key.
+The script creates a private development token on its first run and prints it in the terminal.
+It reuses the token from `apps/q-cafe/.local/operator-key.txt` on later runs.
+The script also stores the local SQLite database in the same ignored directory.
+Open http://127.0.0.1:5180. The local development server opens the dashboard directly.
+Production and Docker builds still require the operator token on the sign-in screen.
 The API listens on port 4180. Both published ports bind to loopback.
 
+Run `npm run q-cafe:token` when you need a new development token.
 Run `npm run build:q-cafe` to create the production web build.
 Run `docker compose -f apps/q-cafe/docker/compose.json up -d --build` for the isolated Docker runtime.
 

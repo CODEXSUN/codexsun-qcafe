@@ -1,6 +1,6 @@
 {
   "name": "codexsun-os",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "description": "CODEXSUN application core and agent-first orchestration runtime",
   "engines": {
@@ -34,6 +34,7 @@
     "dev:zetro-api": "node tools/start-service.mjs zetro-api",
     "dev:web": "node tools/start-service.mjs web",
     "github:now": "node tools/github-helper.mjs",
+    "q-cafe:token": "node tools/q-cafe-token.mjs --replace",
     "start": "npm run start -w @codexsun/core-api",
     "test:tools": "node --test tools/*.test.mjs",
     "version:bump": "node tools/version-bump.mjs",

@@ -2,16 +2,18 @@
 
 import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { mkdir, rm, stat } from "node:fs/promises";
 import { watch } from "node:fs";
 import { relative, resolve } from "node:path";
 import { runPreflight } from "./preflight.mjs";
 
 const ROOT = resolve(import.meta.dirname, "..");
+const qCafeOnly = process.env.QCAFE_ONLY === "true";
 const cafeServices = [
   { args: ["apps/q-cafe/api/src/server.mjs"], bin: null, healthUrl: "http://127.0.0.1:4180/health", label: "q-cafe-api" },
   { args: ["apps/q-cafe/web", "--config", "apps/q-cafe/web/vite.config.ts"], bin: resolve(ROOT, "node_modules/vite/bin/vite.js"), healthUrl: "http://127.0.0.1:5180", label: "q-cafe-web" },
 ];
-const services = process.env.QCAFE_ONLY === "true" ? cafeServices : [
+const services = qCafeOnly ? cafeServices : [
   {
     args: ["watch", "apps/platform/core/api/src/server.ts"],
     bin: resolve(ROOT, "node_modules", "tsx", "dist", "cli.mjs"),
@@ -48,10 +50,15 @@ const runningServices = new Map();
 const restartingServices = new Set();
 const REFACTOR_RESTART_DELAY_MS = 800;
 let stopping = false;
+let releaseStartupLock = () => {};
 
 try {
-  const { env } = await runPreflight({ ports: process.env.QCAFE_ONLY === "true" ? [4180, 5180] : [4100, 4150, 4160, 5173, 5174, 5175] });
-  if (env.CODEXSUN_LOCAL_DEMO === "true") {
+  if (qCafeOnly) releaseStartupLock = await acquireStartupLock(resolve(ROOT, "apps/q-cafe/.local/startup.lock"));
+  const { env } = await runPreflight({
+    host: qCafeOnly ? "0.0.0.0" : "127.0.0.1",
+    ports: qCafeOnly ? [4180, 5180] : [4100, 4150, 4160, 5173, 5174, 5175],
+  });
+  if (!qCafeOnly && env.CODEXSUN_LOCAL_DEMO === "true") {
     const result = spawnSync("docker", ["compose", "-f", resolve(ROOT, "tools/local-demo/compose.json"), "up", "-d", "--wait"], { cwd: ROOT, stdio: "inherit", windowsHide: true });
     if (result.status !== 0) throw new Error("Local demonstration containers could not start.");
     env.ZETRO_AGENTS_FILE = resolve(ROOT, "tools/local-demo/agents.json");
@@ -59,7 +66,7 @@ try {
     env.VITE_CHAT_LOCAL_DEMO = "true";
     console.log("Local simulation enabled. No production model or real contacts are connected.");
   }
-  if (env.CODEXSUN_ZETRO_DOCKER === "true") {
+  if (!qCafeOnly && env.CODEXSUN_ZETRO_DOCKER === "true") {
     env.ZETRO_TOOLS_TOKEN ||= randomBytes(32).toString("hex");
     startService({ args: ["packages/zetro/local-runner/src/server.mjs"], bin: null, label: "zetro-local-runner" }, env);
     await waitForHealthyUrl("http://127.0.0.1:4160/health", "zetro-local-runner");
@@ -71,20 +78,22 @@ try {
   }
   console.log("CODEXSUN OS development runtime");
   for (const service of services) {
-    startService(service, env);
-    await waitForHealthyUrl(service.healthUrl, service.label);
+    const child = startService(service, env);
+    await waitForHealthyUrl(service.healthUrl, service.label, child);
     console.log(`  ok ${service.label} is ready`);
   }
   if (env.CODEXSUN_VITE_HOT_RELOAD === "true") watchPlatformRefactors();
   else console.log("  - Vite hot reload and refactor restarts are disabled.");
   console.log("\n  ok Selected applications are ready");
-  if (process.env.QCAFE_ONLY === "true") console.log("  - Q Cafe: http://127.0.0.1:5180 (API: 4180)");
+  if (qCafeOnly) console.log("  - Q Cafe: http://127.0.0.1:5180 (API: 4180)");
   else console.log("  - Web: http://127.0.0.1:5173");
   console.log("  - API: http://127.0.0.1:4100\n");
   console.log("  - DevKit: http://127.0.0.1:5174\n");
   console.log("  - Zetro API: http://127.0.0.1:4150");
   console.log("  - Zetro Web: http://127.0.0.1:5175\n");
+  await releaseStartupLock();
 } catch (error) {
+  await releaseStartupLock();
   console.error(`  x ${error instanceof Error ? error.message : String(error)}`);
   await shutdown(1);
 }
@@ -169,20 +178,48 @@ async function restartService(label) {
   }
 }
 
-async function waitForHealthyUrl(url, label) {
+async function waitForHealthyUrl(url, label, child) {
   const startedAt = Date.now();
   let lastStatus = "not reachable";
   while (Date.now() - startedAt < 30_000) {
+    if (child?.exitCode !== null) throw new Error(`${label} exited before it became ready.`);
     try {
       const response = await fetch(url, { signal: AbortSignal.timeout(2_000) });
       lastStatus = `HTTP ${response.status}`;
-      if (response.ok) return;
+      if (response.ok) {
+        await new Promise((done) => setTimeout(done, 100));
+        if (child?.exitCode !== null) throw new Error(`${label} exited while claiming its port.`);
+        return;
+      }
     } catch (error) {
       lastStatus = error instanceof Error ? error.message : String(error);
     }
     await new Promise((done) => setTimeout(done, 250));
   }
   throw new Error(`${label} did not become healthy: ${lastStatus}`);
+}
+
+async function acquireStartupLock(path) {
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    try {
+      await mkdir(path, { recursive: false });
+      let released = false;
+      return async () => {
+        if (released) return;
+        released = true;
+        await rm(path, { recursive: true, force: true });
+      };
+    } catch (error) {
+      if (error?.code !== "EEXIST") throw error;
+      const lock = await stat(path).catch(() => null);
+      if (lock && Date.now() - lock.mtimeMs > 60_000) {
+        await rm(path, { recursive: true, force: true });
+        continue;
+      }
+      await new Promise((done) => setTimeout(done, 250));
+    }
+  }
+  throw new Error("Another Q Cafe startup is still in progress.");
 }
 
 function writeLines(label, chunk) {

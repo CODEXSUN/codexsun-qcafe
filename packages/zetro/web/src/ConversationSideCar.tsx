@@ -45,7 +45,7 @@ export function ConversationSideCar({
   const [projectName, setProjectName] = useState("");
   const matching = conversations
     .filter((item) => `${item.title} ${item.exchanges.map((entry) => entry.prompt).join(" ")}`.toLowerCase().includes(search.toLowerCase()))
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
 
   function renderItem(item: Conversation) {
     if (editingId === item.id) {

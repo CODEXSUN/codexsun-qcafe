@@ -28,12 +28,13 @@ export class CafeStore {
     return this.transaction(() => {
       const lines = input.lines.map(line => {
         const item = this.db.prepare('SELECT * FROM menu WHERE id=?').get(Number(line.menu_id));
-        if (!item || !Number.isInteger(line.quantity) || line.quantity < 1 || line.quantity > 99) throw new Error('Invalid menu item or quantity.');
-        return { ...item, quantity: line.quantity };
+        if (typeof line.quantity !== 'number' || !Number.isFinite(line.quantity) || line.quantity <= 0 || line.quantity > 99 || decimalPlaces(line.quantity) > 3) throw new Error('Invalid quantity.');
+        if (!Number.isInteger(line.price) || line.price < 1 || line.price > 100_000_000) throw new Error('Invalid rate.');
+        return { id: item?.id ?? null, item_code: shortLabel(line.item_code, 40), name: label(line.name), price: line.price, quantity: line.quantity };
       });
       const total = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
       const { lastInsertRowid } = this.db.prepare('INSERT INTO orders(table_name,total) VALUES (?,?)').run(table, total);
-      for (const line of lines) this.db.prepare('INSERT INTO order_lines VALUES (?,?,?,?,?)').run(lastInsertRowid, line.id, line.name, line.quantity, line.price);
+      for (const line of lines) this.db.prepare('INSERT INTO order_lines(order_id,menu_id,item_code,name,quantity,price) VALUES (?,?,?,?,?,?)').run(lastInsertRowid, line.id, line.item_code, line.name, line.quantity, line.price);
       return { id: Number(lastInsertRowid), total };
     });
   }
@@ -67,7 +68,7 @@ export class CafeStore {
   seed() {
     if (this.db.prepare('SELECT id FROM menu LIMIT 1').get()) return;
     this.transaction(() => {
-      for (const row of [[1,'Filter coffee','Beverages',8000],[2,'Cappuccino','Beverages',14000],[3,'Iced latte','Beverages',16000],[4,'Masala chai','Beverages',6000],[5,'Paneer sandwich','Kitchen',18000],[6,'Pesto pasta','Kitchen',26000],[7,'Butter croissant','Bakery',12000],[8,'Chocolate brownie','Bakery',15000]]) this.db.prepare('INSERT INTO menu VALUES (?,?,?,?)').run(...row);
+      for (const row of [[1,'Filter coffee','Beverages',8000,'ITM-001'],[2,'Cappuccino','Beverages',14000,'ITM-002'],[3,'Iced latte','Beverages',16000,'ITM-003'],[4,'Masala chai','Beverages',6000,'ITM-004'],[5,'Paneer sandwich','Kitchen',18000,'ITM-005'],[6,'Pesto pasta','Kitchen',26000,'ITM-006'],[7,'Butter croissant','Bakery',12000,'ITM-007'],[8,'Chocolate brownie','Bakery',15000,'ITM-008']]) this.db.prepare('INSERT INTO menu(id,name,category,price,code) VALUES (?,?,?,?,?)').run(...row);
       for (const row of [[1,'Coffee beans','kg',4.5,2],[2,'Milk','litres',8,10],[3,'Paneer','kg',3,2],[4,'Croissants','pieces',18,12]]) this.db.prepare('INSERT INTO inventory VALUES (?,?,?,?,?)').run(...row);
     });
   }
@@ -76,7 +77,16 @@ function label(value) {
   if (typeof value !== 'string' || !value.trim() || value.trim().length > 120) throw new Error('Enter text between 1 and 120 characters.');
   return value.trim();
 }
+function shortLabel(value, maximum) {
+  const result = label(value);
+  if (result.length > maximum) throw new Error(`Text must not exceed ${maximum} characters.`);
+  return result;
+}
 function tableName(value, takeaway = true) {
   if (!/^T(0[1-9]|1[0-2])$/.test(value) && !(takeaway && value === 'Takeaway')) throw new Error('Choose a table T01–T12.');
   return value;
+}
+function decimalPlaces(value) {
+  const [, fraction = ''] = String(value).split('.');
+  return fraction.length;
 }

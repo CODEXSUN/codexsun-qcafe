@@ -14,6 +14,8 @@ import { MdiTopologyRegion, type MdiTopologyAdapter } from "@codexsun/ui-desk";
 import { useMutation } from "@tanstack/react-query";
 import { sendPrompt } from "./prompt-api.js";
 import { ComposerOptions } from "./ComposerOptions.js";
+import { createRun } from "./workflow-api.js";
+import { WorkflowPanel, type WorkflowMode } from "./WorkflowPanel.js";
 
 export const ZETRO_MODELS = [
   { id: "codex-specialist", name: "Codex Specialist", badge: "Docker · Sandbox", desc: "Isolated specialist container with code execution tools." },
@@ -50,6 +52,9 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
   const [prompt, setPrompt] = useState("");
   const [showActivity, setShowActivity] = useState(false);
   const [motion, setMotion] = useState(true);
+  const [workflowEnabled, setWorkflowEnabled] = useState(false);
+  const [workflowMode, setWorkflowMode] = useState<WorkflowMode>("sequential");
+  const [manualApprovals, setManualApprovals] = useState(true);
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
@@ -57,7 +62,8 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
   const [renameTargetId, setRenameTargetId] = useState<string | null>(null);
   const [newChatTitle, setNewChatTitle] = useState("");
   const mutation = useMutation({ mutationFn: sendPrompt });
-  const sending = mutation.isPending;
+  const workflowMutation = useMutation({ mutationFn: createRun });
+  const sending = mutation.isPending || workflowMutation.isPending;
   const [error, setError] = useState("");
   const request = useRef<AbortController | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
@@ -240,6 +246,12 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
     const controller = new AbortController();
     request.current = controller; setError("");
     try {
+      if (workflowEnabled) {
+        await workflowMutation.mutateAsync({ message: submitted, mode: workflowMode, manualApprovals });
+        setPrompt(""); setAttachments([]); setActionNotice("Workflow saved and started.");
+        setTimeout(() => setActionNotice(null), 2500);
+        return;
+      }
       const result = await mutation.mutateAsync({ message: submitted, signal: controller.signal, attachments });
       const now = new Date().toISOString();
       const updated: Exchange[] = [...exchanges, { id: result.runId, prompt: submitted, result: result.message, timestamp: now, activities: result.activities }];
@@ -585,7 +597,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
         onSubmit={(event) => void send(event)}
         className="relative mx-auto w-full md:w-4/5 rounded-2xl border border-input bg-card p-3 shadow-sm cursor-text"
       >
-        <MdiTopologyRegion id="z5.5" topology={topology} className="!absolute -top-5 right-3 z-10 cursor-default"><ComposerOptions activity={showActivity} motion={motion} onActivity={setShowActivity} onMotion={setMotion} /></MdiTopologyRegion>
+        <MdiTopologyRegion id="z5.5" topology={topology} className="!absolute -top-5 right-3 z-10 cursor-default"><ComposerOptions activity={showActivity} motion={motion} onActivity={setShowActivity} onMotion={setMotion} workflow={<MdiTopologyRegion id="z5.6" topology={topology}><WorkflowPanel enabled={workflowEnabled} mode={workflowMode} manualApprovals={manualApprovals} onEnabled={setWorkflowEnabled} onMode={setWorkflowMode} onManualApprovals={setManualApprovals} /></MdiTopologyRegion>} /></MdiTopologyRegion>
         <MdiTopologyRegion id="z5.1" topology={topology}><textarea ref={promptInputRef} autoFocus aria-label="Prompt" disabled={sending} maxLength={20000} value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Send a prompt…" className="min-h-20 w-full resize-none border-0 bg-transparent p-2 text-sm leading-6 shadow-none outline-none ring-0 focus:border-0 focus:shadow-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0" onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); setTimeout(() => promptInputRef.current?.focus(), 0); } }} />
         </MdiTopologyRegion>
         <AttachmentPreviews items={attachments} onChange={setAttachments} disabled={sending || attachmentBusy} />
