@@ -1,0 +1,16 @@
+{
+  "name": "@codexsun/q-cafe-desktop",
+  "version": "0.1.5",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node ../../../tools/start-q-cafe-desktop.mjs",
+    "build": "cargo tauri build"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.10.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.10.0"
+  }
+}

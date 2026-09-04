@@ -1,6 +1,6 @@
 {
   "name": "@codexsun/core-web",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,6 +10,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@codexsun/ai-task-web": "*",
     "@codexsun/devkit-ito": "*",
     "@codexsun/ui": "*",
     "@codexsun/ui-desk": "*",

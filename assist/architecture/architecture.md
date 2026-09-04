@@ -14,6 +14,18 @@ The execution plane owns isolated processes, networks, volumes, resource limits,
 
 Applications communicate through versioned HTTP APIs and events. They do not access another application's database.
 
+## Platform persistence
+
+`apps/platform/core/api` owns the platform database lifecycle. When
+`DATABASE_URL` is configured, it creates the configured MariaDB/MySQL database,
+runs its owned migrations, and records platform events with a transactional
+outbox. A transaction commits the event and its outbox record together.
+
+Redis/BullMQ is an optional delivery transport for those outbox records. Product
+workers own their own jobs and consume only public event contracts. Platform
+persistence stays tenancy-neutral: tenant identity, authorization, and tenant
+storage remain a separate add-on.
+
 ## Runtime layers
 
 ```text
@@ -78,10 +90,13 @@ The first builder agent creates structured plans only. It has no mutation or dep
 ## Interactive workspaces
 
 Core composes Chat and Zetro through public workspace add-on contracts.
-`packages/chat/web` owns the authenticated DevKit Messenger adapter and direct-message UI.
+`packages/chat` owns the reusable Chat add-on as one bounded context.
+Its contracts, modular backend, standalone host, web workspace, tests, and guidance remain under this folder.
+The web package includes an optional authenticated DevKit Messenger adapter.
 `packages/zetro/web` owns specialist conversations and browser history.
 `packages/zetro/api` dispatches to the isolated Agent Crew runtimes.
 The shared desk owns navigation slots and layout. It does not contain chat records or agent behavior.
+Applications bind Chat through the `@codexsun/chat-web` public factory. They do not import Chat internals.
 
 ## Scale boundary
 

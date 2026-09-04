@@ -1,0 +1,12 @@
+@import "tailwindcss";
+@import "@codexsun/ui/styles.css";
+@import "@codexsun/ui-desk/styles.css";
+@import "@codexsun/devkit-ito/styles.css";
+@source "../../../ui/src";
+@source "../../../ui/desk/src";
+@custom-variant dark (&:is(.dark *));
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}

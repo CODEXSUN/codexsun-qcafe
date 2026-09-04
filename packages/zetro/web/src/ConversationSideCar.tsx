@@ -232,7 +232,7 @@ export function ConversationSideCar({
 
   return (
     <MdiTopologyRegion id="z2.1" topology={topology} className="flex h-full min-h-0 flex-col">
-      <div className="shrink-0 -mx-3 -mt-3 border-b border-border">
+      <MdiTopologyRegion id="z2.1.1" topology={topology} className="shrink-0 -mx-3 -mt-3 border-b border-border">
         <div className="relative w-full">
           <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -253,8 +253,8 @@ export function ConversationSideCar({
             </button>
           )}
         </div>
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto py-3">
+      </MdiTopologyRegion>
+      <MdiTopologyRegion id="z2.1.2" topology={topology} className="min-h-0 flex-1 overflow-y-auto py-3">
         {pinnedItems.length > 0 && (
           <details open className="group mb-3">
             <summary className="flex cursor-pointer list-none items-center justify-between rounded px-2 py-2 text-xs font-medium text-primary hover:bg-accent [&::-webkit-details-marker]:hidden">
@@ -363,15 +363,15 @@ export function ConversationSideCar({
         {!matching.length && (
           <p className="px-3 py-5 text-sm text-muted-foreground">{search ? "No matching chats." : "Your chats will appear here."}</p>
         )}
-      </div>
-      <div className="shrink-0 border-t border-border pt-3">
+      </MdiTopologyRegion>
+      <MdiTopologyRegion id="z2.1.3" topology={topology} className="shrink-0 border-t border-border pt-3">
         <Button onClick={onNew} disabled={disabled} className="w-full gap-2 cursor-pointer">
           <Plus className="size-4" />
           New Chat
         </Button>
-      </div>
+      </MdiTopologyRegion>
 
-      <Dialog open={projectDialogOpen} onOpenChange={setProjectDialogOpen}>
+      <MdiTopologyRegion id="z2.1.4" topology={topology}><Dialog open={projectDialogOpen} onOpenChange={setProjectDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
@@ -426,7 +426,7 @@ export function ConversationSideCar({
             </DialogFooter>
           </form>
         </DialogContent>
-      </Dialog>
+      </Dialog></MdiTopologyRegion>
     </MdiTopologyRegion>
   );
 }

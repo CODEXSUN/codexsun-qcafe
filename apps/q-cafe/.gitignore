@@ -1,4 +1,9 @@
 .local/
+*.sqlite*
+web/node_modules/
 web/dist/
 web/*.tsbuildinfo
-*.sqlite*
+
+desktop/release/
+desktop/src-tauri/target/
+desktop/src-tauri/gen/

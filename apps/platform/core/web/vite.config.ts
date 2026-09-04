@@ -14,7 +14,7 @@ export default defineConfig({
     },
   },
   server: {
-    ...createViteDevelopmentServer({ host: "127.0.0.1", port: 5173, proxy: { "/api/v1/zetro": "http://127.0.0.1:4150", "/api": "http://127.0.0.1:4100" } }),
+    ...createViteDevelopmentServer({ host: "127.0.0.1", port: 5173, proxy: { "/api/v1/zetro": "http://127.0.0.1:4150", "/api/v1/ai-tasks": "http://127.0.0.1:4150", "/api": "http://127.0.0.1:4100" } }),
     fs: { allow: [path.resolve(import.meta.dirname, "../../../..")] },
   },
 });

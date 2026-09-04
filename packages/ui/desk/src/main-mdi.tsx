@@ -12,7 +12,7 @@ import { MdiWorkspaceCanvas } from "./blocks/workspace/mdi-workspace-canvas.js";
 import { WorkspaceContent } from "./blocks/workspace/workspace-content.js";
 import { getDefaultWorkspaceItem, getWorkspaceContent, getWorkspaceNavigation, type WorkspaceNavigationView } from "./blocks/workspace/workspace-navigation-data.js";
 
-export type MdiWorkspaceAddon = { id: string; label: string; icon: LucideIcon; navigation: AppSidebarNavigation; renderSideCar?: () => ReactNode; renderPage: (pageId: string, topology?: MdiTopologyAdapter, sideCarTarget?: HTMLElement | null) => ReactNode };
+export type MdiWorkspaceAddon = { id: string; label: string; icon: LucideIcon; navigation: AppSidebarNavigation; placement?: "primary" | "utility"; renderSideCar?: () => ReactNode; renderPage: (pageId: string, topology?: MdiTopologyAdapter, sideCarTarget?: HTMLElement | null) => ReactNode };
 
 export type MdiPage = { view: WorkspaceNavigationView; addonId?: string; pageId?: string };
 

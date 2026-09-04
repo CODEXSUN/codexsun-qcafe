@@ -22,6 +22,16 @@ const definitions = {
     bin: resolve(ROOT, "node_modules", "vite", "bin", "vite.js"),
     portIndex: 2,
   },
+  chat: {
+    args: ["packages/chat/web", "--config", "packages/chat/web/vite.config.ts"],
+    bin: resolve(ROOT, "node_modules", "vite", "bin", "vite.js"),
+    portIndex: 3,
+  },
+  "chat-api": {
+    args: ["packages/chat/api/src/server.ts"],
+    bin: resolve(ROOT, "node_modules", "tsx", "dist", "cli.mjs"),
+    portIndex: 4,
+  },
   "zetro-api": {
     args: ["packages/zetro/api/src/server.ts"],
     bin: resolve(ROOT, "node_modules", "tsx", "dist", "cli.mjs"),
@@ -35,12 +45,12 @@ const definitions = {
 };
 
 if (!service || !definitions[service]) {
-  console.error("Usage: node tools/start-service.mjs <api|web|devkit|zetro-api|zetro>");
+  console.error("Usage: node tools/start-service.mjs <api|web|devkit|chat|chat-api|zetro-api|zetro>");
   process.exit(1);
 }
 
 const definition = definitions[service];
-const servicePort = service === "api" ? 4100 : service === "zetro-api" ? 4150 : service === "web" ? 5173 : service === "devkit" ? 5174 : 5175;
+const servicePort = service === "api" ? 4100 : service === "zetro-api" ? 4150 : service === "chat-api" ? 4165 : service === "web" ? 5173 : service === "devkit" ? 5174 : service === "chat" ? 5176 : 5175;
 const { env, ports } = await runPreflight({ ports: [servicePort] });
 const child = spawn(process.execPath, [definition.bin, ...definition.args], {
   cwd: ROOT,

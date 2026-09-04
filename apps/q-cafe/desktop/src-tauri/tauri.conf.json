@@ -1,0 +1,38 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Q Cafe",
+  "version": "0.1.5",
+  "identifier": "in.codexsun.qcafe",
+  "build": {
+    "beforeDevCommand": "npm.cmd --loglevel=error --prefix ../../.. run dev:q-cafe",
+    "devUrl": "http://127.0.0.1:5180",
+    "beforeBuildCommand": "npm.cmd --prefix ../../.. run build:q-cafe",
+    "frontendDist": "../../web/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Q Cafe",
+        "width": 1440,
+        "height": 920,
+        "minWidth": 1024,
+        "minHeight": 700
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:4180; img-src 'self' asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; font-src 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "icon": ["icons/icon.ico"],
+    "targets": ["msi", "nsis"],
+    "resources": {
+      "../../api": "api"
+    },
+    "windows": {
+      "wix": { "language": "en-US" },
+      "nsis": { "displayLanguageSelector": true }
+    }
+  }
+}

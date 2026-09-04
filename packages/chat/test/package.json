@@ -1,0 +1,19 @@
+{
+  "name": "@codexsun/chat-test",
+  "version": "0.1.5",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@codexsun/chat-api": "*",
+    "@codexsun/chat-contracts": "*",
+    "@codexsun/chat-web": "*"
+  },
+  "devDependencies": {
+    "vitest": "latest",
+    "typescript": "latest"
+  }
+}

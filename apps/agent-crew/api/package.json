@@ -1,6 +1,6 @@
 {
   "name": "@codexsun/agent-crew-api",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@codexsun/zetro-api": "*",
-    "@openai/codex-sdk": "0.153.0",
+    "@openai/codex-sdk": "0.153.2",
     "fastify": "latest",
     "zod": "latest"
   },

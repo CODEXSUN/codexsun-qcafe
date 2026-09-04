@@ -3,6 +3,13 @@ import { PlatformCore } from "@codexsun/runtime";
 
 const platformOwnership = [
   {
+    id: "platform.identity",
+    owner: "Platform Identity",
+    protectedPaths: ["apps/platform/core/api/src/modules/identity"],
+    publicContracts: ["@codexsun/identity-contracts", "@codexsun/platform-host-contracts"],
+    roots: ["apps/platform/core/api/src/modules/identity", "packages/identity-contracts", "packages/platform-host-contracts"],
+  },
+  {
     id: "platform.core",
     owner: "Platform Core",
     protectedPaths: ["apps/platform/core/api/src", "apps/platform/core/web/src"],

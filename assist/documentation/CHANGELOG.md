@@ -2,11 +2,11 @@
 
 ## Version State
 
-Current version: 0.1.4
+Current version: 0.1.5
 
-Release tag: v-0.1.4
+Release tag: v-0.1.5
 
-Changelog label: v 0.1.4
+Changelog label: v 0.1.5
 
 ## Unreleased
 
@@ -41,6 +41,21 @@ Changelog label: v 0.1.4
 - Added ITO entries for the workspace canvas, navigation, navigation rail, and workspace surface.
 - Cleared workspace canvas child blocks and reserved the full canvas for the next MDI feature.
 - Bound the shared AppSidebar and SidebarInset composition inside the workspace canvas.
+
+## v-0.1.5
+
+### [v 0.1.5] 2026-09-04 11:08 a.m. - Q Cafe POS billing and Windows installers
+
+#### Database Changes
+
+- Database update: Yes.
+
+#### App Codebase Changes
+
+- Bumped the workspace version to 0.1.5.
+- Added Q Cafe POS billing tables for restaurant tables, bills, POS items, receipts, and receipt transactions.
+- Added taxable, GST, grand-total, partial-payment, mixed-payment, activity, and future-sync records to the Q Cafe SQLite database.
+- Added the keyboard-first Q Cafe POS billing screen and versioned Windows installer packaging.
 
 ## v-0.1.4
 

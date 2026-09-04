@@ -1,6 +1,6 @@
 {
   "name": "@codexsun/core-api",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,9 +12,16 @@
   },
   "dependencies": {
     "@codexsun/contracts": "*",
+    "@codexsun/identity-contracts": "*",
+    "@codexsun/platform-host-contracts": "*",
     "@codexsun/runtime": "*",
     "@fastify/cors": "latest",
+    "bullmq": "^6.3.4",
     "fastify": "latest",
+    "ioredis": "^6.0.0",
+    "jose": "^6.2.10",
+    "kysely": "^0.29.5",
+    "mysql2": "^3.24.3",
     "zod": "latest"
   },
   "devDependencies": {

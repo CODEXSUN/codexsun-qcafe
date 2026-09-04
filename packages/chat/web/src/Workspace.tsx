@@ -7,20 +7,53 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@codexsun/ui/components/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@codexsun/ui/components/ui/popover";
 import { MdiTopologyRegion, type MdiTopologyAdapter } from "@codexsun/ui-desk";
-import { ChatClient, mergeMessages, type Contact, type Conversation, type Message } from "./client.js";
+import { CentralChatClient, DevKitChatClient, mergeMessages, type ChatTransport, type ChatTransportFactory, type Contact, type Conversation, type Message } from "./client.js";
 
-export const chatWorkspaceAddon = {
-  id: "chat", label: "Chat", icon: MessageSquare,
-  navigation: { id: "chat", hideSearch: true, searchPlaceholder: "Chat workspace", groups: [] },
-  renderPage: (_page: string, topology?: MdiTopologyAdapter, target?: HTMLElement | null) => <ChatWorkspace topology={topology} target={target} />,
+export type ChatWorkspaceOptions = {
+  id?: string;
+  label?: string;
+  defaultApiUrl?: string;
+  demoApiUrl?: string;
+  demoToken?: string;
+  localDemo?: boolean;
+  transportFactory?: ChatTransportFactory;
 };
 
-const localDemo = import.meta.env.DEV && import.meta.env.VITE_CHAT_LOCAL_DEMO === "true" && ["127.0.0.1", "localhost"].includes(window.location.hostname);
+const defaultOptions: Required<Omit<ChatWorkspaceOptions, "transportFactory">> = {
+  id: "chat",
+  label: "Chat",
+  defaultApiUrl: "http://127.0.0.1:4165",
+  demoApiUrl: "http://127.0.0.1:4165",
+  demoToken: "local-demo-only",
+  localDemo: false,
+};
 
-export function ChatWorkspace({ topology, target }: { topology?: MdiTopologyAdapter; target?: HTMLElement | null }) {
-  const [url, setUrl] = useState(localDemo ? "http://127.0.0.1:9051" : "http://127.0.0.1:9050");
-  const [token, setToken] = useState(localDemo ? "local-demo-only" : "");
-  const [client, setClient] = useState<ChatClient>();
+export function createChatWorkspaceAddon(options: ChatWorkspaceOptions = {}) {
+  const resolved = { ...defaultOptions, ...options };
+  return {
+  id: resolved.id, label: resolved.label, icon: MessageSquare,
+  navigation: { id: "chat", hideSearch: true, searchPlaceholder: "Chat workspace", groups: [] },
+  renderPage: (_page: string, topology?: MdiTopologyAdapter, target?: HTMLElement | null) => <ChatWorkspace options={resolved} topology={topology} target={target} />,
+  };
+}
+
+export const chatWorkspaceAddon = createChatWorkspaceAddon({
+  defaultApiUrl: "http://127.0.0.1:9050",
+  demoApiUrl: "http://127.0.0.1:9051",
+  localDemo: import.meta.env.DEV && import.meta.env.VITE_CHAT_LOCAL_DEMO === "true",
+  transportFactory: (baseUrl, token) => new DevKitChatClient(baseUrl, token),
+});
+
+function isLoopbackBrowser() {
+  return ["127.0.0.1", "localhost"].includes(window.location.hostname);
+};
+
+export function ChatWorkspace({ options = defaultOptions, topology, target }: { options?: ChatWorkspaceOptions; topology?: MdiTopologyAdapter; target?: HTMLElement | null }) {
+  const resolved = { ...defaultOptions, ...options };
+  const localDemo = resolved.localDemo && isLoopbackBrowser();
+  const [url, setUrl] = useState(localDemo ? resolved.demoApiUrl : resolved.defaultApiUrl);
+  const [token, setToken] = useState(localDemo ? resolved.demoToken : "");
+  const [client, setClient] = useState<ChatTransport>();
   const [profile, setProfile] = useState<Contact>();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -84,7 +117,8 @@ export function ChatWorkspace({ topology, target }: { topology?: MdiTopologyAdap
     await action(async () => {
       const endpoint = new URL(url);
       if (endpoint.protocol !== "https:" && !(endpoint.protocol === "http:" && ["127.0.0.1", "localhost"].includes(endpoint.hostname))) throw new Error("Use HTTPS for a remote DevKit connection.");
-      const connection = new ChatClient(endpoint.origin, localDemo && endpoint.origin === "http://127.0.0.1:9051" ? "local-demo-only" : token);
+      const credential = localDemo && endpoint.origin === new URL(resolved.demoApiUrl).origin ? resolved.demoToken : token;
+      const connection = resolved.transportFactory?.(endpoint.origin, credential) ?? new CentralChatClient(endpoint.origin, credential);
       const [identity, threads, people] = await Promise.all([connection.profile(), connection.conversations(), connection.contacts()]);
       setProfile(identity); setConversations(threads.filter((item) => item.kind === "direct")); setContacts(people); setClient(connection); setToken("");
     });
@@ -124,7 +158,7 @@ export function ChatWorkspace({ topology, target }: { topology?: MdiTopologyAdap
     return () => { stopped = true; clearInterval(timer); };
   }, [client, active?.id]);
   function disconnect() {
-    setToken(localDemo ? "local-demo-only" : ""); generation.current++; setClient(undefined); setProfile(undefined); setConversations([]); setContacts([]); setActive(undefined); setMessages([]); setDrafts({}); setError("");
+    setToken(localDemo ? resolved.demoToken : ""); generation.current++; setClient(undefined); setProfile(undefined); setConversations([]); setContacts([]); setActive(undefined); setMessages([]); setDrafts({}); setError("");
   }
   async function send(event: FormEvent) {
     event.preventDefault();
@@ -190,14 +224,56 @@ export function ChatWorkspace({ topology, target }: { topology?: MdiTopologyAdap
           </MdiTopologyRegion>
         </div>
       </MdiTopologyRegion>
-    <MdiTopologyRegion id="c8" topology={topology} className="shrink-0 border-t border-border bg-background p-4"><form onSubmit={(event) => void send(event)} className="mx-auto w-full md:w-[75%] rounded-xl border border-input bg-card p-3 shadow-sm"><MdiTopologyRegion id="c8.1" topology={topology}><textarea ref={textareaRef} aria-label="Private message" maxLength={8000} disabled={busy} className="min-h-20 w-full resize-none bg-transparent p-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" placeholder="Write a private message" value={draft} onChange={(event) => setDrafts((current) => ({ ...current, [active.id]: event.target.value }))} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} /></MdiTopologyRegion><div className="flex items-center justify-between gap-3 px-1 pt-2"><MdiTopologyRegion id="c8.2" topology={topology} className="flex items-center gap-1"><MdiTopologyRegion id="c8.2.1" topology={topology}><ComposerTool icon={Paperclip} label="Attach a file" /></MdiTopologyRegion><MdiTopologyRegion id="c8.2.2" topology={topology}><ComposerTool icon={AtSign} label="Mention someone" /></MdiTopologyRegion><MdiTopologyRegion id="c8.2.3" topology={topology}><ComposerTool icon={Slash} label="Commands" /></MdiTopologyRegion><MdiTopologyRegion id="c8.2.4" topology={topology}><ComposerTool icon={Hash} label="Add topic" /></MdiTopologyRegion><MdiTopologyRegion id="c8.2.5" topology={topology}><ComposerTool icon={CircleHelp} label="Composer help" /></MdiTopologyRegion></MdiTopologyRegion><MdiTopologyRegion id="c8.3" topology={topology}><Button type="submit" aria-label="Send private message" disabled={busy || !draft.trim()} className="rounded-full bg-muted text-muted-foreground shadow-none hover:bg-muted enabled:bg-foreground enabled:text-background enabled:hover:bg-foreground/90" size="icon"><Send className="size-4" /></Button></MdiTopologyRegion></div></form></MdiTopologyRegion></>}
+    <MdiTopologyRegion id="c8" topology={topology} className="shrink-0 bg-background p-4">
+      <form onSubmit={(event) => void send(event)} className="mx-auto w-full md:w-[75%] rounded-xl border border-input bg-card p-3 shadow-sm">
+        <MdiTopologyRegion id="c8.1" topology={topology}>
+          <textarea
+            ref={textareaRef}
+            aria-label="Private message"
+            maxLength={8000}
+            disabled={busy}
+            className="min-h-20 w-full resize-none bg-transparent p-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            placeholder="Write a private message"
+            value={draft}
+            onChange={(event) => setDrafts((current) => ({ ...current, [active.id]: event.target.value }))}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                event.currentTarget.form?.requestSubmit();
+              }
+            }}
+          />
+        </MdiTopologyRegion>
+        <div className="flex items-center justify-between gap-3 px-1 pt-2">
+          <MdiTopologyRegion id="c8.2" topology={topology} className="flex items-center gap-1">
+            <MdiTopologyRegion id="c8.2.1" topology={topology}><ComposerTool icon={Paperclip} label="Attach a file" /></MdiTopologyRegion>
+            <MdiTopologyRegion id="c8.2.2" topology={topology}><ComposerTool icon={AtSign} label="Mention someone" /></MdiTopologyRegion>
+            <MdiTopologyRegion id="c8.2.3" topology={topology}><ComposerTool icon={Slash} label="Commands" /></MdiTopologyRegion>
+            <MdiTopologyRegion id="c8.2.4" topology={topology}><ComposerTool icon={Hash} label="Add topic" /></MdiTopologyRegion>
+            <MdiTopologyRegion id="c8.2.5" topology={topology}><ComposerTool icon={CircleHelp} label="Composer help" /></MdiTopologyRegion>
+          </MdiTopologyRegion>
+          <MdiTopologyRegion id="c8.3" topology={topology}>
+            <Button
+              type="submit"
+              aria-label="Send private message"
+              disabled={busy || !draft.trim()}
+              className="rounded-full bg-muted text-muted-foreground shadow-none hover:bg-muted enabled:bg-foreground enabled:text-background enabled:hover:bg-foreground/90"
+              size="icon"
+            >
+              <Send className="size-4" />
+            </Button>
+          </MdiTopologyRegion>
+        </div>
+      </form>
+    </MdiTopologyRegion>
+  </>}
   </section>;
 }
 
 function ChatConversationHeader({ active, busy, client, contact, messageCount = 0, onArchive, onUnavailable, topology }: {
   active?: Conversation;
   busy: boolean;
-  client?: ChatClient;
+  client?: ChatTransport;
   contact?: Contact;
   messageCount?: number;
   onArchive: () => void;
@@ -337,7 +413,7 @@ function ChatSidecar({ active, archived, busy, client, conversations, onNewChat,
   active?: Conversation;
   archived: boolean;
   busy: boolean;
-  client?: ChatClient;
+  client?: ChatTransport;
   conversations: Conversation[];
   onNewChat: () => void;
   onSelect: (conversation: Conversation) => void;

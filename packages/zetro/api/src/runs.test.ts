@@ -48,12 +48,84 @@ it("supports Zetro alone and rejects overlapping runs", async () => {
 });
 
 it("persists both manual approval gates", async () => {
-  const { engine } = setup();
+  const { engine, send } = setup();
   const run = engine.create({ message: "Approved work", agentIds: [] });
   await vi.waitFor(() => expect(run.status).toBe("awaiting_approval"));
   expect(run.approval?.kind).toBe("plan");
+  expect(send).toHaveBeenCalledTimes(3);
   engine.approve(run.id, "approve", "Plan reviewed");
   await vi.waitFor(() => expect(engine.get(run.id)?.approval?.kind).toBe("completion"));
+  expect(send).toHaveBeenCalledTimes(5);
+  expect(engine.get(run.id)?.tasks.at(-1)?.result?.message).toBe("Test response");
   engine.approve(run.id, "approve", "Evidence reviewed");
   await vi.waitFor(() => expect(engine.get(run.id)?.status).toBe("completed"));
+});
+
+it("revises rejected plans before requesting approval again", async () => {
+  const { engine, send } = setup();
+  const run = engine.create({ message: "Revise this plan", agentIds: [] });
+  await vi.waitFor(() => expect(run.status).toBe("awaiting_approval"));
+  engine.approve(run.id, "reject", "Add rollback steps");
+  await vi.waitFor(() => expect(engine.get(run.id)?.status).toBe("awaiting_approval"));
+  expect(send).toHaveBeenCalledTimes(4);
+  expect(send.mock.calls.at(-1)?.[1].message).toContain("Reviewer requested changes:\nAdd rollback steps");
+  expect(engine.get(run.id)?.approval?.kind).toBe("plan");
+});
+
+it("keeps a persisted approval gate exclusive", async () => {
+  const { engine } = setup();
+  const run = engine.create({ message: "Wait for approval", agentIds: [] });
+  await vi.waitFor(() => expect(run.status).toBe("awaiting_approval"));
+  expect(() => engine.create({ message: "Do not overlap", agentIds: [] })).toThrow("active");
+});
+
+it("cancels a waiting run and permits an explicit retry", async () => {
+  const { engine } = setup();
+  const run = engine.create({ message: "Cancelable work", agentIds: [] });
+  await vi.waitFor(() => expect(run.status).toBe("awaiting_approval"));
+  expect(engine.cancel(run.id).status).toBe("cancelled");
+  expect(engine.get(run.id)?.status).toBe("cancelled");
+  expect(engine.resume(run.id).status).toBe("running");
+  await vi.waitFor(() => expect(engine.get(run.id)?.status).toBe("awaiting_approval"));
+});
+
+it("aggregates token usage across completed tasks", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "zetro-run-usage-"));
+  directories.push(directory);
+  const registry = new AgentRegistry([{ id: "zetro", name: "zetro", duty: "Test", skills: [], url: "http://localhost:4210", tokenEnv: "TEST_TOKEN" }], { TEST_TOKEN: "test" });
+  const dispatcher = new ZetroDispatcher(registry);
+  vi.spyOn(dispatcher, "send").mockImplementation(async (agentId) => ({
+    agentId,
+    conversationId: crypto.randomUUID(),
+    runId: crypto.randomUUID(),
+    message: "Response",
+    provider: "codex",
+    activities: [],
+    usage: { inputTokens: 10, outputTokens: 5, cachedInputTokens: 2 },
+  }));
+  const engine = new RunEngine(dispatcher, join(directory, "zetro.db"));
+  engines.push(engine);
+  const run = engine.create({ message: "Calculate tokens", agentIds: [], manualApprovals: false });
+  await vi.waitFor(() => expect(run.status).toBe("completed"));
+  expect(run.usage).toEqual({ inputTokens: 50, outputTokens: 25, cachedInputTokens: 10 });
+  expect(engine.get(run.id)?.usage).toEqual({ inputTokens: 50, outputTokens: 25, cachedInputTokens: 10 });
+});
+
+it("enqueues runs and executes them sequentially when queue is true", async () => {
+  const { engine } = setup();
+  const run1 = engine.create({ message: "First run", agentIds: [], manualApprovals: false });
+  const run2 = engine.create({ message: "Queued run", agentIds: [], manualApprovals: false, queue: true });
+  expect(run2.status).toBe("queued");
+  await vi.waitFor(() => expect(run1.status).toBe("completed"));
+  await vi.waitFor(() => expect(engine.get(run2.id)?.status).toBe("completed"));
+});
+
+it("emits live events via engine.subscribe", async () => {
+  const { engine } = setup();
+  const events: string[] = [];
+  const run = engine.create({ message: "Event streaming", agentIds: [], manualApprovals: false });
+  engine.subscribe(run.id, (payload) => events.push(payload.event));
+  await vi.waitFor(() => expect(run.status).toBe("completed"));
+  expect(events).toContain("task.completed");
+  expect(events).toContain("run.completed");
 });

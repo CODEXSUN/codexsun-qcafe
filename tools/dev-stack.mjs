@@ -2,10 +2,10 @@
 
 import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdir, rm, stat } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { watch } from "node:fs";
 import { relative, resolve } from "node:path";
-import { runPreflight } from "./preflight.mjs";
+import { loadDotEnv, runPreflight } from "./preflight.mjs";
 
 const ROOT = resolve(import.meta.dirname, "..");
 const qCafeOnly = process.env.QCAFE_ONLY === "true";
@@ -33,6 +33,18 @@ const services = qCafeOnly ? cafeServices : [
     label: "devkit",
   },
   {
+    args: ["packages/chat/api/src/server.ts"],
+    bin: resolve(ROOT, "node_modules", "tsx", "dist", "cli.mjs"),
+    healthUrl: "http://127.0.0.1:4165/health",
+    label: "chat-api",
+  },
+  {
+    args: ["packages/chat/web", "--config", "packages/chat/web/vite.config.ts"],
+    bin: resolve(ROOT, "node_modules", "vite", "bin", "vite.js"),
+    healthUrl: "http://127.0.0.1:5176/",
+    label: "chat",
+  },
+  {
     args: ["packages/zetro/api/src/server.ts"],
     bin: resolve(ROOT, "node_modules", "tsx", "dist", "cli.mjs"),
     healthUrl: "http://127.0.0.1:4150/health",
@@ -48,15 +60,22 @@ const services = qCafeOnly ? cafeServices : [
 const children = new Set();
 const runningServices = new Map();
 const restartingServices = new Set();
+const restartAttempts = new Map();
 const REFACTOR_RESTART_DELAY_MS = 800;
 let stopping = false;
-let releaseStartupLock = () => {};
+let releaseDevelopmentLock = async () => {};
+
+for (const signal of ["SIGINT", "SIGTERM"]) process.once(signal, () => void shutdown(0));
 
 try {
-  if (qCafeOnly) releaseStartupLock = await acquireStartupLock(resolve(ROOT, "apps/q-cafe/.local/startup.lock"));
+  const initialEnvironment = { ...loadDotEnv(), ...process.env };
+  const lockPath = qCafeOnly
+    ? resolve(ROOT, "apps/q-cafe/.local/dev-stack.lock")
+    : resolve(ROOT, ".local/dev-stack.lock");
+  releaseDevelopmentLock = await acquireDevelopmentLock(lockPath, initialEnvironment.OS_DEV_PORT_POLICY);
   const { env } = await runPreflight({
     host: qCafeOnly ? "0.0.0.0" : "127.0.0.1",
-    ports: qCafeOnly ? [4180, 5180] : [4100, 4150, 4160, 5173, 5174, 5175],
+    ports: qCafeOnly ? [4180, 5180] : [4100, 4150, 4160, 4165, 5173, 5174, 5175, 5176],
   });
   if (!qCafeOnly && env.CODEXSUN_LOCAL_DEMO === "true") {
     const result = spawnSync("docker", ["compose", "-f", resolve(ROOT, "tools/local-demo/compose.json"), "up", "-d", "--wait"], { cwd: ROOT, stdio: "inherit", windowsHide: true });
@@ -68,8 +87,8 @@ try {
   }
   if (!qCafeOnly && env.CODEXSUN_ZETRO_DOCKER === "true") {
     env.ZETRO_TOOLS_TOKEN ||= randomBytes(32).toString("hex");
-    startService({ args: ["packages/zetro/local-runner/src/server.mjs"], bin: null, label: "zetro-local-runner" }, env);
-    await waitForHealthyUrl("http://127.0.0.1:4160/health", "zetro-local-runner");
+    const runner = startService({ args: ["packages/zetro/local-runner/src/server.mjs"], bin: null, label: "zetro-local-runner" }, env);
+    await waitForHealthyUrl("http://127.0.0.1:4160/health", "zetro-local-runner", runner);
     const result = spawnSync("docker", ["compose", "-f", resolve(ROOT, "packages/zetro/docker/compose.json"), "up", "-d", "--wait"], { cwd: ROOT, env, stdio: "inherit", windowsHide: true });
     if (result.status !== 0) throw new Error("Zetro container could not start. Build zetro:v1 first.");
     env.ZETRO_AGENTS_FILE = resolve(ROOT, "packages/zetro/docker/agents.json");
@@ -89,21 +108,19 @@ try {
   else console.log("  - Web: http://127.0.0.1:5173");
   console.log("  - API: http://127.0.0.1:4100\n");
   console.log("  - DevKit: http://127.0.0.1:5174\n");
+  console.log("  - Chat: http://127.0.0.1:5176\n");
+  console.log("  - Chat API: http://127.0.0.1:4165\n");
   console.log("  - Zetro API: http://127.0.0.1:4150");
   console.log("  - Zetro Web: http://127.0.0.1:5175\n");
-  await releaseStartupLock();
 } catch (error) {
-  await releaseStartupLock();
   console.error(`  x ${error instanceof Error ? error.message : String(error)}`);
   await shutdown(1);
 }
 
-for (const signal of ["SIGINT", "SIGTERM"]) process.once(signal, () => void shutdown(0));
-
 function startService(service, env) {
   const child = spawn(process.execPath, [...(service.bin ? [service.bin] : []), ...service.args], {
     cwd: ROOT,
-    env: { ...env, ...process.env },
+    env: { ...process.env, ...env },
     stdio: ["ignore", "pipe", "pipe"],
   });
   children.add(child);
@@ -113,9 +130,26 @@ function startService(service, env) {
   child.once("exit", (code) => {
     children.delete(child);
     if (runningServices.get(service.label)?.child === child) runningServices.delete(service.label);
-    if (!stopping && !restartingServices.has(service.label) && code !== 0) void shutdown(code ?? 1);
+    if (!stopping && !restartingServices.has(service.label)) void recoverService(service, env, code);
   });
   return child;
+}
+
+async function recoverService(service, env, code) {
+  const attempt = (restartAttempts.get(service.label) ?? 0) + 1;
+  restartAttempts.set(service.label, attempt);
+  const delay = Math.min(30_000, 1_000 * 2 ** Math.min(attempt - 1, 5));
+  console.error(`  ! ${service.label} exited (${code ?? "signal"}); retrying in ${Math.round(delay / 1_000)}s. Other services stay online.`);
+  await new Promise((done) => setTimeout(done, delay));
+  if (stopping || runningServices.has(service.label)) return;
+  try {
+    const child = startService(service, env);
+    await waitForHealthyUrl(service.healthUrl, service.label, child);
+    restartAttempts.delete(service.label);
+    console.log(`  ok ${service.label} recovered`);
+  } catch (error) {
+    console.error(`  x ${service.label} recovery attempt failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 function watchPlatformRefactors() {
@@ -172,7 +206,7 @@ async function restartService(label) {
     console.log(`  ok ${label} restarted`);
   } catch (error) {
     console.error(`  x ${label} restart failed: ${error instanceof Error ? error.message : String(error)}`);
-    await shutdown(1);
+    void recoverService(running.service, running.env, 1);
   } finally {
     restartingServices.delete(label);
   }
@@ -199,27 +233,74 @@ async function waitForHealthyUrl(url, label, child) {
   throw new Error(`${label} did not become healthy: ${lastStatus}`);
 }
 
-async function acquireStartupLock(path) {
-  for (let attempt = 0; attempt < 120; attempt += 1) {
+async function acquireDevelopmentLock(path, portPolicy = "replace") {
+  await mkdir(resolve(path, ".."), { recursive: true });
+  for (let attempt = 0; attempt < 4; attempt += 1) {
     try {
       await mkdir(path, { recursive: false });
+      await writeFile(resolve(path, "owner.json"), JSON.stringify({ pid: process.pid, root: ROOT }), "utf8");
       let released = false;
       return async () => {
         if (released) return;
         released = true;
-        await rm(path, { recursive: true, force: true });
+        const owner = await readLockOwner(path);
+        if (owner?.pid === process.pid) await rm(path, { recursive: true, force: true });
       };
     } catch (error) {
       if (error?.code !== "EEXIST") throw error;
-      const lock = await stat(path).catch(() => null);
-      if (lock && Date.now() - lock.mtimeMs > 60_000) {
-        await rm(path, { recursive: true, force: true });
-        continue;
+      await new Promise((done) => setTimeout(done, 100));
+      const owner = await readLockOwner(path);
+      if (owner?.pid === process.pid) throw new Error("The development stack already owns its runtime lock.");
+      if (owner?.pid && processIsRunning(owner.pid)) {
+        if (portPolicy === "abort") {
+          throw new Error(`Another development stack is running as PID ${owner.pid}.`);
+        }
+        console.log(`  ! Replacing development stack supervisor PID ${owner.pid}`);
+        stopProcessId(owner.pid);
+        await waitForProcessExit(owner.pid, 5_000);
+        if (processIsRunning(owner.pid)) throw new Error(`Development stack PID ${owner.pid} did not stop.`);
       }
-      await new Promise((done) => setTimeout(done, 250));
+      await rm(path, { recursive: true, force: true });
     }
   }
-  throw new Error("Another Q Cafe startup is still in progress.");
+  throw new Error("The development stack runtime lock could not be acquired.");
+}
+
+async function readLockOwner(path) {
+  try {
+    return JSON.parse(await readFile(resolve(path, "owner.json"), "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function processIsRunning(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function stopProcessId(pid) {
+  if (process.platform === "win32") {
+    spawnSync("taskkill", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore" });
+    return;
+  }
+  try {
+    process.kill(pid, "SIGTERM");
+  } catch (error) {
+    if (error?.code !== "ESRCH") throw error;
+  }
+}
+
+async function waitForProcessExit(pid, timeout) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeout) {
+    if (!processIsRunning(pid)) return;
+    await new Promise((done) => setTimeout(done, 100));
+  }
 }
 
 function writeLines(label, chunk) {
@@ -234,6 +315,7 @@ async function shutdown(code) {
   stopping = true;
   for (const child of children) stopProcess(child);
   await Promise.all([...children].map((child) => waitForExit(child, 3_000)));
+  await releaseDevelopmentLock();
   process.exit(code);
 }
 

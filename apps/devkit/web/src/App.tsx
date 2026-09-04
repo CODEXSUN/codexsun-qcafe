@@ -4,18 +4,18 @@ import { InterfaceTopologyDrawer, type InterfaceTopologySection, TopologyInspect
 import { useInterfaceTopologyOverlay } from "@codexsun/devkit-ito/use-interface-topology-overlay";
 
 const devKitTopology: InterfaceTopologySection[] = [
-  { id: "01", name: "DevKit command bar", scope: "Application chrome", description: "Global developer workspace navigation and branch actions." },
-  { id: "02", name: "Primary developer dock", scope: "Navigation", description: "Compact access to developer workspace tools." },
-  { id: "03", name: "Project drawer", scope: "Navigation", description: "Project and developer-tool navigation." },
-  { id: "04", name: "Project tree", scope: "Project drawer", description: "Repository source navigation for the active workspace." },
-  { id: "05", name: "Developer tool list", scope: "Project drawer", description: "Developer tools that do not belong to the core." },
-  { id: "06", name: "Developer workspace", scope: "Workspace", description: "The active DevKit work surface." },
-  { id: "07", name: "Session status", scope: "Workspace", description: "Current developer session and safety mode." },
-  { id: "08", name: "Workspace canvas", scope: "Workspace", description: "Developer context and active tool content." },
-  { id: "09", name: "Developer actions", scope: "Workspace canvas", description: "Quick developer actions for terminal, source, and agent runs." },
-  { id: "10", name: "Workspace footer", scope: "Workspace", description: "Current integration status for DevKit." },
-  { id: "11", name: "Properties drawer", scope: "Context", description: "Developer session properties and activity." },
-  { id: "12", name: "Context icon dock", scope: "Context", description: "Compact access to context and notification tools." },
+  { id: "01", technicalName: "devkit.commandBar.container", name: "DevKit command bar", scope: "Application chrome", description: "Global developer workspace navigation and branch actions." },
+  { id: "02", technicalName: "devkit.navigation.primaryDock", name: "Primary developer dock", scope: "Navigation", description: "Compact access to developer workspace tools." },
+  { id: "03", technicalName: "devkit.navigation.projectDrawer", name: "Project drawer", scope: "Navigation", description: "Project and developer-tool navigation." },
+  { id: "04", technicalName: "devkit.projectDrawer.projectTree", name: "Project tree", scope: "Project drawer", description: "Repository source navigation for the active workspace." },
+  { id: "05", technicalName: "devkit.projectDrawer.toolList", name: "Developer tool list", scope: "Project drawer", description: "Developer tools that do not belong to the core." },
+  { id: "06", technicalName: "devkit.workspace.container", name: "Developer workspace", scope: "Workspace", description: "The active DevKit work surface." },
+  { id: "07", technicalName: "devkit.workspace.sessionStatus", name: "Session status", scope: "Workspace", description: "Current developer session and safety mode." },
+  { id: "08", technicalName: "devkit.workspace.canvas", name: "Workspace canvas", scope: "Workspace", description: "Developer context and active tool content." },
+  { id: "09", technicalName: "devkit.canvas.developerActions", name: "Developer actions", scope: "Workspace canvas", description: "Quick developer actions for terminal, source, and agent runs." },
+  { id: "10", technicalName: "devkit.workspace.footer", name: "Workspace footer", scope: "Workspace", description: "Current integration status for DevKit." },
+  { id: "11", technicalName: "devkit.context.propertiesDrawer", name: "Properties drawer", scope: "Context", description: "Developer session properties and activity." },
+  { id: "12", technicalName: "devkit.context.iconDock", name: "Context icon dock", scope: "Context", description: "Compact access to context and notification tools." },
 ];
 
 export function App() {

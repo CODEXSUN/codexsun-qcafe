@@ -1,0 +1,29 @@
+{
+  "name": "@codexsun/ai-task-web",
+  "version": "0.1.5",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.tsx"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@codexsun/ai-task-contracts": "*",
+    "@codexsun/devkit-ito": "*",
+    "@codexsun/ui": "*",
+    "@codexsun/ui-desk": "*",
+    "@tanstack/react-query": "^5.102.8",
+    "lucide-react": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}

@@ -1,4 +1,5 @@
 import cors from "@fastify/cors";
+import { registerAiTaskRoutes, RulePlanner, SqliteTaskRepository, TaskService, type TaskWorker } from "@codexsun/ai-task-api";
 import Fastify from "fastify";
 import { resolve } from "node:path";
 import { AgentRegistry } from "./registry.js";
@@ -14,6 +15,13 @@ export function buildZetroApp(options: { dispatcher?: ZetroDispatcher } = {}) {
   void app.register(cors, { origin: ["http://127.0.0.1:5173", "http://127.0.0.1:5175"] });
   app.get("/health", async () => ({ status: "ok", service: "zetro" }));
   registerZetro(app, dispatcher);
-  if (!options.dispatcher) registerRunRoutes(app, new RunEngine(dispatcher, process.env.ZETRO_DATABASE_FILE ?? resolve(import.meta.dirname, "../state/zetro.db")));
+  if (!options.dispatcher) {
+    registerRunRoutes(app, new RunEngine(dispatcher, process.env.ZETRO_DATABASE_FILE ?? resolve(import.meta.dirname, "../state/zetro.db")));
+    const worker: TaskWorker = {
+      agents: async () => dispatcher.registry.list(),
+      execute: async (agentId, instruction) => (await dispatcher.send(agentId, { message: instruction })).message,
+    };
+    registerAiTaskRoutes(app, new TaskService(new SqliteTaskRepository(process.env.AI_TASK_DATABASE_FILE ?? resolve(import.meta.dirname, "../state/ai-tasks.db")), new RulePlanner(), worker));
+  }
   return app;
 }

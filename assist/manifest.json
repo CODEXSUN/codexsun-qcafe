@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "modules": [
     { "id": "app.q-cafe", "owner": "Q Cafe", "roots": ["apps/q-cafe"], "publicContracts": ["/api/v1/q-cafe", "@codexsun/q-cafe-web"], "protectedPaths": ["apps/q-cafe/api/migrations"] },
+    { "id": "platform.identity", "owner": "Platform Identity", "roots": ["apps/platform/core/api/src/modules/identity", "packages/identity-contracts", "packages/platform-host-contracts"], "publicContracts": ["@codexsun/identity-contracts", "@codexsun/platform-host-contracts"], "protectedPaths": ["apps/platform/core/api/src/modules/identity", "packages/identity-contracts/src", "packages/platform-host-contracts/src"] },
     {
       "id": "framework.kernel",
       "owner": "Framework",
@@ -59,11 +60,25 @@
       "protectedPaths": ["packages/devkit-ito/src"]
     },
     {
+      "id": "addon.chat",
+      "owner": "Chat",
+      "roots": ["packages/chat"],
+      "publicContracts": ["/api/v1/chat", "@codexsun/chat-api", "@codexsun/chat-contracts", "@codexsun/chat-web"],
+      "protectedPaths": ["packages/chat/api/src", "packages/chat/contracts/src", "packages/chat/web/src"]
+    },
+    {
       "id": "app.zetro",
       "owner": "Zetro",
       "roots": ["packages/zetro"],
       "publicContracts": ["@codexsun/zetro-api", "@codexsun/zetro-web"],
       "protectedPaths": ["packages/zetro/api/src", "packages/zetro/web/src"]
+    },
+    {
+      "id": "app.ai-task-system",
+      "owner": "AI Task System",
+      "roots": ["packages/ai-task-system"],
+      "publicContracts": ["/api/v1/ai-tasks", "@codexsun/ai-task-contracts", "@codexsun/ai-task-api", "@codexsun/ai-task-web"],
+      "protectedPaths": ["packages/ai-task-system/contracts/src", "packages/ai-task-system/api/src", "packages/ai-task-system/web/src"]
     },
     {
       "id": "app.agent-crew",

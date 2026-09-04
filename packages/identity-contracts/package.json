@@ -1,0 +1,19 @@
+{
+  "name": "@codexsun/identity-contracts",
+  "version": "0.1.5",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "vitest": "latest"
+  }
+}

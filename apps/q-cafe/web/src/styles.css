@@ -3,3 +3,199 @@
 @import "@codexsun/devkit-ito/styles.css";
 @source "../../../../packages/ui/src";
 @source "../../../../packages/devkit-ito/src";
+
+@keyframes notification-ripple {
+  0% {
+    opacity: 0;
+    transform: scale(0.55);
+  }
+  12% {
+    opacity: 0.82;
+    transform: scale(0.75);
+  }
+  58% {
+    opacity: 0.48;
+    transform: scale(1.9);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(3.2);
+  }
+}
+
+.notification-ripple {
+  animation: notification-ripple 2.4s ease-out infinite;
+}
+
+/* Keep the Q Cafe ITO launcher above POS panels and command popovers. */
+.topology-inspection-control.floating {
+  right: 18px;
+  bottom: 84px;
+  z-index: 80;
+  width: 42px;
+  min-height: 46px;
+  color: #fff;
+  background: #7537d8;
+  border: 1px solid rgba(82, 27, 167, 0.7);
+  border-radius: 999px;
+  box-shadow: 0 12px 28px rgba(77, 35, 150, 0.3);
+}
+
+.topology-inspection-control.floating:hover,
+.topology-inspection-control.floating.open {
+  color: #fff;
+  background: #521ba7;
+}
+
+.technical-inspector {
+  z-index: 90;
+}
+
+/* Toggle rule to hide floating ITO inspector icon */
+html.hide-ito-icon .topology-inspection-control.floating {
+  display: none !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Slimmest & Smallest Custom Scrollbars                                     */
+/* -------------------------------------------------------------------------- */
+
+/* Webkit-based browsers (Chrome, Edge, Safari, Tauri, Electron) */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 9999px;
+  transition: background-color 0.15s ease-in-out;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.65);
+}
+
+::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox standards */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+}
+
+/* Ultra-slim modifier for dense panels */
+.scrollbar-slim {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+}
+
+.scrollbar-slim::-webkit-scrollbar {
+  width: 3.5px;
+  height: 3.5px;
+}
+
+.scrollbar-slim::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 9999px;
+}
+
+.scrollbar-slim::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.65);
+}
+
+/* Dark mode adjustments */
+.dark ::-webkit-scrollbar-thumb,
+html.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover,
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.dark *,
+html.dark * {
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+/* -------------------------------------------------------------------------- */
+/* 3-Inch (80mm) Thermal Printer Styles for Hotel / Restaurant Bill Print     */
+/* -------------------------------------------------------------------------- */
+
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 0mm;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    text-shadow: none !important;
+    box-shadow: none !important;
+  }
+
+  html,
+  body {
+    width: 80mm !important;
+    min-width: 0 !important;
+    max-width: 80mm !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-family: 'Courier New', Courier, Menlo, Monaco, Consolas, monospace !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    overflow: visible !important;
+  }
+
+  /* Force hide all application chrome, navigation, headers, sidebars, devkit overlays */
+  header,
+  aside,
+  nav,
+  footer,
+  dialog,
+  [role="dialog"],
+  .print\:hidden,
+  .topology-inspection-control,
+  .technical-inspector,
+  .technical-label,
+  [class*="topology-marker"],
+  [data-ito-id] > .technical-label {
+    display: none !important;
+  }
+
+  /* Suppress scrollbars */
+  ::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  /* Thermal receipt layout */
+  .thermal-receipt {
+    width: 72mm !important;
+    max-width: 72mm !important;
+    margin: 0 auto !important;
+    padding: 3mm 2mm !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-family: 'Courier New', Courier, Menlo, Monaco, Consolas, monospace !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}
