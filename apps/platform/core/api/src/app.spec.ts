@@ -54,4 +54,32 @@ describe("platform composition", () => {
       expect((await app.inject({ headers: { authorization: `Bearer ${tokens.accessToken}` }, url: "/api/v1/apps/app.q-cafe/context" })).json()).toEqual({ available: false });
     } finally { await app.close(); }
   });
+
+  it("serves architecture and structures registry overview at /api/v1/registry", async () => {
+    const app = buildApp();
+    try {
+      const response = await app.inject("/api/v1/registry");
+      expect(response.statusCode).toBe(200);
+      const data = response.json();
+      expect(data.applications.length).toBeGreaterThan(0);
+      expect(data.structures.length).toBeGreaterThan(0);
+      expect(data.composition.framework).toMatch(/framework/i);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("allows credentialed desktop requests to the cloud identity host", async () => {
+    const app = buildApp();
+    try {
+      const response = await app.inject({
+        headers: { "access-control-request-method": "POST", origin: "http://tauri.localhost" },
+        method: "OPTIONS",
+        url: "/api/v1/identity/login",
+      });
+      expect(response.statusCode).toBe(204);
+      expect(response.headers["access-control-allow-credentials"]).toBe("true");
+      expect(response.headers["access-control-allow-origin"]).toBe("http://tauri.localhost");
+    } finally { await app.close(); }
+  });
 });

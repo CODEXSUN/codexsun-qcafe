@@ -21,3 +21,11 @@ pub fn save_credential(name: String, value: String) -> Result<(), String> {
     if value.is_empty() || value.len() > 8192 { return Err("Invalid credential".into()); }
     entry(&name)?.set_password(&value).map_err(|_| "Credential save failed".into())
 }
+
+#[tauri::command]
+pub fn delete_credential(name: String) -> Result<(), String> {
+    match entry(&name)?.delete_credential() {
+        Ok(()) | Err(Error::NoEntry) => Ok(()),
+        Err(_) => Err("Credential removal failed".into()),
+    }
+}

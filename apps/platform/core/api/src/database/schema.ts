@@ -24,4 +24,13 @@ export type PlatformDatabaseSchema = {
     topic: string;
     updated_at: string;
   };
+  platform_app_overrides: {
+    application_id: string;
+    display_name: string | null;
+    id: string;
+    notes: string | null;
+    state: string;
+    updated_at: string;
+    updated_by: string;
+  };
 };

@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "modules": [
     {
+      "id": "app.neot",
+      "owner": "NEOT LMS",
+      "roots": [
+        "apps/neot"
+      ],
+      "publicContracts": [
+        "/api/v1/neot",
+        "@codexsun/neot-web"
+      ],
+      "protectedPaths": [
+        "apps/neot/api/migrations"
+      ]
+    },
+    {
       "id": "app.q-cafe",
       "owner": "Q Cafe",
       "roots": [
@@ -244,6 +258,21 @@
         "/dcs/ws"
       ],
       "protectedPaths": []
+    },
+    {
+      "id": "app.docs",
+      "owner": "Docs",
+      "roots": [
+        "apps/docs"
+      ],
+      "publicContracts": [
+        "/api/v1/docs",
+        "@codexsun/docs-web"
+      ],
+      "protectedPaths": [
+        "apps/docs/api/src",
+        "apps/docs/web/src"
+      ]
     }
   ]
 }

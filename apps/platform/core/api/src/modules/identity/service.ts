@@ -9,29 +9,41 @@ import type { IdentityAccount, IdentityLoginInput, IdentityLoginResult, Identity
 
 const scrypt = promisify(nodeScrypt);
 const encoder = new TextEncoder();
+const minimumPasswordLength = 8;
+const minimumSetupCodeLength = 10;
+
+export type FirstLoginSetup = {
+  bootstrapPassword: string;
+  code: string;
+  enabled: boolean;
+  expiresAt: string;
+  login: string;
+};
 
 export class IdentityService implements IdentityTokenVerifier {
   constructor(
     private readonly repository: IdentityRepository,
     private readonly keys: IdentityTokenKeyResolver,
     private readonly events: IdentityEventPublisher,
-    private readonly setup: { enabled: boolean; login: string; code: string } = { enabled: false, login: "", code: "" },
+    private readonly setup: FirstLoginSetup = { bootstrapPassword: "", code: "", enabled: false, expiresAt: "", login: "" },
   ) {}
 
   async firstLoginAvailable(): Promise<boolean> {
-    if (!this.setup.enabled || this.setup.code.length < 16) return false;
+    if (!this.isSetupActive()) return false;
     const account = await this.repository.findAccountByLogin(this.setup.login);
-    return !!account && account.permissions.includes("identity.admin") && await verifyPassword(this.setup.code, account.passwordHash);
+    return !!account && account.permissions.includes("identity.admin") && await verifyPassword(this.setup.bootstrapPassword, account.passwordHash);
   }
 
+  firstLoginExpiresAt(): string | undefined { return this.isSetupActive() ? this.setup.expiresAt : undefined; }
+
   async completeFirstLogin(input: { login: string; code: string; password: string }): Promise<IdentityLoginResult> {
-    if (!this.setup.enabled || this.setup.code.length < 16 || input.login.toLowerCase() !== this.setup.login.toLowerCase()) throw new Error("Setup unavailable.");
+    if (!this.isSetupActive() || input.login.toLowerCase() !== this.setup.login.toLowerCase()) throw new Error("Setup unavailable.");
     const supplied = Buffer.from(input.code);
     const expected = Buffer.from(this.setup.code);
     if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) throw new Error("Invalid setup code.");
-    if (input.password.length < 16 || input.password.length > 1024 || input.password === this.setup.code) throw new Error("Choose a new password with at least 16 characters.");
+    if (input.password.length < minimumPasswordLength || input.password.length > 1024 || input.password === this.setup.code) throw new Error("Choose a new password with at least 8 characters.");
     const account = await this.repository.findAccountByLogin(this.setup.login);
-    if (!account || !account.permissions.includes("identity.admin") || !await verifyPassword(this.setup.code, account.passwordHash)) throw new Error("Setup unavailable.");
+    if (!account || !account.permissions.includes("identity.admin") || !await verifyPassword(this.setup.bootstrapPassword, account.passwordHash)) throw new Error("Setup unavailable.");
     const changed = await this.repository.replaceBootstrapPassword(account.id, account.passwordHash, await hashPassword(input.password));
     if (!changed) throw new Error("Setup already completed.");
     return this.login({ login: input.login, password: input.password });
@@ -67,6 +79,20 @@ export class IdentityService implements IdentityTokenVerifier {
     await this.publish("identity.revoked", session.accountId, session.id);
   }
 
+  async revokeRefreshToken(refreshToken: string): Promise<void> {
+    const claims = await this.verify(refreshToken, "refresh");
+    const session = await this.repository.findSession(claims.sid);
+    if (!session || session.revokedAt || session.accountId !== claims.sub || session.refreshTokenId !== claims.jti) throw new Error("Identity session is revoked or expired.");
+    await this.revoke(claims.sid);
+  }
+
+  async profile(token: string): Promise<{ id: string; login: string; permissions: string[]; scope: IdentityClaims["scope"] }> {
+    const claims = await this.verifyAccessToken(token);
+    const account = await this.repository.findAccountById(claims.sub);
+    if (!account) throw new Error("Identity account is unavailable.");
+    return { id: account.id, login: account.login, permissions: [...account.permissions], scope: account.scope };
+  }
+
   async verifyAccessToken(token: string): Promise<IdentityClaims> {
     const claims = await this.verify(token, "access");
     const session = await this.repository.findSession(claims.sid);
@@ -97,6 +123,11 @@ export class IdentityService implements IdentityTokenVerifier {
       claims: accessClaims,
       refreshToken: await this.sign(refreshClaims, "30d"),
     };
+  }
+
+  private isSetupActive(): boolean {
+    const expiresAt = Date.parse(this.setup.expiresAt);
+    return this.setup.enabled && this.setup.bootstrapPassword.length >= 8 && this.setup.code.length >= minimumSetupCodeLength && Number.isFinite(expiresAt) && expiresAt > Date.now();
   }
 
   private claims(account: IdentityAccount, sessionId: string, tokenId: string, type: IdentityClaims["type"]): IdentityClaims {

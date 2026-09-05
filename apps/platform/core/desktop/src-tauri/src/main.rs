@@ -35,7 +35,7 @@ fn display(path: PathBuf) -> String {
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![desktop_status, credentials::read_credential, credentials::save_credential])
+        .invoke_handler(tauri::generate_handler![desktop_status, credentials::read_credential, credentials::save_credential, credentials::delete_credential])
         .run(tauri::generate_context!())
         .expect("CODEXSUN desktop failed");
 }

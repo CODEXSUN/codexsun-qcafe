@@ -21,8 +21,8 @@ Ownership is registered in `assist/manifest.json` at the repository root. Run `n
 ### First-time password setup
 
 Set `OS_FIRST_LOGIN_SETUP=true` on the Identity server to offer password setup. It defaults to false.
-The operator enters their email, the existing `OS_SUPER_ADMIN_PASSWORD` from the private `.env` as a one-time setup code, and a new password of at least 16 characters.
+The VPS bootstrap script creates a 10-digit `OS_FIRST_LOGIN_SETUP_CODE` in private `config/operator.env` and expires it after 30 minutes. Run `npm.cmd run identity:first-login-code` to write a new local code, then run `npm.cmd run identity:first-login-sync` to make that code active on the VPS. After setup, run `npm.cmd run identity:first-login-close`, then `npm.cmd run identity:first-login-sync`, to set `OS_FIRST_LOGIN_SETUP=false` and clear the code fields both locally and on the VPS. The operator enters their email, that temporary code, and a new password of at least 8 characters.
 The server stores a salted scrypt hash. An atomic password replacement revokes previous sessions. Only one concurrent setup request can succeed.
-Setup closes once the stored password differs from the bootstrap credential. It stays closed after a restart even if the switch remains true.
+Setup closes once the stored password differs from the bootstrap credential. It stays closed after a restart even if the environment switch remains true; the server treats it as false.
 This flow does not reset an account whose password has already changed. Seeds never overwrite existing passwords.
-Never publish the bootstrap credential or embed it in a web or desktop build.
+Never publish the bootstrap password or setup code, or embed either in a web or desktop build.

@@ -1,6 +1,6 @@
 # Local development services
 
-Set `CODEXSUN_LOCAL_DEMO=true` in the root `.env`, then run `npm.cmd run dev`.
+This optional simulation is never started by `npm.cmd run dev`. Start it explicitly with `docker compose -f tools/local-demo/compose.json up -d --wait`.
 Startup waits for five isolated Docker services to pass their health checks.
 Chat connects automatically when opened from the local development web app.
 
@@ -20,8 +20,5 @@ The public development token `local-demo-only` is valid only for these services.
 Each service stores its data in a separate Docker volume. Restarts preserve data.
 Zetro also keeps workspace conversation history in browser storage.
 
-Stop the services with `docker compose -f tools/local-demo/compose.json down`.
-This command preserves the data volumes. To use real services later, set
-`CODEXSUN_LOCAL_DEMO=false`, configure the normal agent registry and provider
-credentials, and restart development. Production builds cannot auto-connect
-Chat through the development flag.
+Stop the optional simulation with `docker compose -f tools/local-demo/compose.json down`.
+This command preserves the data volumes. Configure the normal agent registry and provider credentials before using real services. Production builds do not auto-connect to this simulation.

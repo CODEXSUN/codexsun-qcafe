@@ -42,17 +42,27 @@ const definitions = {
     bin: resolve(ROOT, "node_modules", "vite", "bin", "vite.js"),
     portIndex: 4,
   },
+  "docs-api": {
+    args: ["apps/docs/api/src/server.mjs"],
+    bin: null,
+    portIndex: 5,
+  },
+  docs: {
+    args: ["apps/docs/web", "--config", "apps/docs/web/vite.config.ts"],
+    bin: resolve(ROOT, "node_modules", "vite", "bin", "vite.js"),
+    portIndex: 6,
+  },
 };
 
 if (!service || !definitions[service]) {
-  console.error("Usage: node tools/start-service.mjs <api|web|devkit|chat|chat-api|zetro-api|zetro>");
+  console.error("Usage: node tools/start-service.mjs <api|web|devkit|chat|chat-api|zetro-api|zetro|docs-api|docs>");
   process.exit(1);
 }
 
 const definition = definitions[service];
-const servicePort = service === "api" ? 4100 : service === "zetro-api" ? 4150 : service === "chat-api" ? 4165 : service === "web" ? 5173 : service === "devkit" ? 5174 : service === "chat" ? 5176 : 5175;
+const servicePort = service === "api" ? 4100 : service === "zetro-api" ? 4150 : service === "chat-api" ? 4165 : service === "docs-api" ? 4185 : service === "web" ? 5173 : service === "devkit" ? 5174 : service === "chat" ? 5176 : service === "docs" ? 5185 : 5175;
 const { env, ports } = await runPreflight({ ports: [servicePort] });
-const child = spawn(process.execPath, [definition.bin, ...definition.args], {
+const child = spawn(process.execPath, [...(definition.bin ? [definition.bin] : []), ...definition.args], {
   cwd: ROOT,
   env: { ...env, ...process.env, OS_API_PORT: String(ports[0]) },
   stdio: "inherit",

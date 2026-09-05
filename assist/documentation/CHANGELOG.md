@@ -2,11 +2,11 @@
 
 ## Version State
 
-Current version: 0.1.14
+Current version: 0.1.16
 
-Release tag: v-0.1.14
+Release tag: v-0.1.16
 
-Changelog label: v 0.1.14
+Changelog label: v 0.1.16
 
 ## Unreleased
 
@@ -41,6 +41,35 @@ Changelog label: v 0.1.14
 - Added ITO entries for the workspace canvas, navigation, navigation rail, and workspace surface.
 - Cleared workspace canvas child blocks and reserved the full canvas for the next MDI feature.
 - Bound the shared AppSidebar and SidebarInset composition inside the workspace canvas.
+
+## v-0.1.16
+
+### [v 0.1.16] 2026-09-05 11:14 a.m. - Unified cloud and desktop release
+
+#### Database Changes
+
+- Database update: No.
+
+#### App Codebase Changes
+
+- Bumped the workspace version to 0.1.16.
+- Published the cloud and desktop release from the same 0.1.16 source version.
+- Retained credentialed CORS support for approved Tauri desktop origins.
+
+## v-0.1.15
+
+### [v 0.1.15] 2026-09-05 10:43 a.m. - Desktop cloud credentialed CORS
+
+#### Database Changes
+
+- Database update: No.
+
+#### App Codebase Changes
+
+- Bumped the workspace version to 0.1.15.
+- Allowed credentialed requests from approved Tauri desktop origins at the Platform API and cloud reverse proxy.
+- Added a CORS regression test for desktop identity preflight requests.
+- Aligned the CODEXSUN desktop bundle metadata with version 0.1.15.
 
 ## v-0.1.14
 

@@ -25,8 +25,6 @@ const child = spawn(process.execPath, [resolve(root, "tools", "dev-stack.mjs")],
     QCAFE_DATABASE_PATH: databasePath,
     QCAFE_DEMO: process.env.QCAFE_DEMO ?? "true",
     QCAFE_ONLY: "true",
-    CODEXSUN_LOCAL_DEMO: "false",
-    CODEXSUN_ZETRO_DOCKER: "false",
   },
   stdio: "inherit",
 });

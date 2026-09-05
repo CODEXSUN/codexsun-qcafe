@@ -10,9 +10,9 @@ Run docker compose -f deploy/compose.json up -d --build --wait on the target mac
 
 ## Restart-safe deployment
 
-Use `deploy/publish-vps.ps1` from the repository root. It packages only tracked source, stages it on the VPS, validates Compose, creates a rollback image tag, rebuilds only affected images, and records a timestamped log in `/home/codexsun-os/.deploy-runs`.
+Use `deploy/publish-vps.ps1` from the repository root. It builds and packages the Portal, packages only tracked source, stages both archives on the VPS, validates Compose, creates a rollback image tag, rebuilds only affected images, and records a timestamped log in `/home/codexsun-os/.deploy-runs`.
 
-The VPS script `deploy/apply-vps.sh` is idempotent. If SSH or a build fails, run the same command again. It uses a deployment lock and leaves configuration, databases, volumes, and project files untouched. Do not delete the lock while another deployment is running.
+The VPS script `deploy/apply-vps.sh` is idempotent. If SSH or a build fails, run the same command again. It uses a deployment lock, atomically switches validated Portal assets, retains a rollback image tag and previous Portal assets in its run folder, and leaves configuration, databases, volumes, and project files untouched. Do not delete the lock while another deployment is running.
 
 The deployment exposes authenticated Identity, Zetro, Task System, and Chat APIs at https://os.codexsun.com.
 Identity and Chat use separate MariaDB schemas. Zetro and Task System use persistent SQLite files.

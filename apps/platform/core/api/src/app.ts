@@ -9,6 +9,7 @@ import { readPersistenceEnvironment } from "./database/config.js";
 import { PlatformPersistence, type PlatformPersistenceLifecycle } from "./database/persistence.js";
 import { IdentityHostAdapter, requireAuthorization } from "./auth/host-auth.js";
 import { createIdentityModule, KyselyIdentityRepository, PlatformIdentityEventPublisher, registerIdentityRoutes, seedIdentity, IdentityService, staticTokenKeyResolver } from "./modules/identity/index.js";
+import { AppRegistryService, KyselyAppRegistryRepository, MemoryAppRegistryRepository, PlatformAppRegistryEventPublisher, MemoryAppRegistryEventPublisher, registerAppRegistryRoutes, seedAppRegistry } from "./modules/app-registry/index.js";
 import { PlatformOutboxQueue } from "./queue/outbox-queue.js";
 
 export function buildApp(options: {
@@ -33,7 +34,9 @@ export function buildApp(options: {
     ? new IdentityService(new KyselyIdentityRepository(persistence.database), staticTokenKeyResolver(environment.identityTokenSecret), new PlatformIdentityEventPublisher(persistence), {
       enabled: (options.environment ?? process.env).OS_FIRST_LOGIN_SETUP === "true",
       login: (options.environment ?? process.env).OS_SUPER_ADMIN_EMAIL?.trim().toLowerCase() ?? "",
-      code: (options.environment ?? process.env).OS_SUPER_ADMIN_PASSWORD ?? "",
+      bootstrapPassword: (options.environment ?? process.env).OS_SUPER_ADMIN_PASSWORD ?? "",
+      code: (options.environment ?? process.env).OS_FIRST_LOGIN_SETUP_CODE ?? "",
+      expiresAt: (options.environment ?? process.env).OS_FIRST_LOGIN_SETUP_EXPIRES_AT ?? "",
     })
     : undefined);
   for (const manifest of [...platformManifests, ...applications]) {
@@ -42,7 +45,10 @@ export function buildApp(options: {
   core.registry.validateDependencies();
   app.addHook("onReady", async () => {
     await persistence?.start();
-    if (persistence instanceof PlatformPersistence) await seedIdentity(persistence.database, options.environment ?? process.env);
+    if (persistence instanceof PlatformPersistence) {
+      await seedIdentity(persistence.database, options.environment ?? process.env);
+      await seedAppRegistry(new KyselyAppRegistryRepository(persistence.database), options.environment ?? process.env);
+    }
     await core.framework.start();
     if (persistence) {
       const payload = { modules: core.snapshot().modules.map((module) => module.id) };
@@ -59,9 +65,36 @@ export function buildApp(options: {
     await outboxQueue.stop();
     await persistence?.stop();
   });
-  void app.register(cors, { origin: ["http://127.0.0.1:5173", "http://127.0.0.1:5174", "http://127.0.0.1:5175"] });
-  if (identity) {
-    const host = new IdentityHostAdapter(identity);
+  void app.register(cors, {
+    credentials: true,
+    origin: [
+      "https://os.codexsun.com",
+      "http://tauri.localhost",
+      "https://tauri.localhost",
+      "tauri://localhost",
+      "http://127.0.0.1:5173",
+      "http://127.0.0.1:5174",
+      "http://127.0.0.1:5175",
+    ],
+  });
+  const host = identity ? new IdentityHostAdapter(identity) : undefined;
+  const appRegistryRepo = persistence instanceof PlatformPersistence
+    ? new KyselyAppRegistryRepository(persistence.database)
+    : new MemoryAppRegistryRepository();
+  const appRegistryPublisher = persistence
+    ? new PlatformAppRegistryEventPublisher(persistence)
+    : new MemoryAppRegistryEventPublisher();
+  const appRegistry = new AppRegistryService(
+    [...platformManifests, ...applications],
+    appRegistryRepo,
+    appRegistryPublisher,
+    undefined,
+    false,
+    persistence ? "mysql" : "sqlite"
+  );
+  registerAppRegistryRoutes(app, appRegistry, host);
+
+  if (identity && host) {
     registerIdentityRoutes(app, identity);
     app.get("/api/v1/apps/:applicationId/context", { preHandler: requireAuthorization(host, "app.access") }, async (request) => {
       const applicationId = (request.params as { applicationId: string }).applicationId;

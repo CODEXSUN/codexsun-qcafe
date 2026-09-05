@@ -1,16 +1,19 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { IdentityService } from "./service.js";
-import { readRefreshCookie, setBrowserSession } from "./browser-session.js";
+import { clearBrowserSession, readRefreshCookie, setBrowserSession } from "./browser-session.js";
 
 const loginSchema = z.object({ login: z.string().trim().min(1).max(254), password: z.string().min(1).max(1024) });
 const refreshSchema = z.object({ refreshToken: z.string().min(1) });
 
 export function registerIdentityRoutes(app: FastifyInstance, service: IdentityService): void {
-  app.get("/api/v1/identity/setup", async (_request, reply) => reply.header("Cache-Control", "no-store").send({ available: await service.firstLoginAvailable() }));
+  app.get("/api/v1/identity/setup", async (_request, reply) => {
+    const available = await service.firstLoginAvailable();
+    return reply.header("Cache-Control", "no-store").send({ available, expiresAt: available ? service.firstLoginExpiresAt() : undefined });
+  });
   app.post("/api/v1/identity/setup", async (request, reply) => {
-    const input = loginSchema.extend({ code: z.string().min(16).max(1024), password: z.string().min(16).max(1024) }).safeParse(request.body);
-    if (!input.success) return reply.code(400).send({ error: "Enter your setup code and a password of at least 16 characters." });
+    const input = loginSchema.extend({ code: z.string().min(10).max(1024), password: z.string().min(8).max(1024) }).safeParse(request.body);
+    if (!input.success) return reply.code(400).send({ error: "Enter your setup code and a password of at least 8 characters." });
     try {
       const result = await service.completeFirstLogin(input.data);
       setBrowserSession(reply, result);
@@ -38,6 +41,24 @@ export function registerIdentityRoutes(app: FastifyInstance, service: IdentitySe
     try {
       return { claims: await service.verifyAccessToken(bearer(request.headers.authorization)) };
     } catch { return reply.code(401).send({ error: "Authentication is required." }); }
+  });
+  app.get("/api/v1/identity/me", async (request, reply) => {
+    try { return { profile: await service.profile(bearer(request.headers.authorization)) }; }
+    catch { return reply.code(401).send({ error: "Authentication is required." }); }
+  });
+  app.post("/api/v1/identity/logout", async (request, reply) => {
+    try {
+      const claims = await service.verifyAccessToken(bearer(request.headers.authorization));
+      await service.revoke(claims.sid);
+    } catch {
+      const refreshToken = readRefreshCookie(request.headers.cookie);
+      if (refreshToken) {
+        try { await service.revokeRefreshToken(refreshToken); }
+        catch { /* Clearing a stale browser session must remain idempotent. */ }
+      }
+    }
+    clearBrowserSession(reply);
+    return reply.code(204).send();
   });
   app.get("/api/v1/identity/directory", async (request, reply) => {
     try { return { actors: await service.directory(bearer(request.headers.authorization)) }; }

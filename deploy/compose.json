@@ -32,6 +32,9 @@
         "chat": {
           "condition": "service_healthy"
         },
+        "docs": {
+          "condition": "service_healthy"
+        },
         "dcs": {
           "condition": "service_healthy"
         }
@@ -203,6 +206,32 @@
           "-e",
           "fetch(\"http://127.0.0.1:4165/health\").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
         ],
+        "interval": "15s",
+        "timeout": "5s",
+        "retries": 5
+      }
+    },
+    "docs": {
+      "image": "codexsun-os/api:0.1.13",
+      "restart": "unless-stopped",
+      "read_only": true,
+      "cap_drop": ["ALL"],
+      "security_opt": ["no-new-privileges:true"],
+      "command": ["node", "build/docs.mjs"],
+      "environment": {
+        "DOCS_API_HOST": "0.0.0.0",
+        "DOCS_CONTENT_DIRECTORY": "/app/docs-content",
+        "DOCS_DATABASE_FILE": "/data/docs.db"
+      },
+      "volumes": ["./state/docs:/data"],
+      "networks": ["internal"],
+      "depends_on": {
+        "platform": {
+          "condition": "service_healthy"
+        }
+      },
+      "healthcheck": {
+        "test": ["CMD", "node", "-e", "fetch('http://127.0.0.1:4185/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"],
         "interval": "15s",
         "timeout": "5s",
         "retries": 5

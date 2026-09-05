@@ -14,7 +14,7 @@ export function StartupSettings({ applications, preferences, onChange, topology 
       {applications.map((app) => <div className="setting-row" key={app.id}><div><strong>{app.name}</strong><p>{app.description}</p><Tags tags={preferences.tags[app.id] ?? []} /></div><PreferenceSwitch label={`Start ${app.name}`} checked={preferences.applications[app.id] === true} onChange={() => onChange({ ...preferences, applications: { ...preferences.applications, [app.id]: !preferences.applications[app.id] } })} /></div>)}
     </section>}
     <section className="settings-group"><h2>Workspace features</h2>{startupFeatures.map((feature) => <div className="setting-row" key={feature.id}><div><strong>{feature.name}</strong><p>{feature.detail}</p></div><PreferenceSwitch label={feature.name} checked={preferences.features[feature.id]} onChange={() => onChange({ ...preferences, features: { ...preferences.features, [feature.id]: !preferences.features[feature.id] } })} /></div>)}</section>
-    <section className="settings-group"><h2>Runtime requirements</h2><div className="setting-row"><div><strong>API, web and startup preflight</strong><p>Managed by the development launcher. Port checks and execution isolation remain required.</p></div><span className="setting-value">Required</span></div></section>
+    <section className="settings-group"><h2>Local portal runtime</h2><div className="setting-row"><div><strong>API, web and startup preflight</strong><p>The development launcher starts local portal services only. Start isolated Docker runtimes explicitly when you need them.</p></div><span className="setting-value">Local</span></div></section>
   </div>;
 }
 

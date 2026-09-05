@@ -1,0 +1,10 @@
+{
+  "name": "@codexsun/neot-api",
+  "version": "0.1.16",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.mjs",
+    "test": "node --test src/*.test.mjs"
+  }
+}

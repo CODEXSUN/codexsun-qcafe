@@ -39,7 +39,7 @@ Ownership is registered in `assist/manifest.json` at the repository root. Run `n
 
 Device Communication Service owns a durable, scoped event stream. It does not execute messages or import another module's tables.
 
-Port 4170 serves `/health` and `/ws`. Chat remains on its separate service port. Native clients authenticate the WebSocket upgrade with a bearer token. Browsers cannot connect until an explicit allowed origin and browser authentication flow exist.
+Port 4170 serves `/health` and `/ws`. Chat remains on its separate service port. Native clients authenticate the WebSocket upgrade with a bearer token. Browser workspaces request a one-time DCS ticket and pass it through the WebSocket subprotocol; the raw device token stays in the desktop credential store.
 
 The server reads device IDs, scopes and SHA-256 token hashes from DCS_DEVICES_FILE. Raw device tokens remain on the device. Provisioning currently requires an operator-managed file and restart. Mobile enrollment and revocation UI are pending.
 

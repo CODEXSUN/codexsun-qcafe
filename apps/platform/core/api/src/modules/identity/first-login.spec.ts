@@ -4,12 +4,13 @@ import { MemoryIdentityRepository } from "./repository.js";
 import { hashPassword, IdentityService, staticTokenKeyResolver } from "./service.js";
 
 const login = "operator@example.com";
-const code = "bootstrap-secret-for-setup";
-const password = "my-new-private-passphrase";
+const bootstrapPassword = "bootstrap-admin-password";
+const code = "1234567890";
+const password = "new-password";
 
 async function fixture(enabled = true) {
-  const repository = new MemoryIdentityRepository([{ id: "a9cc22ba-bf1d-41a0-a803-0ebda105fb91", login, passwordHash: await hashPassword(code), permissions: ["identity.admin"], applicationIds: [], scope: "single-client" }]);
-  const create = () => new IdentityService(repository, staticTokenKeyResolver("test-secret"), new MemoryIdentityEventPublisher(), { enabled, login, code });
+  const repository = new MemoryIdentityRepository([{ id: "a9cc22ba-bf1d-41a0-a803-0ebda105fb91", login, passwordHash: await hashPassword(bootstrapPassword), permissions: ["identity.admin"], applicationIds: [], scope: "single-client" }]);
+  const create = (expiresAt = new Date(Date.now() + 60_000).toISOString()) => new IdentityService(repository, staticTokenKeyResolver("test-secret"), new MemoryIdentityEventPublisher(), { bootstrapPassword, code, enabled, expiresAt, login });
   return { repository, create, identity: create() };
 }
 
@@ -27,14 +28,14 @@ describe("first login setup", () => {
 
   it("stores a hash, revokes sessions and stays closed after service restart", async () => {
     const { identity, repository, create } = await fixture();
-    const previous = await identity.login({ login, password: code });
+    const previous = await identity.login({ login, password: bootstrapPassword });
     await identity.completeFirstLogin({ login, code, password });
     expect((await repository.findAccountByLogin(login))?.passwordHash).not.toBe(password);
     await expect(identity.verifyAccessToken(previous.accessToken)).rejects.toThrow();
     await expect(identity.refresh(previous.refreshToken)).rejects.toThrow();
     expect(await create().firstLoginAvailable()).toBe(false);
     await expect(create().completeFirstLogin({ login, code, password })).rejects.toThrow();
-    await expect(identity.login({ login, password: code })).rejects.toThrow();
+    await expect(identity.login({ login, password: bootstrapPassword })).rejects.toThrow();
     expect((await identity.login({ login, password })).accessToken).toBeTruthy();
   });
 
@@ -42,5 +43,10 @@ describe("first login setup", () => {
     const { identity } = await fixture();
     const outcomes = await Promise.allSettled([identity.completeFirstLogin({ login, code, password }), identity.completeFirstLogin({ login, code, password: password + "-other" })]);
     expect(outcomes.filter(result => result.status === "fulfilled")).toHaveLength(1);
+  });
+
+  it("does not expose setup after the code expires", async () => {
+    const { create } = await fixture();
+    expect(await create(new Date(Date.now() - 1_000).toISOString()).firstLoginAvailable()).toBe(false);
   });
 });

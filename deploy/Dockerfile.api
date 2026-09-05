@@ -9,5 +9,6 @@ ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/deploy/build ./build
+COPY --from=build /app/apps/docs/content ./docs-content
 USER node
 CMD ["node", "build/platform.mjs"]

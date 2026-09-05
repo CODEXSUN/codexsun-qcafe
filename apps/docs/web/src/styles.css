@@ -1,0 +1,17 @@
+@import "tailwindcss";
+@import "@codexsun/ui/styles.css";
+@source "../../../../packages/ui/src";
+@source "../../../../packages/ui/desk/src";
+
+html, body, #root { min-height: 100%; margin: 0; }
+.docs-prose { color: var(--foreground); font-size: 0.95rem; line-height: 1.7; }
+.docs-prose h1 { margin: 0 0 2rem; font-size: 2rem; font-weight: 650; letter-spacing: -0.03em; }
+.docs-prose h2 { margin: 2.5rem 0 0.75rem; font-size: 1.35rem; font-weight: 650; }
+.docs-prose h3 { margin: 1.75rem 0 0.5rem; font-size: 1.05rem; font-weight: 600; }
+.docs-prose p { margin: 0.8rem 0; color: var(--muted-foreground); }
+.docs-prose ul { margin: 0.8rem 0; list-style: disc; padding-left: 1.4rem; color: var(--muted-foreground); }
+.docs-prose code { border-radius: 0.25rem; background: var(--muted); padding: 0.1rem 0.3rem; font-size: 0.85em; }
+.docs-prose pre { margin: 1.25rem 0; overflow: auto; border: 1px solid var(--border); border-radius: 0.75rem; background: var(--muted); padding: 1rem; color: var(--foreground); }
+.docs-prose pre code { padding: 0; background: transparent; }
+.docs-diagram { margin: 1.25rem 0; overflow: auto; border: 1px solid var(--border); border-radius: 0.75rem; background: var(--card); padding: 1rem; }
+.docs-diagram svg { min-width: 42rem; max-width: none; }

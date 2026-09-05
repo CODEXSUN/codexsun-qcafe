@@ -1,0 +1,30 @@
+# Identity and Sessions
+
+## Credential flow
+
+The VPS gets an initial administrator bootstrap value from private deployment configuration. It uses that value only to create the first identity account.
+
+After first setup, MariaDB stores a salted password hash. The system does not store the chosen user password as plaintext in an environment file.
+
+```mermaid
+sequenceDiagram
+  participant Client as Web or Zetro Desk
+  participant Identity as Cloud Identity API
+  participant DB as MariaDB
+  Client->>Identity: POST /identity/login
+  Identity->>DB: Verify password hash and create session
+  Identity-->>Client: Access token and refresh credential
+  Client->>Identity: POST /identity/refresh
+  Identity->>DB: Rotate refresh token
+  Identity-->>Client: New session credentials
+  Client->>Identity: POST /identity/logout
+  Identity->>DB: Revoke session
+```
+
+## Client storage
+
+Web uses a secure HTTP-only refresh cookie on the same public origin. Zetro Desk stores the refresh credential in the Windows credential vault. Access tokens stay in memory and expire after 15 minutes.
+
+## Sign out
+
+Sign out revokes the server session. It also clears the browser cookie or desktop credential vault entry. A stale browser access token can still revoke through its refresh cookie.

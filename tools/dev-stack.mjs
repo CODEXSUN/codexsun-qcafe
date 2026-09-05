@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
-import { spawn, spawnSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { spawn } from "node:child_process";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { watch } from "node:fs";
 import { relative, resolve } from "node:path";
@@ -56,6 +55,18 @@ const services = qCafeOnly ? cafeServices : [
     healthUrl: "http://127.0.0.1:5175/",
     label: "zetro-web",
   },
+  {
+    args: ["apps/docs/api/src/server.mjs"],
+    bin: null,
+    healthUrl: "http://127.0.0.1:4185/health",
+    label: "docs-api",
+  },
+  {
+    args: ["apps/docs/web", "--config", "apps/docs/web/vite.config.ts"],
+    bin: resolve(ROOT, "node_modules", "vite", "bin", "vite.js"),
+    healthUrl: "http://127.0.0.1:5185/",
+    label: "docs-web",
+  },
 ];
 const children = new Set();
 const runningServices = new Map();
@@ -75,34 +86,9 @@ try {
   releaseDevelopmentLock = await acquireDevelopmentLock(lockPath, initialEnvironment.OS_DEV_PORT_POLICY);
   const { env } = await runPreflight({
     host: qCafeOnly ? "0.0.0.0" : "127.0.0.1",
-    ports: qCafeOnly ? [4180, 5180] : [4100, 4150, 4160, 4165, 5173, 5174, 5175, 5176],
+    ports: qCafeOnly ? [4180, 5180] : [4100, 4150, 4160, 4165, 4185, 5173, 5174, 5175, 5176, 5185],
   });
-  if (!qCafeOnly && env.CODEXSUN_LOCAL_DEMO === "true") {
-    const result = spawnSync("docker", ["compose", "-f", resolve(ROOT, "tools/local-demo/compose.json"), "up", "-d", "--wait"], { cwd: ROOT, stdio: "inherit", windowsHide: true });
-    if (result.status !== 0) throw new Error("Local demonstration containers could not start.");
-    env.ZETRO_AGENTS_FILE = resolve(ROOT, "tools/local-demo/agents.json");
-    env.ZETRO_LOCAL_TOKEN = "local-demo-only";
-    env.VITE_CHAT_LOCAL_DEMO = "true";
-    console.log("Local simulation enabled. No production model or real contacts are connected.");
-  }
-  if (!qCafeOnly && env.CODEXSUN_ZETRO_DOCKER === "true") {
-    env.ZETRO_TOOLS_TOKEN ||= randomBytes(32).toString("hex");
-    const runner = startService({ args: ["packages/zetro/local-runner/src/server.mjs"], bin: null, label: "zetro-local-runner" }, env);
-    await waitForHealthyUrl("http://127.0.0.1:4160/health", "zetro-local-runner", runner);
-    const result = spawnSync("docker", ["compose", "-f", resolve(ROOT, "packages/zetro/docker/compose.json"), "up", "-d", "--wait"], { cwd: ROOT, env, stdio: "inherit", windowsHide: true });
-    if (result.status !== 0) throw new Error("Zetro container could not start. Build zetro:v1 first.");
-    env.ZETRO_AGENTS_FILE = resolve(ROOT, "packages/zetro/docker/agents.json");
-    env.ZETRO_LOCAL_TOKEN ||= "local-demo-only";
-    console.log("Zetro Codex container connected. Device sign-in is required for model responses.");
-  }
-  if (!qCafeOnly && env.CODEXSUN_ZXA_DOCKER === "true") {
-    const result = spawnSync("docker", ["compose", "-f", resolve(ROOT, "packages/zxa/docker/compose.json"), "up", "-d", "--wait"], { cwd: ROOT, env, stdio: "inherit", windowsHide: true });
-    if (result.status !== 0) throw new Error("ZXA container could not start. Build zxa:v1 first.");
-    env.ZETRO_AGENTS_FILE = resolve(ROOT, "packages/zxa/docker/agents.json");
-    env.ZXA_LOCAL_TOKEN ||= "local-zxa-only";
-    console.log("ZXA multi-provider container connected. Configure at least one provider connection.");
-  }
-  console.log("CODEXSUN OS development runtime");
+  console.log("CODEXSUN OS local portal runtime");
   for (const service of services) {
     const child = startService(service, env);
     await waitForHealthyUrl(service.healthUrl, service.label, child);
@@ -110,7 +96,7 @@ try {
   }
   if (env.CODEXSUN_VITE_HOT_RELOAD === "true") watchPlatformRefactors();
   else console.log("  - Vite hot reload and refactor restarts are disabled.");
-  console.log("\n  ok Selected applications are ready");
+  console.log("\n  ok Local portal services are ready");
   if (qCafeOnly) console.log("  - Q Cafe: http://127.0.0.1:5180 (API: 4180)");
   else console.log("  - Web: http://127.0.0.1:5173");
   console.log("  - API: http://127.0.0.1:4100\n");
@@ -119,6 +105,7 @@ try {
   console.log("  - Chat API: http://127.0.0.1:4165\n");
   console.log("  - Zetro API: http://127.0.0.1:4150");
   console.log("  - Zetro Web: http://127.0.0.1:5175\n");
+  console.log("  - Docs: http://127.0.0.1:5185 (API: 4185)\n");
 } catch (error) {
   console.error(`  x ${error instanceof Error ? error.message : String(error)}`);
   await shutdown(1);
