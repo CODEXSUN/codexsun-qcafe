@@ -1,6 +1,7 @@
 import type { InterfaceTopologySection } from "@codexsun/devkit-ito";
 
 export const settingsTopology: InterfaceTopologySection[] = [
+  { id: "s6", technicalName: "settings.devices.panel", name: "Connected devices", scope: "Platform Settings", description: "Enroll this device, inspect its connection, and revoke access." },
   { id: "s1", technicalName: "settings.workspace.container", name: "Settings workspace", scope: "Platform Settings", description: "Host platform configuration pages." },
   { id: "s2", technicalName: "settings.sideCar.panel", name: "Settings side car", scope: "Platform Settings", description: "Navigate platform settings pages." },
   { id: "s2.1", technicalName: "settings.sideCar.content", name: "Settings navigation", scope: "Platform Settings", description: "List Applications, Connections, Identity, and Runtime pages." },

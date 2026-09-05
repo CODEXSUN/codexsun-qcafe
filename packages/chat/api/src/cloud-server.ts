@@ -1,0 +1,21 @@
+import { createChatModule } from "./chat-module.js";
+import { PlatformChatIdentityProvider } from "./infrastructure/platform-identity-provider.js";
+import { MariaDbChatRepository } from "./infrastructure/mariadb-chat-repository.js";
+import { RedisChatEventBus } from "./infrastructure/redis-event-bus.js";
+import { LocalChatEventBus } from "./infrastructure/local-event-bus.js";
+import { ChatGateway } from "./infrastructure/chat-gateway.js";
+
+if (!process.env.OS_IDENTITY_URL || !process.env.CHAT_DATABASE_URL) throw new Error("Cloud Chat requires Identity and MariaDB configuration.");
+const identities = new PlatformChatIdentityProvider(process.env.OS_IDENTITY_URL);
+const repository = new MariaDbChatRepository(process.env.CHAT_DATABASE_URL);
+const events = process.env.OS_REDIS_ENABLED === "true" && process.env.OS_REDIS_URL ? new RedisChatEventBus(process.env.OS_REDIS_URL) : new LocalChatEventBus();
+const origins = (process.env.CHAT_ALLOWED_ORIGINS ?? "https://os.codexsun.com").split(",");
+await repository.start();
+if (events instanceof RedisChatEventBus) await events.start();
+const { app } = createChatModule({ identities, repository, events, allowedOrigins: origins });
+const gateway = new ChatGateway(identities, events, origins);
+gateway.register(app);
+await gateway.listen(Number(process.env.CHAT_WS_PORT ?? 4166), process.env.CHAT_API_HOST ?? "127.0.0.1");
+app.addHook("onClose", async () => { await gateway.close(); if (events instanceof RedisChatEventBus) await events.close(); await repository.close(); });
+await app.listen({ port: Number(process.env.CHAT_API_PORT ?? 4165), host: process.env.CHAT_API_HOST ?? "127.0.0.1" });
+for (const signal of ["SIGINT", "SIGTERM"] as const) process.once(signal, () => { void app.close(); });

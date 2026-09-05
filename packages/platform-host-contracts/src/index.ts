@@ -1,4 +1,6 @@
 import type { IdentityClaims } from "@codexsun/identity-contracts";
+export { RemoteIdentityVerifier } from "./remote-identity.js";
+export { configurePlatformSession, clearPlatformSession, platformBaseUrl, platformFetch } from "./browser-session.js";
 
 export type PlatformActor = {
   applicationIds: readonly string[];

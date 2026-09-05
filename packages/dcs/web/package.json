@@ -1,0 +1,14 @@
+{
+  "name": "@codexsun/dcs-web",
+  "version": "0.1.14",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.tsx"
+  },
+  "dependencies": {
+    "@codexsun/platform-host-contracts": "^0.1.13",
+    "@codexsun/ui": "*",
+    "react": "latest"
+  }
+}

@@ -21,16 +21,25 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:4100 http://127.0.0.1:4150 http://127.0.0.1:4165; img-src 'self' asset: http://asset.localhost data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:"
+      "csp": "default-src 'self'; connect-src 'self' https://os.codexsun.com wss://os.codexsun.com http://127.0.0.1:4100 http://127.0.0.1:4150 http://127.0.0.1:4165; img-src 'self' asset: http://asset.localhost data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:"
     }
   },
   "bundle": {
     "active": true,
-    "icon": ["icons/icon.ico"],
-    "targets": ["nsis", "msi"],
+    "icon": [
+      "icons/icon.ico"
+    ],
+    "targets": [
+      "nsis",
+      "msi"
+    ],
     "windows": {
-      "wix": { "language": "en-US" },
-      "nsis": { "displayLanguageSelector": true }
+      "wix": {
+        "language": "en-US"
+      },
+      "nsis": {
+        "displayLanguageSelector": true
+      }
     }
   }
 }

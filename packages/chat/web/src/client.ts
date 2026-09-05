@@ -6,6 +6,7 @@ export type Message = ChatMessage;
 export type History = ChatHistory;
 
 export interface ChatTransport {
+  watch?(onChange: () => void): () => void;
   profile(): Promise<Contact>;
   contacts(): Promise<Contact[]>;
   conversations(): Promise<Conversation[]>;
@@ -50,6 +51,25 @@ abstract class JsonChatClient implements ChatTransport {
 }
 
 export class CentralChatClient extends JsonChatClient {
+  watch(onChange: () => void) {
+    let stopped = false;
+    let socket: WebSocket | undefined;
+    let retry: ReturnType<typeof setTimeout>;
+    const connect = async () => {
+      try {
+        const response = await fetch(`${this.baseUrl}/api/v1/chat/realtime/tickets`, { method: "POST", headers: { authorization: `Bearer ${this.token}` } });
+        if (!response.ok || stopped) return;
+        const { ticket } = await response.json();
+        const url = new URL("/chat/ws", this.baseUrl);
+        url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+        socket = new WebSocket(url, [`ticket.${ticket}`]);
+        socket.onmessage = () => onChange();
+        socket.onclose = () => { if (!stopped) retry = setTimeout(() => { void connect(); }, 5000); };
+      } catch { if (!stopped) retry = setTimeout(() => { void connect(); }, 5000); }
+    };
+    void connect();
+    return () => { stopped = true; clearTimeout(retry); socket?.close(); };
+  }
   profile() { return this.request<Contact>(`${CHAT_API_PREFIX}/profile`); }
   contacts() { return this.request<Contact[]>(`${CHAT_API_PREFIX}/contacts`); }
   conversations() { return this.request<Conversation[]>(`${CHAT_API_PREFIX}/conversations`); }

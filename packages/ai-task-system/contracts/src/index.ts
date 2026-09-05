@@ -10,7 +10,7 @@ export const aiTaskSchema = z.object({
   id: z.string().uuid(), title: z.string(), request: z.string(), refinedPrompt: z.string(), objective: z.string(),
   acceptanceCriteria: z.array(z.string()), status: taskStatusSchema, createdAt: z.string(), updatedAt: z.string(), workItems: z.array(workItemSchema),
 });
-export const createAiTaskSchema = z.object({ request: z.string().trim().min(8).max(8000) }).strict();
+export const createAiTaskSchema = z.object({ request: z.string().trim().min(8).max(8000), clientRequestId: z.string().uuid().optional() }).strict();
 export type AiTask = z.infer<typeof aiTaskSchema>;
 export type WorkItem = z.infer<typeof workItemSchema>;
 export type CreateAiTask = z.infer<typeof createAiTaskSchema>;

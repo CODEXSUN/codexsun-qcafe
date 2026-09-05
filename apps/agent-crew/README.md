@@ -1,5 +1,24 @@
 # Agent Crew
 
+## Purpose and features
+
+**Agent Crew**
+
+### Why this module exists
+
+Give specialist agents separate duties and isolated runtimes.
+
+### Features and boundaries
+
+Docker profiles; reviewed skills; per-agent state; registry integration; backup and restore tooling. Configured demo responses do not prove live model execution.
+
+### Integration
+
+Use this module's public exports or registered API contracts. Do not read another module's tables or import its private implementation.
+
+Ownership is registered in `assist/manifest.json` at the repository root. Run `npm.cmd run check` from the root for repository validation.
+
+
 Agent Crew contains Docker-only specialist agents. Zetro owns the standalone API and web chat.
 
 1. Copy `docker/.env.example` to `docker/.env` and set unique random tokens.

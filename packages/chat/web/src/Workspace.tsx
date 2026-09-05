@@ -156,7 +156,7 @@ export function ChatWorkspace({ options = defaultOptions, topology, target }: { 
     const request = generation.current;
     let stopped = false;
     let pending = false;
-    const timer = window.setInterval(() => {
+    const update = () => {
       if (pending || document.hidden) return;
       pending = true;
       void Promise.all([client.history(id), client.conversations()]).then(([page, items]) => {
@@ -164,8 +164,10 @@ export function ChatWorkspace({ options = defaultOptions, topology, target }: { 
         setMessages((current) => mergeMessages(current, page.items));
         setConversations(items.filter((item) => item.kind === "direct"));
       }).catch(() => { if (!stopped) setError("Live refresh failed. Check your connection and refresh."); }).finally(() => { pending = false; });
-    }, 5000);
-    return () => { stopped = true; clearInterval(timer); };
+    };
+    const timer = window.setInterval(update, 5000);
+    const unsubscribe = client.watch?.(update);
+    return () => { stopped = true; clearInterval(timer); unsubscribe?.(); };
   }, [client, active?.id]);
   function disconnect() {
     clearChatConnection(); setToken(localDemo ? resolved.demoToken : ""); generation.current++; setClient(undefined); setProfile(undefined); setConversations([]); setContacts([]); setActive(undefined); setMessages([]); setDrafts({}); setError("");

@@ -10,10 +10,11 @@ import { coreTopology } from "./core-topology.js";
 import { overviewPage, overviewWorkspace } from "./Overview.js";
 import { createSettingsWorkspace } from "./Settings.js";
 import { settingsTopology } from "./settings-topology.js";
+import { platformFetch } from "@codexsun/platform-host-contracts";
 
 export function App() {
   const [applications, setApplications] = useState<{ id: string; name: string; webUrl?: string }[]>([]);
-  useEffect(() => { void fetch("/api/v1/core").then(response => { if (!response.ok) throw new Error("Application catalog unavailable"); return response.json(); }).then(snapshot => setApplications(snapshot.modules.filter((item: { kind: string; webUrl?: string }) => item.kind === "application" && item.webUrl && /^https?:\/\//.test(item.webUrl)))).catch(() => setApplications([])); }, []);
+  useEffect(() => { void platformFetch("/api/v1/core").then(response => { if (!response.ok) throw new Error("Application catalog unavailable"); return response.json(); }).then(snapshot => setApplications(snapshot.modules.filter((item: { kind: string; webUrl?: string }) => item.kind === "application" && item.webUrl && /^https?:\/\//.test(item.webUrl)))).catch(() => setApplications([])); }, []);
   const [page, setPage] = useState<MdiPage>(overviewPage);
   const [requestedPage, setRequestedPage] = useState<MdiPage>(overviewPage);
   const onPageChange = useCallback((next: MdiPage) => setPage(next), []);

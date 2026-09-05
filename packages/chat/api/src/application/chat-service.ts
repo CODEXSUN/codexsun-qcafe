@@ -1,4 +1,4 @@
-import type { ChatActor, ChatConversation, ChatHistory } from "@codexsun/chat-contracts";
+import type { ChatActor, ChatConversation, ChatHistory, ChatEvent } from "@codexsun/chat-contracts";
 import { Conversation } from "../domain/conversation.js";
 import { ChatAccessError, ChatNotFoundError } from "../domain/chat-errors.js";
 import type { ChatClock, ChatEventPublisher, ChatIdentityProvider, ChatRepository } from "./ports.js";
@@ -39,9 +39,13 @@ export class ChatService {
   async send(actorId: string, conversationId: string, body: string) {
     const conversation = await this.requireConversation(actorId, conversationId);
     const message = conversation.send(actorId, body, this.clock.now());
-    await this.repository.saveMessage(conversationId, message);
-    await this.repository.saveConversation(conversation.snapshot());
-    await this.events.publish({ type: "message.created", actorIds: conversation.memberIds, conversationId, message });
+    const event: ChatEvent = { type: "message.created", actorIds: conversation.memberIds, conversationId, message };
+    if (this.repository.saveTurn) await this.repository.saveTurn(conversation.snapshot(), message, event);
+    else {
+      await this.repository.saveMessage(conversationId, message);
+      await this.repository.saveConversation(conversation.snapshot());
+    }
+    await this.events.publish(event);
     return message;
   }
 

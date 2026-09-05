@@ -1,0 +1,16 @@
+{
+  "name": "@codexsun/dcs",
+  "version": "0.1.14",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/service.mjs"
+  },
+  "scripts": {
+    "start": "node src/server.mjs",
+    "test": "node --test src/*.test.mjs"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

@@ -1,3 +1,4 @@
+import { platformFetch } from "@codexsun/platform-host-contracts";
 import { AttachmentControls, AttachmentPreviews } from "./AttachmentControls.js";
 import type { PromptAttachment } from "@codexsun/zetro-api/contracts";
 import { createPortal } from "react-dom";
@@ -98,7 +99,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
     let active = true;
     async function checkHealth() {
       try {
-        const res = await fetch(`${import.meta.env.VITE_ZETRO_API_URL ?? ""}/health`, { signal: AbortSignal.timeout(2500) });
+        const res = await platformFetch(`${import.meta.env.VITE_ZETRO_API_URL ?? ""}/health`, { signal: AbortSignal.timeout(2500) });
         if (active) setConnected(res.ok);
       } catch {
         if (active) setConnected(false);

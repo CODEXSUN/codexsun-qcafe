@@ -1,4 +1,5 @@
 import cors from "@fastify/cors";
+import { registerIdentityAccess } from "./identity-access.js";
 import { registerAiTaskRoutes, RulePlanner, SqliteTaskRepository, TaskService, type TaskWorker } from "@codexsun/ai-task-api";
 import Fastify from "fastify";
 import { resolve } from "node:path";
@@ -12,6 +13,7 @@ import { registerWorkspaceRoutes } from "./workspace-routes.js";
 
 export function buildZetroApp(options: { dispatcher?: ZetroDispatcher } = {}) {
   const app = Fastify({ logger: true, bodyLimit: 3_000_000 });
+  registerIdentityAccess(app);
   const registryFile = resolve(import.meta.dirname, "../../../../apps/agent-crew/docker/zetro-agents.example.json");
   const dispatcher = options.dispatcher ?? new ZetroDispatcher(AgentRegistry.fromEnvironment(registryFile));
   const defaultAgentId = dispatcher.registry.endpoints[0]?.id ?? "zetro";
@@ -21,7 +23,7 @@ export function buildZetroApp(options: { dispatcher?: ZetroDispatcher } = {}) {
   if (!options.dispatcher) {
     const workspaceStore = new WorkspaceStore(process.env.ZETRO_WORKSPACE_DATABASE_FILE ?? resolve(import.meta.dirname, "../state/workspace.db"), {
       repositoryRoot: process.env.ZETRO_PROJECTS_ROOT || process.cwd(), githubUrl: "", enabledAgentIds: [defaultAgentId], defaultAgentId,
-    });
+    }, process.env.ZETRO_SETTINGS_FILE || undefined);
     registerWorkspaceRoutes(app, workspaceStore, () => dispatcher.registry.health());
     registerRunRoutes(app, new RunEngine(dispatcher, process.env.ZETRO_DATABASE_FILE ?? resolve(import.meta.dirname, "../state/zetro.db")));
     const worker: TaskWorker = {

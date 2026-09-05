@@ -15,7 +15,27 @@ export class IdentityService implements IdentityTokenVerifier {
     private readonly repository: IdentityRepository,
     private readonly keys: IdentityTokenKeyResolver,
     private readonly events: IdentityEventPublisher,
+    private readonly setup: { enabled: boolean; login: string; code: string } = { enabled: false, login: "", code: "" },
   ) {}
+
+  async firstLoginAvailable(): Promise<boolean> {
+    if (!this.setup.enabled || this.setup.code.length < 16) return false;
+    const account = await this.repository.findAccountByLogin(this.setup.login);
+    return !!account && account.permissions.includes("identity.admin") && await verifyPassword(this.setup.code, account.passwordHash);
+  }
+
+  async completeFirstLogin(input: { login: string; code: string; password: string }): Promise<IdentityLoginResult> {
+    if (!this.setup.enabled || this.setup.code.length < 16 || input.login.toLowerCase() !== this.setup.login.toLowerCase()) throw new Error("Setup unavailable.");
+    const supplied = Buffer.from(input.code);
+    const expected = Buffer.from(this.setup.code);
+    if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) throw new Error("Invalid setup code.");
+    if (input.password.length < 16 || input.password.length > 1024 || input.password === this.setup.code) throw new Error("Choose a new password with at least 16 characters.");
+    const account = await this.repository.findAccountByLogin(this.setup.login);
+    if (!account || !account.permissions.includes("identity.admin") || !await verifyPassword(this.setup.code, account.passwordHash)) throw new Error("Setup unavailable.");
+    const changed = await this.repository.replaceBootstrapPassword(account.id, account.passwordHash, await hashPassword(input.password));
+    if (!changed) throw new Error("Setup already completed.");
+    return this.login({ login: input.login, password: input.password });
+  }
 
   async login(input: IdentityLoginInput): Promise<IdentityLoginResult> {
     const account = await this.repository.findAccountByLogin(input.login);
@@ -50,8 +70,23 @@ export class IdentityService implements IdentityTokenVerifier {
   async verifyAccessToken(token: string): Promise<IdentityClaims> {
     const claims = await this.verify(token, "access");
     const session = await this.repository.findSession(claims.sid);
-    if (!session || session.revokedAt) throw new Error("Identity session is revoked or expired.");
+    if (!session || session.revokedAt || session.accountId !== claims.sub) throw new Error("Identity session is revoked or expired.");
     return claims;
+  }
+
+  async directory(token: string) {
+    const claims = await this.verifyAccessToken(token);
+    if (claims.scope !== "single-client" || !claims.permissions.includes("chat.access")) throw new Error("Permission denied.");
+    return (await this.repository.listAccounts()).filter(account => account.scope === "single-client" && account.permissions.includes("chat.access"))
+      .map(account => ({ uuid: account.id, name: account.login, email: account.login }));
+  }
+
+  async installationOperator(token: string): Promise<string> {
+    const claims = await this.verifyAccessToken(token);
+    if (claims.scope !== "single-client" || !claims.permissions.includes("installation.manage")) throw new Error("Permission denied.");
+    const account = await this.repository.findAccountById(claims.sub);
+    if (!account) throw new Error("Account unavailable.");
+    return account.login;
   }
 
   private async issue(account: IdentityAccount, session: IdentitySession): Promise<IdentityLoginResult> {

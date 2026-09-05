@@ -1,4 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod credentials;
 
 use serde::Serialize;
 use std::{env, path::PathBuf};
@@ -34,7 +35,7 @@ fn display(path: PathBuf) -> String {
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![desktop_status])
+        .invoke_handler(tauri::generate_handler![desktop_status, credentials::read_credential, credentials::save_credential])
         .run(tauri::generate_context!())
         .expect("CODEXSUN desktop failed");
 }

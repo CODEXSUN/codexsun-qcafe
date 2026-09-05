@@ -2,6 +2,8 @@ import { Boxes, CheckCircle2, KeyRound, Settings2 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { MdiTopologyRegion, type MdiTopologyAdapter, type MdiWorkspaceAddon } from "@codexsun/ui-desk";
 import { ChatConnectionSettings } from "@codexsun/chat-web";
+import { DevicesPanel } from "@codexsun/dcs-web";
+import { desktopCredentialStore } from "@codexsun/core-desktop";
 
 type Application = { id: string; name: string; webUrl?: string };
 
@@ -25,6 +27,7 @@ function SettingsPage({ applications, pageId, target, topology }: { applications
       <MdiTopologyRegion id="s3" topology={topology} className="space-y-3"><span className="flex size-11 items-center justify-center rounded-xl border border-border bg-card"><Settings2 size={21} /></span><p className="text-sm font-medium tracking-widest text-muted-foreground">PLATFORM SETTINGS</p><h1 className="text-3xl font-semibold tracking-tight">{title}</h1><p className="max-w-2xl text-muted-foreground">{pageId === "applications" ? "Manage the applications registered with this Platform host." : pageId === "connections" ? "Connect desktop workspaces to local module APIs." : "This setting area is ready for the shared Platform engine."}</p></MdiTopologyRegion>
       {pageId === "applications" && <MdiTopologyRegion id="s4" topology={topology} className="grid gap-3">{applications.length === 0 ? <div className="rounded-xl border border-dashed border-border p-6 text-sm text-muted-foreground">No applications are currently registered.</div> : applications.map((application) => <article className="flex items-center justify-between rounded-xl border border-border bg-card p-5" key={application.id}><div className="min-w-0"><h2 className="font-medium">{application.name}</h2><p className="mt-1 font-mono text-xs text-muted-foreground">{application.id}</p></div><span className="inline-flex items-center gap-2 text-sm text-muted-foreground"><CheckCircle2 className="text-foreground" size={16} />Available</span></article>)}</MdiTopologyRegion>}
       {pageId === "connections" && <MdiTopologyRegion id="s5" topology={topology}><ChatConnectionSettings /></MdiTopologyRegion>}
+      {pageId === "runtime" && <MdiTopologyRegion id="s6" topology={topology}><DevicesPanel credentialStore={desktopCredentialStore("dcs-device")} /></MdiTopologyRegion>}
     </section>
   </MdiTopologyRegion>;
 }

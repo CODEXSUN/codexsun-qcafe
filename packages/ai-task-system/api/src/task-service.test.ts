@@ -18,3 +18,12 @@ it("plans, executes, persists evidence, and waits for final review", async () =>
   service.start(task.id); await vi.waitFor(() => expect(service.get(task.id)?.status).toBe("awaiting_review"));
   expect(worker.execute).toHaveBeenCalledTimes(3); expect(service.approve(task.id).status).toBe("completed");
 });
+it("deduplicates retried task submissions and rejects conflicting payloads", async () => {
+  const { service } = setup();
+  const clientRequestId = "c189742b-d305-4407-905b-1eb6e6d3eb03";
+  const input = { clientRequestId, request: "Verify the connectivity checklist" };
+  const [first, retry] = await Promise.all([service.create(input), service.create(input)]);
+  expect(first.id).toBe(retry.id);
+  expect(service.list()).toHaveLength(1);
+  await expect(service.create({ ...input, request: "A different request using the same identifier" })).rejects.toThrow(/different task/);
+});

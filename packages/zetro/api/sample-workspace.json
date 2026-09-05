@@ -1,0 +1,11 @@
+{
+  "projects": [
+    { "id": "sample-codexsun-os", "name": "CODEXSUN OS", "description": "Platform host: application registration, identity, configuration, and lifecycle.", "kind": "project" },
+    { "id": "sample-zetro", "name": "Zetro", "description": "Discussion, reviewed task handoff, and isolated agent coordination.", "kind": "project" }
+  ],
+  "conversations": [
+    { "id": "sample-zetro-first-feed", "projectId": "sample-zetro", "title": "First feed: CODEXSUN OS and Zetro", "updatedAt": "2026-09-05T00:00:00.000Z", "exchanges": [
+      { "id": "sample-storage-brief", "prompt": "Review our storage architecture: JSON for settings, SQLite for local operational data, and MariaDB for centralized cloud data.", "result": "Sample brief only. CODEXSUN OS owns the application host. Zetro owns discussions and handoff. AI Task System owns tasks and evidence. ZXA runs isolated provider requests. Next: review each module's data ownership and acceptance criteria before starting a task. No execution or completion is claimed." }
+    ] }
+  ]
+}

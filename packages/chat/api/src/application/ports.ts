@@ -2,6 +2,7 @@ import type { ChatActor, ChatEvent, ChatMessage } from "@codexsun/chat-contracts
 import type { ConversationState } from "../domain/conversation.js";
 
 export interface ChatRepository {
+  saveTurn?(conversation: ConversationState, message: ChatMessage, event: ChatEvent): Promise<void>;
   findConversation(id: string): Promise<ConversationState | undefined>;
   findDirectConversation(actorIds: [string, string]): Promise<ConversationState | undefined>;
   listConversations(actorId: string): Promise<ConversationState[]>;

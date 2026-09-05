@@ -1,5 +1,24 @@
 # Q Cafe
 
+## Purpose and features
+
+**Q Cafe**
+
+### Why this module exists
+
+Keep restaurant operations independently deployable.
+
+### Features and boundaries
+
+Menu and item masters; point of sale; orders and kitchen workflow; inventory; receipts; local SQLite persistence and desktop packaging.
+
+### Integration
+
+Use this module's public exports or registered API contracts. Do not read another module's tables or import its private implementation.
+
+Ownership is registered in `assist/manifest.json` at the repository root. Run `npm.cmd run check` from the root for repository validation.
+
+
 Q Cafe owns its restaurant UI, API, SQLite database, migrations, Windows desktop runtime, and Docker runtime.
 The platform registers its URL. Shared UI and topology tools use public package exports.
 Chat and Zetro links open their existing workspaces. They do not receive restaurant records or operator keys.

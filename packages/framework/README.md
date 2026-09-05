@@ -1,4 +1,23 @@
-# CODEXSUN Framework
+# Framework
+
+## Purpose and features
+
+**Framework**
+
+### Why this module exists
+
+Coordinate module lifecycle independently of application business rules.
+
+### Features and boundaries
+
+Module definitions; dependency ordering; service bindings; startup, shutdown, and rollback.
+
+### Integration
+
+Use this module's public exports or registered API contracts. Do not read another module's tables or import its private implementation.
+
+Ownership is registered in `assist/manifest.json` at the repository root. Run `npm.cmd run check` from the root for repository validation.
+
 
 `@codexsun/framework` is the tenancy-neutral application kernel for CODEXSUN OS.
 

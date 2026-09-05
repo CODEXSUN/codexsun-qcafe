@@ -5,3 +5,15 @@
 **/backups
 .git
 **/*.log
+**/src-tauri/target
+**/src-tauri/gen
+**/dist
+**/.local
+**/*.db
+**/*.db-wal
+**/*.db-shm
+**/*.sqlite*
+deploy/config
+deploy/state
+deploy/portal
+deploy/build

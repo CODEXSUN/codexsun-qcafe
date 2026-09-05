@@ -1,6 +1,6 @@
 {
   "name": "@codexsun/core-web",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,9 +11,15 @@
   },
   "dependencies": {
     "@codexsun/ai-task-web": "*",
+    "@codexsun/chat-web": "*",
+    "@codexsun/core-desktop": "^0.1.13",
+    "@codexsun/dcs-web": "^0.1.13",
     "@codexsun/devkit-ito": "*",
+    "@codexsun/identity-web": "^0.1.13",
+    "@codexsun/platform-host-contracts": "^0.1.13",
     "@codexsun/ui": "*",
     "@codexsun/ui-desk": "*",
+    "@codexsun/zetro-web": "*",
     "@radix-ui/react-avatar": "^1.2.6",
     "@radix-ui/react-collapsible": "^1.1.20",
     "@radix-ui/react-dialog": "^1.1.23",
@@ -25,9 +31,7 @@
     "clsx": "latest",
     "react": "latest",
     "react-dom": "latest",
-    "tailwind-merge": "latest",
-    "@codexsun/zetro-web": "*",
-    "@codexsun/chat-web": "*"
+    "tailwind-merge": "latest"
   },
   "devDependencies": {
     "@tailwindcss/vite": "latest",

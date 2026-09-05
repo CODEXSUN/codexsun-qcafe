@@ -29,7 +29,7 @@ export class PlatformOutboxQueue {
   private getQueue(topic: string): Queue<OutboxJob> {
     const existing = this.#queues.get(topic);
     if (existing) return existing;
-    const queue = new Queue<OutboxJob>(`platform.${topic}`, { connection: { url: this.redisUrl } });
+    const queue = new Queue<OutboxJob>(`platform.${topic}`, { prefix: "codexsun", connection: { url: this.redisUrl } });
     this.#queues.set(topic, queue);
     return queue;
   }

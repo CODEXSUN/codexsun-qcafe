@@ -1,4 +1,23 @@
-# Chat add-on
+# Chat Messenger
+
+## Purpose and features
+
+**Chat Messenger**
+
+### Why this module exists
+
+Own user conversations independently of device synchronization.
+
+### Features and boundaries
+
+Conversation and message contracts; backend services; transport adapters; reusable workspace; access tests. API uses port 4165. A separate cloud chat WebSocket deployment is pending.
+
+### Integration
+
+Use this module's public exports or registered API contracts. Do not read another module's tables or import its private implementation.
+
+Ownership is registered in `assist/manifest.json` at the repository root. Run `npm.cmd run check` from the root for repository validation.
+
 
 Before Chat work, read `assist/SKILL.md`.
 It routes architecture, visual, integration, scaling, and test work to focused references.

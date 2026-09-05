@@ -1,6 +1,6 @@
 {
   "name": "@codexsun/chat-api",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "private": true,
   "type": "module",
   "exports": {
@@ -12,11 +12,16 @@
   },
   "dependencies": {
     "@codexsun/chat-contracts": "*",
+    "@codexsun/platform-host-contracts": "^0.1.13",
     "@fastify/cors": "latest",
-    "fastify": "latest"
+    "fastify": "latest",
+    "ioredis": "^6.0.0",
+    "mysql2": "^3.24.3",
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "@types/node": "latest",
+    "@types/ws": "^8.18.1",
     "tsx": "latest",
     "typescript": "latest"
   }

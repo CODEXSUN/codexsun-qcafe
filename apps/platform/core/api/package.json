@@ -1,6 +1,6 @@
 {
   "name": "@codexsun/core-api",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "private": true,
   "type": "module",
   "scripts": {
@@ -16,8 +16,10 @@
     "@codexsun/platform-host-contracts": "*",
     "@codexsun/runtime": "*",
     "@fastify/cors": "latest",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "bullmq": "^6.3.4",
     "fastify": "latest",
+    "hostinger-api-mcp": "^1.52.0",
     "ioredis": "^6.0.0",
     "jose": "^6.2.10",
     "kysely": "^0.29.5",
