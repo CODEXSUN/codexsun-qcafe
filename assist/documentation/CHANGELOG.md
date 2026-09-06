@@ -2,11 +2,11 @@
 
 ## Version State
 
-Current version: 0.1.18
+Current version: 0.1.19
 
-Release tag: v-0.1.18
+Release tag: v-0.1.19
 
-Changelog label: v 0.1.18
+Changelog label: v 0.1.19
 
 ## Unreleased
 
@@ -42,6 +42,19 @@ Changelog label: v 0.1.18
 - Cleared workspace canvas child blocks and reserved the full canvas for the next MDI feature.
 - Bound the shared AppSidebar and SidebarInset composition inside the workspace canvas.
 
+## v-0.1.19
+
+### [v 0.1.19] 2026-09-06 9:58 a.m. - Release-aligned cloud runtime images
+
+#### Database Changes
+
+- Database update: No.
+
+#### App Codebase Changes
+
+- Bumped the workspace version to 0.1.19.
+- Aligned cloud Docker image and rollback tags with the active CODEXSUN OS release.
+
 ## v-0.1.18
 
 ### [v 0.1.18] 2026-09-06 9:48 a.m. - Zetro Desk, ZXA connections, and Today workspace
@@ -53,6 +66,9 @@ Changelog label: v 0.1.18
 #### App Codebase Changes
 
 - Bumped the workspace version to 0.1.18.
+- Added the ZXA local runtime connection workspace with Codex device authorization and Gemini/OpenCode connection settings.
+- Added the Today workspace for focused local task tracking in the web and desktop navigation.
+- Split the cloud portal into lazy-loaded workspace bundles and rebuilt the Zetro Desk desktop installers.
 
 ## v-0.1.17
 

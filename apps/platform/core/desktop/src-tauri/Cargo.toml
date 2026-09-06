@@ -1,6 +1,6 @@
 [package]
 name = "codexsun-desktop"
-version = "0.1.18"
+version = "0.1.19"
 description = "CODEXSUN Windows desktop host"
 authors = ["CODEXSUN"]
 edition = "2021"
@@ -14,4 +14,3 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri = { version = "2.10.3", features = [] }
-

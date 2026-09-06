@@ -25,7 +25,7 @@ fail() {
     mv "$PORTAL_BACKUP" "$APP_ROOT/deploy/portal" || true
   fi
   if [[ "$HAS_ROLLBACK_IMAGE" == true ]]; then
-    docker tag "$ROLLBACK_TAG" codexsun-os/api:0.1.16 || true
+    docker tag "$ROLLBACK_TAG" "codexsun-os/api:$CODEXSUN_VERSION" || true
     docker compose -f "$COMPOSE_FILE" up -d --no-build platform chat zetro || true
   fi
   echo "Deployment stopped at line $1 with status $status."
@@ -50,10 +50,12 @@ fi
 mkdir -p "$STAGE_DIR"
 tar -xzf "$ARCHIVE" -C "$STAGE_DIR"
 [[ -f "$STAGE_DIR/deploy/compose.json" ]] || { echo "Archive does not contain deploy/compose.json"; exit 2; }
+CODEXSUN_VERSION="$(node -p "require('$STAGE_DIR/package.json').version")"
+export CODEXSUN_VERSION
 
 echo "Checkpoint: archive validated and staged."
-if docker image inspect codexsun-os/api:0.1.16 >/dev/null 2>&1; then
-  docker tag codexsun-os/api:0.1.16 "$ROLLBACK_TAG"
+if docker image inspect "codexsun-os/api:$CODEXSUN_VERSION" >/dev/null 2>&1; then
+  docker tag "codexsun-os/api:$CODEXSUN_VERSION" "$ROLLBACK_TAG"
   HAS_ROLLBACK_IMAGE=true
 fi
 
