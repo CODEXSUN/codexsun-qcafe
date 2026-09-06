@@ -2,11 +2,11 @@
 
 ## Version State
 
-Current version: 0.1.25
+Current version: 0.1.26
 
-Release tag: v-0.1.25
+Release tag: v-0.1.26
 
-Changelog label: v 0.1.25
+Changelog label: v 0.1.26
 
 ## Unreleased
 
@@ -41,6 +41,18 @@ Changelog label: v 0.1.25
 - Added ITO entries for the workspace canvas, navigation, navigation rail, and workspace surface.
 - Cleared workspace canvas child blocks and reserved the full canvas for the next MDI feature.
 - Bound the shared AppSidebar and SidebarInset composition inside the workspace canvas.
+
+## v-0.1.26
+
+### [v 0.1.26] 2026-09-06 12:13 p.m. - Fix Orship cloud state ownership
+
+#### Database Changes
+
+- Database update: No.
+
+#### App Codebase Changes
+
+- Bumped the workspace version to 0.1.26.
 
 ## v-0.1.25
 

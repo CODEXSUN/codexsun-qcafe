@@ -49,7 +49,7 @@ try {
   }
   if ($orshipOperationId) { Invoke-OrshipRequest "/$orshipOperationId/publish" "POST" @{ version = $version } | Out-Null }
   if (-not $SkipDeviceNotification) { & node deploy/notify-release.mjs --phase published --version $version }
-  if ($orshipOperationId) { Invoke-OrshipRequest "/$orshipOperationId/deployment/start" | Out-Null }
+  if ($orshipOperationId) { Invoke-OrshipRequest "/$orshipOperationId/deployment/start" "POST" @{} | Out-Null }
   Invoke-ReleaseStep "Deploy cloud release" { & powershell -ExecutionPolicy Bypass -File deploy/publish-vps.ps1 }
   if ($orshipOperationId) { Invoke-OrshipRequest "/$orshipOperationId/deployment/complete" | Out-Null }
   if (-not $SkipDeviceNotification) { & node deploy/notify-release.mjs --phase running --version $version }

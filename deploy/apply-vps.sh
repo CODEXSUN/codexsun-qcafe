@@ -82,7 +82,8 @@ done
 # The active deployment runner must not overwrite itself mid-execution.
 tar --exclude=apply-vps.sh -C "$STAGE_DIR/deploy" -cf - . | tar -C "$APP_ROOT/deploy" -xf -
 
-mkdir -p "$APP_ROOT/deploy/config" "$APP_ROOT/deploy/state" "$APP_ROOT/deploy/portal"
+mkdir -p "$APP_ROOT/deploy/config" "$APP_ROOT/deploy/state" "$APP_ROOT/deploy/state/orship" "$APP_ROOT/deploy/portal"
+chown 1000:1000 "$APP_ROOT/deploy/state/orship"
 if [[ -n "$PORTAL_ARCHIVE" ]]; then
   PORTAL_STAGE="$RUN_DIR/portal"
   mkdir -p "$PORTAL_STAGE"
