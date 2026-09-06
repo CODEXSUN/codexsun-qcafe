@@ -37,10 +37,17 @@ function releaseTitle() {
 }
 function releaseNotes() { return `## Q Cafe ${version}\n\n${releaseTitle()}\n\nIncludes the verified Windows installer, MSI, checksums, and update manifest.`; }
 function run(command, args) {
+  if (process.platform === "win32" && command.endsWith(".cmd")) {
+    execFileSync(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", [command, ...args].join(" ")], {
+      cwd: root,
+      stdio: "inherit",
+    });
+    return;
+  }
+
   execFileSync(command, args, {
     cwd: root,
     stdio: "inherit",
-    shell: process.platform === "win32" && command.endsWith(".cmd"),
   });
 }
 function output(command, args) { return execFileSync(command, args, { cwd: root, encoding: "utf8" }).trim(); }
