@@ -46,6 +46,16 @@ export function Pos1BillingSection({
           <span className="text-xs font-bold text-foreground">{activeTab.name}</span>
           <span className="text-xs text-muted-foreground">•</span>
           <span className="text-xs font-semibold text-muted-foreground">Table {tableName}</span>
+          {activeTab.chair && (
+            <>
+              <span className="text-xs text-muted-foreground">•</span>
+              <span className="text-xs font-semibold text-primary">
+                {activeTab.chair.includes(',')
+                  ? `Seats ${formatChair(tableName, activeTab.chair)}`
+                  : `Seat ${formatChair(tableName, activeTab.chair)}`}
+              </span>
+            </>
+          )}
         </div>
         <span className="text-[11px] font-semibold text-muted-foreground">
           {totalQuantity} {totalQuantity === 1 ? 'item' : 'items'}
