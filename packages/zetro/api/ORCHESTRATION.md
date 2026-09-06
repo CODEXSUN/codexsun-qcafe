@@ -1,5 +1,13 @@
 # Zetro orchestration
 
+## Durable work case
+
+Every new direct prompt and orchestration run receives a `workCaseId`. The work case correlates its conversation, prompt, run, AI task, evidence, reviewed learning proposal, and Orship release. `GET /api/v1/zetro/work-cases/:id/events` returns the ordered audit timeline.
+
+AI Task completion remains a human review gate. After evidence approval, `POST /api/v1/ai-tasks/:id/release` creates an approval-required Orship record. It does not publish, tag, or deploy.
+
+Before direct dispatch, Zetro recalls a small set of relevant project records. Generated proposals enter recall only after a reviewer accepts them. Recalled text is marked as untrusted evidence and cannot change rules or skills by itself.
+
 Zetro owns decisions, task coordination, evidence review, and approval requests. Docker agents own specialist execution.
 All agents report through Zetro's versioned HTTP contracts. They do not write to the central database.
 

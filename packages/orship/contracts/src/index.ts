@@ -27,6 +27,30 @@ export const releaseOperationEventSchema = z.object({
   type: z.string().min(1),
   details: z.record(z.string(), z.unknown()),
 });
+export const releaseReviewStatusSchema = z.enum(["pending", "reviewed", "action_required"]);
+export const releaseOperationReviewSchema = z.object({
+  operationId: z.string().uuid(),
+  status: releaseReviewStatusSchema,
+  notes: z.string().max(4000),
+  reviewedAt: z.string().datetime(),
+});
+export const releaseOperationReviewEventSchema = releaseOperationReviewSchema.extend({ id: z.number().int().positive() });
+export const releaseHistoryEntrySchema = z.object({
+  operation: releaseOperationSchema,
+  events: z.array(releaseOperationEventSchema),
+  review: releaseOperationReviewSchema.nullable(),
+  reviews: z.array(releaseOperationReviewEventSchema),
+  summary: z.object({
+    outcome: z.enum(["completed", "failed", "cancelled"]),
+    eventCount: z.number().int().nonnegative(),
+    durationMs: z.number().int().nonnegative(),
+    completedAt: z.string().datetime(),
+  }),
+});
+export const saveReleaseOperationReviewSchema = z.object({
+  status: releaseReviewStatusSchema,
+  notes: z.string().trim().max(4000).default(""),
+}).strict();
 export const cloudReleaseStateSchema = z.object({
   version: z.string().min(1),
   phase: z.string().min(1),
@@ -44,6 +68,11 @@ export const createReleaseOperationSchema = z.object({
 
 export type ReleaseOperation = z.infer<typeof releaseOperationSchema>;
 export type ReleaseOperationEvent = z.infer<typeof releaseOperationEventSchema>;
+export type ReleaseReviewStatus = z.infer<typeof releaseReviewStatusSchema>;
+export type ReleaseOperationReview = z.infer<typeof releaseOperationReviewSchema>;
+export type ReleaseOperationReviewEvent = z.infer<typeof releaseOperationReviewEventSchema>;
+export type ReleaseHistoryEntry = z.infer<typeof releaseHistoryEntrySchema>;
+export type SaveReleaseOperationReview = z.input<typeof saveReleaseOperationReviewSchema>;
 export type CloudReleaseState = z.infer<typeof cloudReleaseStateSchema>;
 export type CreateReleaseOperation = z.input<typeof createReleaseOperationSchema>;
 export type ReleasePhase = z.infer<typeof releasePhaseSchema>;

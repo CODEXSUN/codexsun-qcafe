@@ -205,6 +205,17 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     return () => window.removeEventListener('q-cafe-table-selected', handleTableSelected);
   }, [activeTabId]);
 
+  useEffect(() => {
+    const handleSettingsUpdated = (e: Event) => {
+      const detail = (e as CustomEvent<CafeSettings>).detail;
+      if (detail) {
+        setCafeSettings(detail);
+      }
+    };
+    window.addEventListener('q-cafe-settings-updated', handleSettingsUpdated);
+    return () => window.removeEventListener('q-cafe-settings-updated', handleSettingsUpdated);
+  }, []);
+
   // Tab management
   function updateActiveTab(
     updates: Partial<OrderTab> | ((current: OrderTab) => Partial<OrderTab>)
@@ -815,6 +826,8 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         onFocusPayment={handleFocusPayment}
         showPaymentCollector={showPaymentCollector}
         onTogglePaymentCollector={handleTogglePaymentCollector}
+        showOrderTabs={cafeSettings.showOrderTabs ?? true}
+        showKitchenButton={cafeSettings.showKitchenButton ?? true}
       />
 
       {/* Main Content Area (Split: Left Catalog Column [Categories + Product Cards] + Right Billing Cart Panel) */}

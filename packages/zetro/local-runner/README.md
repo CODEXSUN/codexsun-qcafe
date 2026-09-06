@@ -40,14 +40,17 @@ Run this once from the CODEXSUN repository after Docker Desktop is ready:
 npm.cmd run zetro:desk
 ```
 
-The command starts only the `zxa:v1` Docker agent and two loopback-only services:
+The command starts only the `zxa:v1` Docker agent and three loopback-only services:
 
+- `127.0.0.1:4151` is the private desktop Zetro coordinator. It owns local work cases, tasks, workflow runs, and reviewed knowledge.
 - `127.0.0.1:4160` is the authenticated, read-only MCP tool server.
 - `127.0.0.1:4161` is the desktop bridge. It is authenticated with a private key held outside the web view.
 
+Desktop chat and task actions pass through the coordinator before reaching ZXA. This preserves one durable timeline from prompt through evidence and an optional Orship handoff. The bridge exposes a fixed coordinator route allowlist to the Tauri web view; it is not an open HTTP proxy.
+
 The bridge stores its private configuration under `%APPDATA%\CODEXSUN\zetro-desk-bridge.json`. It includes the approved repository root and local tokens. Do not copy that file, add it to source control, or expose either port beyond the local computer.
 
-In Zetro properties inside the desktop app, choose an existing repository root and save it. The bridge validates and canonicalizes that local path, then the Docker agent can use only `workspace_list`, `workspace_read`, and `workspace_search`. The cloud keeps identity and synchronized records, but it cannot browse the desktop repository.
+In Zetro properties inside the desktop app, choose an existing repository root and save it. The bridge validates and canonicalizes that local path, then the Docker agent can use only `workspace_list`, `workspace_read`, and `workspace_search`. The cloud cannot browse the desktop repository. Cloud synchronization requires a reviewed DCS application adapter and is not implied by the local coordinator.
 
 Run the command again after Docker is stopped or when you need to recreate the local Zetro container. It does not start the general development portal or unrelated Docker services.
 Only select a trusted folder intended for model access. Selected text can be sent to the connected model provider.

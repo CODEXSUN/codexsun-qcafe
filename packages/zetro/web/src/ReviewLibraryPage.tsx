@@ -6,9 +6,10 @@ import { Button } from "@codexsun/ui/components/button";
 import { MdiTopologyRegion, type MdiTopologyAdapter } from "@codexsun/ui-desk";
 import { createAndStartAiTask, listAiTasks } from "./ai-task-api.js";
 import { getWorkspace } from "./workspace-api.js";
+import { listKnowledgeProposals, reviewKnowledgeProposal, type KnowledgeProposal } from "./knowledge-api.js";
 
 type LibraryKind = "prompt" | "result" | "task" | "improvement";
-type LibraryItem = { id: string; kind: LibraryKind; title: string; content: string; status?: string; updatedAt: string };
+type LibraryItem = { id: string; kind: LibraryKind; title: string; content: string; status?: string; updatedAt: string; proposalId?: string };
 const tabs = [{ id: "all", label: "All" }, { id: "prompts", label: "Prompts" }, { id: "results", label: "Results" }, { id: "tasks", label: "Tasks" }, { id: "improvements", label: "Improvements" }] as const;
 
 export function ReviewLibraryPage({ sideCarTarget, topology }: { sideCarTarget?: HTMLElement | null; topology?: MdiTopologyAdapter }) {
@@ -18,14 +19,16 @@ export function ReviewLibraryPage({ sideCarTarget, topology }: { sideCarTarget?:
   const [notice, setNotice] = useState("");
   const workspace = useQuery({ queryKey: ["zetro-workspace"], queryFn: getWorkspace });
   const tasks = useQuery({ queryKey: ["ai-tasks"], queryFn: listAiTasks, refetchInterval: (query) => query.state.data?.some((task) => task.status === "running") ? 1500 : 5000 });
-  const items = useMemo(() => buildItems(workspace.data, tasks.data), [workspace.data, tasks.data]);
+  const proposals = useQuery({ queryKey: ["zetro-knowledge-proposals"], queryFn: listKnowledgeProposals });
+  const items = useMemo(() => buildItems(workspace.data, tasks.data, proposals.data), [workspace.data, tasks.data, proposals.data]);
   const visible = tab === "all" ? items : items.filter((item) => `${item.kind}s` === tab);
   const chosen = items.filter((item) => selected.has(item.id));
   const action = useMutation({
-    mutationFn: ({ mode }: { mode: "consolidate" | "reanalyze" | "skill" | "task" }) => createAndStartAiTask(actionRequest(mode, chosen)),
+    mutationFn: ({ mode }: { mode: "consolidate" | "reanalyze" | "skill" | "task" }) => createAndStartAiTask({ requestText: actionRequest(mode, chosen) }),
     onSuccess: (task) => { setNotice(`Task ${task.status.replaceAll("_", " ")} · ${task.title}`); setSelected(new Set()); void client.invalidateQueries({ queryKey: ["ai-tasks"] }); },
   });
   const allVisibleSelected = visible.length > 0 && visible.every((item) => selected.has(item.id));
+  const review = useMutation({ mutationFn: reviewKnowledgeProposal, onSuccess: () => void client.invalidateQueries({ queryKey: ["zetro-knowledge-proposals"] }) });
 
   function run(mode: "consolidate" | "reanalyze" | "skill" | "task") {
     if (chosen.length) action.mutate({ mode });
@@ -54,7 +57,7 @@ export function ReviewLibraryPage({ sideCarTarget, topology }: { sideCarTarget?:
           <input type="checkbox" className="mt-1" checked={selected.has(item.id)} onChange={() => setSelected((current) => { const next = new Set(current); next.has(item.id) ? next.delete(item.id) : next.add(item.id); return next; })} />
           <KindIcon kind={item.kind} />
           <span className="min-w-0"><span className="block truncate text-sm font-medium">{item.title}</span><span className="mt-1 block line-clamp-2 whitespace-pre-wrap text-xs leading-5 text-muted-foreground">{item.content}</span></span>
-          <span className="text-right text-[11px] capitalize text-muted-foreground">{item.status ?? item.kind}<br />{new Date(item.updatedAt).toLocaleDateString()}</span>
+          <span className="text-right text-[11px] capitalize text-muted-foreground">{item.status ?? item.kind}<br />{new Date(item.updatedAt).toLocaleDateString()}{item.proposalId && !item.status?.startsWith("accepted") && !item.status?.startsWith("rejected") && <span className="mt-1 flex gap-1"><button type="button" className="cursor-pointer text-emerald-700 hover:underline" onClick={(event) => { event.preventDefault(); review.mutate({ id: item.proposalId!, status: "accepted" }); }}>Accept</button><button type="button" className="cursor-pointer text-destructive hover:underline" onClick={(event) => { event.preventDefault(); review.mutate({ id: item.proposalId!, status: "rejected" }); }}>Reject</button></span>}</span>
         </label>)}
       </div> : <div className="grid h-48 place-items-center text-sm text-muted-foreground">No {tab === "all" ? "library items" : tab} available.</div>}
       {(notice || action.error) && <p className={`mx-auto mt-4 max-w-6xl rounded-lg border p-3 text-xs ${action.error ? "border-destructive/30 text-destructive" : "border-border text-muted-foreground"}`} role="status">{action.error?.message ?? notice}</p>}
@@ -62,7 +65,7 @@ export function ReviewLibraryPage({ sideCarTarget, topology }: { sideCarTarget?:
   </MdiTopologyRegion>;
 }
 
-function buildItems(workspace?: Awaited<ReturnType<typeof getWorkspace>>, tasks?: Awaited<ReturnType<typeof listAiTasks>>): LibraryItem[] {
+function buildItems(workspace?: Awaited<ReturnType<typeof getWorkspace>>, tasks?: Awaited<ReturnType<typeof listAiTasks>>, proposals?: KnowledgeProposal[]): LibraryItem[] {
   const items: LibraryItem[] = [];
   for (const conversation of workspace?.conversations ?? []) for (const exchange of conversation.exchanges) {
     items.push({ id: `prompt:${exchange.id}`, kind: "prompt", title: conversation.title, content: exchange.prompt, updatedAt: exchange.timestamp ?? conversation.updatedAt });
@@ -73,6 +76,7 @@ function buildItems(workspace?: Awaited<ReturnType<typeof getWorkspace>>, tasks?
     items.push({ id: `task:${task.id}`, kind: "task", title: task.title, content: task.workItems.map((item) => `${item.title}: ${item.output ?? item.error ?? item.status}`).join("\n"), status: task.status, updatedAt: task.updatedAt });
     if (task.status === "failed") items.push({ id: `improvement:task:${task.id}`, kind: "improvement", title: `Analyze failed task · ${task.title}`, content: task.workItems.map((item) => `${item.title} [${item.agentId}; ${item.capability}]: ${item.error ?? item.output ?? item.status}`).join("\n"), status: "skill gap", updatedAt: task.updatedAt });
   }
+  for (const proposal of proposals ?? []) items.push({ id: `proposal:${proposal.id}`, proposalId: proposal.id, kind: "improvement", title: proposal.kind === "tuning-proposal" ? "Tuning proposal" : "Learning proposal", content: proposal.summary, status: proposal.review?.status ?? "pending review", updatedAt: proposal.review?.reviewedAt ?? proposal.createdAt });
   return items.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
 }
 

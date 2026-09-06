@@ -1,10 +1,22 @@
 import type { FastifyInstance } from "fastify";
-import { createReleaseOperationSchema } from "@codexsun/orship-contracts";
+import { createReleaseOperationSchema, releasePhaseSchema, saveReleaseOperationReviewSchema } from "@codexsun/orship-contracts";
+import type { ReleaseHistoryService } from "../application/release-history-service.js";
 import type { ReleaseOperationService } from "../application/release-operation-service.js";
 
-export function registerReleaseOperationRoutes(app: FastifyInstance, service: ReleaseOperationService) {
+export function registerReleaseOperationRoutes(app: FastifyInstance, service: ReleaseOperationService, history: ReleaseHistoryService) {
   app.get("/api/v1/orship", async () => service.list());
   app.get("/api/v1/orship/events", async () => service.listEvents());
+  app.get<{ Querystring: { phase?: string; projectKey?: string; q?: string } }>("/api/v1/orship/history", async (request, reply) => {
+    const phase = request.query.phase ? releasePhaseSchema.safeParse(request.query.phase) : undefined;
+    if (phase && !phase.success) return reply.code(400).send({ error: "Provide a valid release phase." });
+    return history.list({ phase: phase?.data, projectKey: request.query.projectKey?.trim() || undefined, query: request.query.q });
+  });
+  app.get<{ Params: { id: string } }>("/api/v1/orship/history/:id", async (request, reply) => history.get(request.params.id) ?? reply.code(404).send({ error: "Completed release history was not found." }));
+  app.put<{ Params: { id: string } }>("/api/v1/orship/history/:id/review", async (request, reply) => {
+    const parsed = saveReleaseOperationReviewSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: "Provide a review status and notes." });
+    return replyTransition(reply, () => Promise.resolve(history.review(request.params.id, parsed.data)));
+  });
   app.get<{ Params: { id: string } }>("/api/v1/orship/:id", async (request, reply) => service.get(request.params.id) ?? reply.code(404).send({ error: "Release operation was not found." }));
   app.post("/api/v1/orship", async (request, reply) => {
     const parsed = createReleaseOperationSchema.safeParse(request.body);

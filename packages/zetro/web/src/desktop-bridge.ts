@@ -25,6 +25,10 @@ export async function sendDesktopZetroPrompt(input: { agentId: string; message: 
   return invoke("zetro_desk_send_prompt", { input });
 }
 
+export async function desktopZetroCoordinator<T>(path: string, options: { method?: "GET" | "POST" | "PUT"; body?: unknown } = {}): Promise<T> {
+  return invoke("zetro_desk_coordinator", { input: { path, method: options.method ?? "GET", body: options.body } });
+}
+
 async function invoke<T>(command: string, arguments_: Record<string, unknown> = {}): Promise<T> {
   const { invoke: tauriInvoke } = await import("@tauri-apps/api/core");
   return tauriInvoke<T>(command, arguments_);

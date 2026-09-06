@@ -17,12 +17,13 @@ const tools = createRunnerHttp({ workspace, token: state.toolsToken, audit: (eve
 tools.requestTimeout = 10_000;
 tools.headersTimeout = 10_000;
 tools.listen(4160, "127.0.0.1", () => console.log("Zetro Desk read-only tools ready on 127.0.0.1:4160"));
+const coordinator = await ensureZetroApi(state);
 
 const bridge = createServer((request, response) => void handle(request, response));
 bridge.requestTimeout = 130_000;
 bridge.headersTimeout = 10_000;
 bridge.listen(4161, "127.0.0.1", () => console.log("Zetro Desk bridge ready on 127.0.0.1:4161"));
-for (const signal of ["SIGINT", "SIGTERM"]) process.once(signal, () => { tools.close(); bridge.close(); });
+for (const signal of ["SIGINT", "SIGTERM"]) process.once(signal, () => { tools.close(); bridge.close(); coordinator?.kill(signal); });
 
 async function handle(request, response) {
   if (request.url === "/health" && request.method === "GET") return send(response, 200, await health());
@@ -31,6 +32,7 @@ async function handle(request, response) {
   if (request.url === "/api/v1/desktop/zetro/settings" && request.method === "PUT") return saveSettings(request, response);
   if (request.url === "/api/v1/desktop/zetro/agents" && request.method === "GET") return send(response, 200, [await agent()]);
   if (request.url === "/api/v1/desktop/zetro/messages" && request.method === "POST") return forwardPrompt(request, response);
+  if (request.url === "/api/v1/desktop/zetro/coordinator" && request.method === "POST") return forwardCoordinator(request, response);
   return send(response, 404, { error: "Not found." });
 }
 
@@ -55,9 +57,9 @@ async function forwardPrompt(request, response) {
   const input = await body(request);
   if (!input || input.agentId !== "zxa" || typeof input.message !== "string" || !input.message.trim()) return send(response, 400, { error: "Select ZXA and provide a prompt." });
   try {
-    const upstream = await fetch(`${state.agentUrl}/api/v1/zxa/messages`, {
-      method: "POST", headers: { authorization: `Bearer ${state.agentToken}`, "content-type": "application/json" },
-      body: JSON.stringify({ conversationId: input.conversationId, message: input.message, attachments: input.attachments }), signal: AbortSignal.timeout(125_000),
+    const upstream = await fetch(`${state.zetroApiUrl}/api/v1/zetro/messages`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ agentId: "zxa", conversationId: input.conversationId, message: input.message, attachments: input.attachments }), signal: AbortSignal.timeout(125_000),
     });
     const text = await upstream.text();
     response.writeHead(upstream.status, { "Content-Type": upstream.headers.get("content-type") || "application/json" });
@@ -67,10 +69,36 @@ async function forwardPrompt(request, response) {
   }
 }
 
+async function forwardCoordinator(request, response) {
+  const input = await body(request);
+  if (!input || !["GET", "POST", "PUT"].includes(input.method) || !allowedCoordinatorPath(input.path, input.method)) return send(response, 400, { error: "Unsupported Zetro coordinator operation." });
+  try {
+    const upstream = await fetch(`${state.zetroApiUrl}${input.path}`, {
+      method: input.method,
+      headers: input.body === undefined ? undefined : { "content-type": "application/json" },
+      body: input.body === undefined ? undefined : JSON.stringify(input.body),
+      signal: AbortSignal.timeout(125_000),
+    });
+    const text = await upstream.text();
+    response.writeHead(upstream.status, { "Content-Type": upstream.headers.get("content-type") || "application/json" });
+    response.end(text);
+  } catch {
+    send(response, 503, { error: "The local Zetro coordinator is unavailable." });
+  }
+}
+
+function allowedCoordinatorPath(path, method) {
+  if (typeof path !== "string" || path.includes("?") || path.includes("..")) return false;
+  if (method === "GET" && (/^\/api\/v1\/ai-tasks(?:\/[0-9a-f-]{36})?$/u.test(path) || path === "/api/v1/zetro/runs" || path === "/api/v1/zetro/knowledge/proposals")) return true;
+  if (method === "POST" && (path === "/api/v1/ai-tasks" || /^\/api\/v1\/ai-tasks\/[0-9a-f-]{36}\/(?:start|approve|release)$/u.test(path) || path === "/api/v1/zetro/runs" || /^\/api\/v1\/zetro\/runs\/[0-9a-f-]{36}\/(?:approval|resume|cancel)$/u.test(path))) return true;
+  return method === "PUT" && /^\/api\/v1\/zetro\/knowledge\/proposals\/[0-9a-f-]{36}\/review$/u.test(path);
+}
+
 async function health() {
   try {
-    const response = await fetch(`${state.agentUrl}/health`, { signal: AbortSignal.timeout(2_000) });
-    return { status: response.ok ? "ok" : "degraded", service: "zetro-desk-bridge", repositoryRoot: state.repositoryRoot, agent: response.ok ? "ready" : "offline" };
+    const [agentResponse, coordinatorResponse] = await Promise.all([fetch(`${state.agentUrl}/health`, { signal: AbortSignal.timeout(2_000) }), fetch(`${state.zetroApiUrl}/health`, { signal: AbortSignal.timeout(2_000) })]);
+    const ready = agentResponse.ok && coordinatorResponse.ok;
+    return { status: ready ? "ok" : "degraded", service: "zetro-desk-bridge", repositoryRoot: state.repositoryRoot, agent: ready ? "ready" : "offline", coordinator: coordinatorResponse.ok ? "ready" : "offline" };
   } catch {
     return { status: "degraded", service: "zetro-desk-bridge", repositoryRoot: state.repositoryRoot, agent: "offline" };
   }
@@ -106,9 +134,9 @@ function send(response, status, value) {
 async function loadState(path, root) {
   try {
     const saved = JSON.parse(await readFile(path, "utf8"));
-    if (validState(saved)) return saved;
+    if (validState(saved)) return { ...saved, zetroApiUrl: saved.zetroApiUrl || process.env.ZETRO_DESK_API_URL || "http://127.0.0.1:4151" };
   } catch { /* First local launch creates the private state file. */ }
-  const state = { repositoryRoot: root, githubUrl: "", agentUrl: process.env.ZETRO_DESK_AGENT_URL || "http://127.0.0.1:4230", agentToken: process.env.ZXA_LOCAL_TOKEN || "local-zxa-only", toolsToken: process.env.ZETRO_TOOLS_TOKEN || randomBytes(32).toString("hex"), bridgeToken: randomBytes(32).toString("hex") };
+  const state = { repositoryRoot: root, githubUrl: "", zetroApiUrl: process.env.ZETRO_DESK_API_URL || "http://127.0.0.1:4151", agentUrl: process.env.ZETRO_DESK_AGENT_URL || "http://127.0.0.1:4230", agentToken: process.env.ZXA_LOCAL_TOKEN || "local-zxa-only", toolsToken: process.env.ZETRO_TOOLS_TOKEN || randomBytes(32).toString("hex"), bridgeToken: randomBytes(32).toString("hex") };
   await saveState(path, state);
   return state;
 }
@@ -128,6 +156,43 @@ function startDocker(state) {
     child.once("error", () => reject(new Error("Docker Desktop is required to start the local Zetro agent.")));
     child.once("exit", (code) => code === 0 ? resolvePromise() : reject(new Error("The local ZXA Docker agent did not start.")));
   });
+}
+
+async function ensureZetroApi(state) {
+  if (await endpointReady(`${state.zetroApiUrl}/health`)) return null;
+  const root = resolve(import.meta.dirname, "../../../..");
+  const localState = resolve(dirname(stateFile), "zetro-state");
+  await mkdir(localState, { recursive: true });
+  const child = spawn(process.execPath, [resolve(root, "node_modules/tsx/dist/cli.mjs"), "packages/zetro/api/src/server.ts"], {
+    cwd: root,
+    env: {
+      ...process.env,
+      OS_IDENTITY_URL: "",
+      ZETRO_AGENTS_FILE: resolve(root, "packages/zxa/docker/zetro-agent.json"),
+      ZXA_LOCAL_TOKEN: state.agentToken,
+      ZETRO_PROJECTS_ROOT: state.repositoryRoot,
+      ZETRO_API_HOST: "127.0.0.1",
+      ZETRO_API_PORT: new URL(state.zetroApiUrl).port || "4151",
+      ZETRO_DATABASE_FILE: resolve(localState, "zetro.db"),
+      ZETRO_KNOWLEDGE_DATABASE_FILE: resolve(localState, "knowledge.db"),
+      ZETRO_WORKSPACE_DATABASE_FILE: resolve(localState, "workspace.db"),
+      AI_TASK_DATABASE_FILE: resolve(localState, "ai-tasks.db"),
+    },
+    stdio: "inherit",
+    windowsHide: true,
+  });
+  child.once("error", () => console.error("Unable to start the local Zetro coordinator."));
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    if (await endpointReady(`${state.zetroApiUrl}/health`)) return child;
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 250));
+  }
+  child.kill();
+  throw new Error("The local Zetro coordinator did not become ready on its configured port.");
+}
+
+async function endpointReady(url) {
+  try { return (await fetch(url, { signal: AbortSignal.timeout(500) })).ok; }
+  catch { return false; }
 }
 
 async function saveState(path, value) {

@@ -1,0 +1,10 @@
+[
+  {
+    "id": "zxa",
+    "name": "ZXA",
+    "duty": "Execute approved local development work inside an isolated Docker runtime.",
+    "skills": [],
+    "url": "http://127.0.0.1:4230",
+    "tokenEnv": "ZXA_LOCAL_TOKEN"
+  }
+]

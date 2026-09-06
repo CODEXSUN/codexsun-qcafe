@@ -1,12 +1,13 @@
 {
   "name": "@codexsun/zetro-api",
-  "version": "0.1.31",
+  "version": "0.1.33",
   "private": true,
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
     "./contracts": "./src/contracts.ts",
-    "./runs": "./src/run-contracts.ts"
+    "./runs": "./src/run-contracts.ts",
+    "./work-cases": "./src/work-case-contracts.ts"
   },
   "scripts": {
     "build": "tsup",

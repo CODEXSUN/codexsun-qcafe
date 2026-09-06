@@ -1,6 +1,6 @@
 {
   "name": "codexsun-os",
-  "version": "0.1.31",
+  "version": "0.1.33",
   "private": true,
   "description": "CODEXSUN application core and agent-first orchestration runtime",
   "engines": {

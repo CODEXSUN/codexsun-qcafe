@@ -1,8 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import { approvalInputSchema, runInputSchema } from "./run-contracts.js";
 import type { RunEngine } from "./runs.js";
+import type { WorkCaseStore } from "./work-case-store.js";
 
-export function registerRunRoutes(app: FastifyInstance, engine: RunEngine) {
+export function registerRunRoutes(app: FastifyInstance, engine: RunEngine, workCases?: WorkCaseStore) {
   app.addHook("onClose", async () => engine.close());
   app.get("/api/v1/zetro/runs", async () => engine.list());
   app.post<{ Params: { id: string } }>("/api/v1/zetro/runs/:id/resume", async (request, reply) => {
@@ -22,7 +23,6 @@ export function registerRunRoutes(app: FastifyInstance, engine: RunEngine) {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",
       "Connection": "keep-alive",
-      "Access-Control-Allow-Origin": "*",
     });
 
     reply.raw.write(`event: run\ndata: ${JSON.stringify(run)}\n\n`);
@@ -53,7 +53,13 @@ export function registerRunRoutes(app: FastifyInstance, engine: RunEngine) {
   app.post("/api/v1/zetro/runs", async (request, reply) => {
     const input = runInputSchema.safeParse(request.body);
     if (!input.success) return reply.code(400).send({ error: "Provide a request and up to eight agent identities." });
-    try { return reply.code(202).send(engine.create(input.data)); }
+    try {
+      if (input.data.workCaseId && !workCases?.get(input.data.workCaseId)) return reply.code(404).send({ error: "Work case was not found." });
+      const workCaseId = input.data.workCaseId ?? workCases?.create(input.data.message).id;
+      const run = engine.create({ ...input.data, workCaseId });
+      if (workCaseId) workCases?.record(workCaseId, "run.linked", { status: "planning", reference: { kind: "run", id: run.id } });
+      return reply.code(202).send(run);
+    }
     catch (cause) { return reply.code(409).send({ error: cause instanceof Error ? cause.message : "Unable to start run." }); }
   });
 }

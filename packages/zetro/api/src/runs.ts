@@ -13,6 +13,7 @@ export type RunEventPayload = {
   run: OrchestrationRun;
   details?: Record<string, unknown>;
 };
+export type RunLifecycleObserver = (payload: RunEventPayload) => void;
 
 export class RunEngine {
   private readonly store: RunStore;
@@ -20,7 +21,7 @@ export class RunEngine {
   readonly emitter = new EventEmitter();
   private activeRunId?: string;
 
-  constructor(private readonly dispatcher: ZetroDispatcher, databaseFile: string) {
+  constructor(private readonly dispatcher: ZetroDispatcher, databaseFile: string, private readonly observer?: RunLifecycleObserver) {
     this.emitter.setMaxListeners(100);
     this.store = new RunStore(databaseFile.endsWith(".db") ? databaseFile : `${databaseFile}.db`);
     for (const run of this.store.list()) if (run.status === "running" || run.status === "queued") {
@@ -57,6 +58,7 @@ export class RunEngine {
     const manualApprovals = input.manualApprovals ?? true;
     const run: OrchestrationRun = {
       id: randomUUID(),
+      workCaseId: input.workCaseId,
       message: input.message,
       createdAt: now,
       updatedAt: now,
@@ -122,6 +124,7 @@ export class RunEngine {
     this.store.save(run, event, details);
     this.emitter.emit(`run:${run.id}`, { runId: run.id, event, run, details });
     this.emitter.emit("runEvent", { runId: run.id, event, run, details });
+    this.observer?.({ runId: run.id, event, run, details });
   }
 
   private async execute(run: OrchestrationRun) {

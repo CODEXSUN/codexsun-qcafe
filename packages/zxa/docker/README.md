@@ -39,14 +39,24 @@ When `ZETRO_TOOLS_TOKEN` is configured by Zetro Desk, the Codex provider also re
 
 ## Build and run
 
+### Windows
 ```powershell
 ./packages/zxa/docker/setup-zxa.ps1
-docker exec -it zxa codex login --device-auth
-docker exec zxa /app/update-zxa.sh check
-docker exec zxa /app/update-zxa.sh apply-cli
 ```
 
-`setup-zxa.ps1` builds the ZXA connection page, recreates only the ZXA container,
+### Linux / Server / VPS
+```bash
+./packages/zxa/docker/setup-zxa.sh
+```
+
+### Preflight Diagnostics & Verification
+```bash
+npm run zxa:cli -- doctor
+```
+
+See [DEPLOYMENT.md](file:///e:/Workspace/codexsun/codexsun/packages/zxa/docker/DEPLOYMENT.md) for full architecture standards, lessons learned, and failure prevention guidelines.
+
+`setup-zxa.ps1` and `setup-zxa.sh` build the ZXA connection page, recreate only the ZXA container,
 waits for its health check, and confirms that `http://127.0.0.1:4230/` is serving
 the page. It retries a Docker completion failure once. Use `-SkipWebBuild` or
 `-SkipImageBuild` only when that asset is already known to be current.

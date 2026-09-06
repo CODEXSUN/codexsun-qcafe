@@ -27,3 +27,17 @@ it("deduplicates retried task submissions and rejects conflicting payloads", asy
   expect(service.list()).toHaveLength(1);
   await expect(service.create({ ...input, request: "A different request using the same identifier" })).rejects.toThrow(/different task/);
 });
+it("keeps the work case correlation on lifecycle events", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "ai-task-case-")); directories.push(directory);
+  const events: string[] = [];
+  const workCaseId = crypto.randomUUID();
+  const worker: TaskWorker = { agents: async () => [{ id: "zetro", name: "Zetro", duty: "Review", skills: [], configured: true }], execute: async () => "Evidence" };
+  const service = new TaskService(new SqliteTaskRepository(join(directory, "tasks.db")), new RulePlanner(), worker, { validate: (id) => expect(id).toBe(workCaseId), record: (task, event) => { expect(task.workCaseId).toBe(workCaseId); events.push(event); } });
+  services.push(service);
+  const task = await service.create({ request: "Verify a correlated client task", workCaseId });
+  service.start(task.id);
+  await vi.waitFor(() => expect(service.get(task.id)?.status).toBe("awaiting_review"));
+  service.approve(task.id);
+  expect(events).toContain("task.planned");
+  expect(events).toContain("task.completed");
+});

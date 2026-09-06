@@ -25,7 +25,8 @@
         "OPENCODE_BASE_URL": "${ZXA_OPENCODE_BASE_URL:-}",
         "OPENAI_API_KEY": "${ZXA_OPENAI_API_KEY:-}",
         "ANTHROPIC_API_KEY": "${ZXA_ANTHROPIC_API_KEY:-}",
-        "GOOGLE_GENERATIVE_AI_API_KEY": "${ZXA_GEMINI_API_KEY:-}"
+        "GOOGLE_GENERATIVE_AI_API_KEY": "${ZXA_GEMINI_API_KEY:-}",
+        "GEMINI_CLI_TRUST_WORKSPACE": "true"
       },
       "healthcheck": { "test": ["CMD", "node", "-e", "fetch('http://127.0.0.1:4200/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"], "interval": "10s", "timeout": "3s", "retries": 8 }
     }

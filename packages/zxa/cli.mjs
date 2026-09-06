@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
+import { exec } from "node:child_process";
 
 const ZXA_URL = (process.env.ZXA_URL || "http://127.0.0.1:4230").replace(/\/+$/, "");
 const ZXA_TOKEN = process.env.ZXA_TOKEN || process.env.ZXA_LOCAL_TOKEN || "local-zxa-only";
@@ -15,6 +16,19 @@ const PROVIDER_MAP = {
   o: "o",
   opencode: "o",
 };
+
+function openBrowser(targetUrl) {
+  const url = targetUrl || `${ZXA_URL}/`;
+  const cmd = process.platform === "win32"
+    ? `start "" "${url}"`
+    : process.platform === "darwin"
+    ? `open "${url}"`
+    : `xdg-open "${url}"`;
+  exec(cmd, (err) => {
+    if (err) console.error(`⚠️ Could not automatically open browser: ${err.message}`);
+  });
+  console.log(`\n🌐 Opened ZXA connection manager in browser: ${url}\n`);
+}
 
 async function zxaRequest(path, options = {}) {
   const url = `${ZXA_URL}${path}`;
@@ -84,6 +98,7 @@ async function showStatus() {
   console.log(`✨ ZXA Runtime Status: [${health.status.toUpperCase()}]`);
   console.log(`   Agent ID: ${health.agentId}`);
   console.log(`   Any Configured: ${health.configured ? "Yes" : "No"}`);
+  console.log(`   Web UI: ${ZXA_URL}/`);
   console.log("");
 
   console.log("┌─────────┬──────────────┬───────────────┬──────────────────────┬───────────────────────────────┐");
@@ -108,10 +123,44 @@ async function showStatus() {
   console.log("");
 }
 
+async function showModels(args, flags) {
+  const providerInput = args[0] || "gemini";
+  const id = PROVIDER_MAP[providerInput.toLowerCase()] || "g";
+  const name = id === "g" ? "Gemini" : id === "c" ? "Codex" : "OpenCode";
+
+  console.log(`\n🤖 Fetching available models for ${name}...`);
+  const apiKeyQuery = flags.apiKey ? `?apiKey=${encodeURIComponent(flags.apiKey)}` : "";
+  const res = await zxaRequest(`/api/v1/zxa/connections/${id}/models${apiKeyQuery}`);
+
+  const sourceLabel = res.live
+    ? (id === "g" ? "🟢 Live from Google API" : id === "o" ? "🟢 Live from OpenCode CLI" : "Live")
+    : "Standard Catalog";
+  console.log(`✨ ${name} Models (${sourceLabel}):\n`);
+  console.log("┌──────────────────────────────────────┬──────────────────────────┬──────────────────────────────────────────────────────┐");
+  console.log("│ Model ID                             │ Name                     │ Description / Info                                   │");
+  console.log("├──────────────────────────────────────┼──────────────────────────┼──────────────────────────────────────────────────────┤");
+
+  for (const m of res.models) {
+    const desc = m.description ? m.description.slice(0, 50) : "-";
+    console.log(
+      `│ ${(m.id || "").padEnd(36)} │ ${(m.name || "").padEnd(24)} │ ${desc.padEnd(52)} │`
+    );
+  }
+  console.log("└──────────────────────────────────────┴──────────────────────────┴──────────────────────────────────────────────────────┘");
+  console.log(`\n💡 To switch active model: npm run zxa:cli -- set-model ${id} <model_id>\n`);
+}
+
 async function connectProvider(args, flags) {
   let [providerInput, apiKey] = args;
+
+  if (flags.browser || flags.web) {
+    const id = PROVIDER_MAP[(providerInput || "gemini").toLowerCase()] || "g";
+    openBrowser(`${ZXA_URL}/?provider=${id}`);
+    return;
+  }
+
   if (!providerInput) {
-    console.error("❌ Error: Provider required. Usage: zxa connect <gemini|opencode> <apiKey> [--model=<model>]");
+    console.error("❌ Error: Provider required. Usage: zxa connect <gemini|opencode> [apiKey|--free] [--model=<model>] [--browser]");
     process.exit(1);
   }
 
@@ -121,10 +170,31 @@ async function connectProvider(args, flags) {
     process.exit(1);
   }
 
+  // Handle OpenCode Free Built-in LLM mode
+  if (id === "o" && (flags.free || apiKey === "free" || (!apiKey && flags.model?.includes("free")))) {
+    const defaultFreeModel = flags.model ? flags.model.trim() : "opencode/nemotron-3-ultra-free";
+    const payload = { apiKey: "free", model: defaultFreeModel };
+    console.log(`\n🔗 Connecting OpenCode (Free Built-in LLM: ${defaultFreeModel}) to ZXA...`);
+    const res = await zxaRequest(`/api/v1/zxa/connections/o`, {
+      method: "PUT",
+      body: payload,
+    });
+    const updated = res.providers.find((p) => p.id === "o");
+    console.log(`✅ Successfully enabled OpenCode Free Built-in inference!`);
+    console.log(`   Model: ${updated?.model || payload.model}`);
+    console.log(`   Status: ${updated?.configured ? "Connected" : "Saved"}`);
+    console.log(`\n💡 Run "npm run zxa:cli -- test o" to verify with a test prompt.\n`);
+    return;
+  }
+
   if (!apiKey) {
     const rl = createInterface({ input, output });
-    apiKey = await rl.question(`Enter API key for ${id === "g" ? "Gemini" : "OpenCode"}: `);
+    apiKey = await rl.question(`Enter API key for ${id === "g" ? "Gemini" : "OpenCode"}${id === "o" ? " (or type 'free')" : ""}: `);
     rl.close();
+  }
+
+  if (id === "o" && apiKey?.trim().toLowerCase() === "free") {
+    return connectProvider(["opencode"], { ...flags, free: true });
   }
 
   if (!apiKey || apiKey.trim().length < 8) {
@@ -133,8 +203,21 @@ async function connectProvider(args, flags) {
   }
 
   const payload = { apiKey: apiKey.trim() };
+  if (flags["base-url"] || flags.baseUrl) {
+    payload.baseUrl = (flags["base-url"] || flags.baseUrl).trim();
+  }
   if (flags.model) {
     payload.model = flags.model.trim();
+  } else if (flags.latest && id === "g") {
+    try {
+      const modelsRes = await zxaRequest(`/api/v1/zxa/connections/${id}/models?apiKey=${encodeURIComponent(apiKey.trim())}`);
+      if (modelsRes.models?.length) {
+        payload.model = modelsRes.models[0].id;
+        console.log(`🎯 Auto-selected latest model: ${payload.model}`);
+      }
+    } catch {
+      payload.model = "gemini-2.5-flash";
+    }
   }
 
   console.log(`\n🔗 Connecting ${id === "g" ? "Gemini" : "OpenCode"} to ZXA...`);
@@ -150,15 +233,29 @@ async function connectProvider(args, flags) {
   console.log(`\n💡 Run "npm run zxa:cli -- test ${id}" to verify connection with a test prompt.\n`);
 }
 
-async function setModel(args) {
-  const [providerInput, model] = args;
-  if (!providerInput || !model) {
-    console.error("❌ Error: Usage: zxa set-model <gemini|codex|opencode> <model_name>");
+async function setModel(args, flags) {
+  let [providerInput, model] = args;
+  if (!providerInput) {
+    console.error("❌ Error: Usage: zxa set-model <gemini|codex|opencode> <model_name|--latest>");
     process.exit(1);
   }
   const id = PROVIDER_MAP[providerInput.toLowerCase()];
   if (!id) {
     console.error(`❌ Error: Unknown provider "${providerInput}".`);
+    process.exit(1);
+  }
+
+  if (flags.latest || model === "latest") {
+    const modelsRes = await zxaRequest(`/api/v1/zxa/connections/${id}/models`);
+    if (modelsRes.models?.length) {
+      model = modelsRes.models[0].id;
+    } else {
+      model = "gemini-2.5-flash";
+    }
+  }
+
+  if (!model) {
+    console.error("❌ Error: Model name required or pass --latest.");
     process.exit(1);
   }
 
@@ -203,6 +300,17 @@ async function testProvider(args, flags) {
         method: "PUT",
         body: { model: flags.model.trim() },
       });
+    }
+  } else if (flags.latest) {
+    const id = PROVIDER_MAP[providerInput.toLowerCase()];
+    if (id) {
+      const modelsRes = await zxaRequest(`/api/v1/zxa/connections/${id}/models`);
+      if (modelsRes.models?.length) {
+        await zxaRequest(`/api/v1/zxa/connections/${id}`, {
+          method: "PUT",
+          body: { model: modelsRes.models[0].id },
+        });
+      }
     }
   }
 
@@ -328,7 +436,7 @@ async function startChat(args) {
 
 function printHelp() {
   console.log(`
-ZXA & Gemini Provider CLI
+ZXA Provider CLI (Codex · Gemini · OpenCode)
 
 Usage:
   node packages/zxa/cli.mjs <command> [arguments] [options]
@@ -336,7 +444,9 @@ Usage:
 
 Commands:
   status                               View ZXA health, providers, models, and usage metrics
-  connect <gemini|opencode> <apiKey>   Connect provider with API key
+  models [gemini|codex|opencode]       Fetch and list available / latest models
+  open [gemini|codex|opencode]         Open the ZXA Connection Manager in your web browser
+  connect <gemini|opencode> [key]      Connect provider with API key or --free mode
   set-model <gemini|codex|opencode> <model>
                                        Change active model for provider
   disconnect <gemini|codex|opencode>   Disconnect provider
@@ -344,18 +454,27 @@ Commands:
                                        Send test prompt to model and measure response
   test parallel [prompt]               Send test prompt to all connected providers
   chat [gemini|codex|opencode]         Start interactive CLI chat session
+  doctor                               Run preflight diagnostic checks on ZXA setup
 
 Options:
+  --browser, --web                     Open connection manager in your browser
+  --free                               Connect OpenCode using built-in free LLM (no API key needed)
+  --base-url=<url>                     Specify custom base URL (e.g. for Ollama / vLLM)
   --model=<model>                      Specify model for connect or test command
+  --latest                             Auto-fetch and select the latest recommended model
   --help, -h                           Show this help message
 
 Examples:
   npm run zxa:cli -- status
-  npm run zxa:cli -- connect gemini AIzaSy... --model=gemini-2.5-flash
-  npm run zxa:cli -- set-model gemini gemini-2.5-pro
-  npm run zxa:cli -- test gemini "Hello from ZXA!"
-  npm run zxa:cli -- test parallel
-  npm run zxa:cli -- chat gemini
+  npm run zxa:cli -- open opencode
+  npm run zxa:cli -- models opencode
+  npm run zxa:cli -- connect opencode --free
+  npm run zxa:cli -- connect gemini --browser
+  npm run zxa:cli -- connect gemini AIzaSy... --latest
+  npm run zxa:cli -- set-model opencode opencode/nemotron-3-ultra-free
+  npm run zxa:cli -- test opencode "Hello from OpenCode!"
+  npm run zxa:cli -- test parallel "Compare latency across providers"
+  npm run zxa:cli -- chat opencode
 `);
 }
 
@@ -374,12 +493,22 @@ async function main() {
     case "status":
       await showStatus();
       break;
+    case "open":
+    case "browse":
+    case "web": {
+      const target = commandArgs[0] ? PROVIDER_MAP[commandArgs[0].toLowerCase()] || commandArgs[0] : "g";
+      openBrowser(`${ZXA_URL}/?provider=${target}`);
+      break;
+    }
+    case "models":
+      await showModels(commandArgs, flags);
+      break;
     case "connect":
       await connectProvider(commandArgs, flags);
       break;
     case "set-model":
     case "model":
-      await setModel(commandArgs);
+      await setModel(commandArgs, flags);
       break;
     case "disconnect":
       await disconnectProvider(commandArgs);
@@ -390,9 +519,79 @@ async function main() {
     case "chat":
       await startChat(commandArgs);
       break;
+    case "doctor":
+    case "check":
+      await runDoctor();
+      break;
     default:
       console.error(`Unknown command: "${command}". Run with --help for options.`);
       process.exit(1);
+  }
+}
+
+async function runDoctor() {
+  console.log(`\n🩺 Running ZXA Environment & Server Preflight Diagnostics...\n`);
+  let issues = 0;
+
+  // 1. ZXA Runtime Health
+  try {
+    const health = await zxaRequest("/health");
+    console.log(`✅ ZXA Runtime Service: Reachable at ${ZXA_URL} (status: ${health.status}, agent: ${health.agentId})`);
+  } catch (err) {
+    console.log(`❌ ZXA Runtime Service: Unreachable at ${ZXA_URL} (${err.message})`);
+    issues++;
+  }
+
+  // 2. Web UI Serving
+  try {
+    const res = await fetch(`${ZXA_URL}/`, { signal: AbortSignal.timeout(5000) });
+    const html = await res.text();
+    if (res.ok && html.includes("ZXA")) {
+      console.log(`✅ ZXA Web UI: Serving at ${ZXA_URL}/`);
+    } else {
+      console.log(`⚠️ ZXA Web UI: Returned unexpected status ${res.status}`);
+      issues++;
+    }
+  } catch (err) {
+    console.log(`❌ ZXA Web UI: Cannot load frontend at ${ZXA_URL}/ (${err.message})`);
+    issues++;
+  }
+
+  // 3. Provider Configurations
+  try {
+    const connections = await zxaRequest("/api/v1/zxa/connections");
+    const configuredCount = connections.providers.filter(p => p.configured).length;
+    console.log(`✅ Provider Configuration State: ${configuredCount}/${connections.providers.length} configured`);
+    for (const p of connections.providers) {
+      console.log(`   - ${p.name.padEnd(10)} [${p.id}]: ${p.configured ? "🟢 Connected" : "⚪ Unconfigured"} (Model: ${p.model || "default"})`);
+    }
+  } catch (err) {
+    console.log(`❌ Provider Configuration: Failed to read (/api/v1/zxa/connections: ${err.message})`);
+    issues++;
+  }
+
+  // 4. Models Catalog & Live Endpoint
+  try {
+    const models = await zxaRequest("/api/v1/zxa/connections/g/models");
+    console.log(`✅ Gemini Models Endpoint: Functional (${models.models?.length || 0} models available, mode: ${models.live ? "live Google API" : "standard catalog"})`);
+  } catch (err) {
+    console.log(`❌ Gemini Models Endpoint: Error (${err.message})`);
+    issues++;
+  }
+
+  // 5. External Google API Connectivity
+  try {
+    const probe = await fetch("https://generativelanguage.googleapis.com", { signal: AbortSignal.timeout(5000) });
+    console.log(`✅ Google AI Studio Network Access: Reachable (HTTP ${probe.status})`);
+  } catch (err) {
+    console.log(`⚠️ Google AI Studio Network Access: Could not connect to generativelanguage.googleapis.com (${err.message})`);
+  }
+
+  console.log("\n-------------------------------------------------------------");
+  if (issues === 0) {
+    console.log(`🎉 ZXA Doctor: All preflight checks PASSED. Ready for requests!\n`);
+  } else {
+    console.log(`⚠️ ZXA Doctor: Found ${issues} issue(s). Check docker status or run 'npm run zxa:setup'.\n`);
   }
 }
 

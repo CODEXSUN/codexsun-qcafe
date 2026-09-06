@@ -4,6 +4,8 @@ import { Button } from "@codexsun/ui/components/button";
 import { Input } from "@codexsun/ui/components/ui/input";
 import type { MdiWorkspaceAddon } from "@codexsun/ui-desk";
 import type { CloudReleaseState, ReleaseOperation, ReleaseOperationEvent } from "@codexsun/orship-contracts";
+import type { InterfaceTopologySection } from "@codexsun/devkit-ito";
+import { ReleaseHistoryWorkspace } from "./history/ReleaseHistoryWorkspace.js";
 
 const apiBase = location.hostname === "127.0.0.1" || location.hostname === "tauri.localhost" || location.protocol === "tauri:"
   ? "http://127.0.0.1:4190"
@@ -13,11 +15,18 @@ export const orshipWorkspaceAddon: MdiWorkspaceAddon = {
   id: "orship",
   label: "Orship",
   icon: Rocket,
-  navigation: { id: "orship", hideSearch: true, groups: [{ id: "orship", title: "Release operations", items: [{ id: "operations", title: "Operations" }] }] },
-  renderPage: () => <OrshipWorkspace />,
+  navigation: { id: "orship", hideSearch: true, groups: [{ id: "orship", title: "Release operations", items: [{ id: "operations", title: "Operations" }, { id: "history", title: "History" }] }] },
+  renderPage: (pageId, topology) => pageId === "history" ? <ReleaseHistoryWorkspace apiBase={apiBase} topology={topology} /> : <OrshipWorkspace topology={topology} />,
 };
 
-function OrshipWorkspace() {
+export const orshipTopology: InterfaceTopologySection[] = [
+  { id: "o1", technicalName: "orship.history.workspace", name: "Operation history", scope: "Orship", description: "Completed release history and review workspace." },
+  { id: "o2", technicalName: "orship.history.list", name: "History list", scope: "Operation history", description: "Searchable and filterable completed release operations." },
+  { id: "o3", technicalName: "orship.history.details", name: "History details", scope: "Operation history", description: "Release evidence, source information, outcome, and timeline." },
+  { id: "o4", technicalName: "orship.history.review", name: "Review decision", scope: "Operation history", description: "Durable review status, notes, and follow-up decision." },
+];
+
+function OrshipWorkspace({ topology }: { topology?: import("@codexsun/ui-desk").MdiTopologyAdapter }) {
   const [operations, setOperations] = useState<ReleaseOperation[]>([]);
   const [events, setEvents] = useState<ReleaseOperationEvent[]>([]);
   const [cloudState, setCloudState] = useState<CloudReleaseState | null>(null);
@@ -57,7 +66,8 @@ function OrshipWorkspace() {
     } catch (error) { setStatus(error instanceof Error ? error.message : "Could not create the release operation."); } finally { setBusy(false); }
   }
 
-  return <main className="mx-auto flex h-full w-full max-w-6xl flex-col gap-6 overflow-y-auto bg-background px-5 py-8 text-foreground sm:px-8">
+  return <main className="mx-auto flex h-full w-full max-w-6xl flex-col gap-6 overflow-y-auto bg-background px-5 py-8 text-foreground sm:px-8" {...topology?.regionProps("o1")}>
+    {topology?.marker("o1")}
     <header className="flex flex-col justify-between gap-4 border-b border-border pb-5 sm:flex-row sm:items-end">
       <div><p className="text-xs font-semibold uppercase tracking-[.16em] text-muted-foreground">Release operations</p><h1 className="mt-2 text-3xl font-semibold tracking-tight">Orship</h1><p className="mt-2 max-w-2xl text-sm text-muted-foreground">Track desktop release work, cloud deployment progress, and the evidence needed to decide the next action.</p></div>
       <Button className="cursor-pointer" onClick={() => void refresh()} variant="outline"><RefreshCw className="size-4" /> Refresh</Button>

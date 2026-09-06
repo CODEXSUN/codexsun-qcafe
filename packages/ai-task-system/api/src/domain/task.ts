@@ -5,9 +5,9 @@ export type TaskPlan = { title: string; refinedPrompt: string; objective: string
 
 export class TaskAggregate {
   private constructor(private readonly state: AiTask) {}
-  static plan(request: string, plan: TaskPlan, id: string = randomUUID()) {
+  static plan(request: string, plan: TaskPlan, id: string = randomUUID(), workCaseId?: string) {
     const now = new Date().toISOString();
-    return new TaskAggregate({ id, request, title: plan.title, refinedPrompt: plan.refinedPrompt, objective: plan.objective, acceptanceCriteria: plan.acceptanceCriteria, status: "planned", createdAt: now, updatedAt: now, workItems: plan.work.map((item, order) => ({ ...item, id: randomUUID(), order, status: "ready" })) });
+    return new TaskAggregate({ id, request, workCaseId, title: plan.title, refinedPrompt: plan.refinedPrompt, objective: plan.objective, acceptanceCriteria: plan.acceptanceCriteria, status: "planned", createdAt: now, updatedAt: now, workItems: plan.work.map((item, order) => ({ ...item, id: randomUUID(), order, status: "ready" })) });
   }
   static restore(task: AiTask) { return new TaskAggregate(structuredClone(task)); }
   snapshot() { return structuredClone(this.state); }

@@ -16,4 +16,17 @@ describe("KnowledgeLoop", () => {
       knowledge.close();
     } finally { rmSync(folder, { recursive: true, force: true }); }
   });
+
+  it("recalls relevant evidence and only accepted learning proposals", () => {
+    const folder = mkdtempSync(join(tmpdir(), "zetro-memory-"));
+    try {
+      const knowledge = new KnowledgeLoop(join(folder, "knowledge.db"));
+      knowledge.record("evidence", "project", "Orship release endpoint passed its contract test.");
+      const proposal = knowledge.record("learning-proposal", "project", "Use the Orship release contract for deployments.");
+      expect(knowledge.recall("project", "prepare orship deployment").map((record) => record.kind)).toEqual(["evidence"]);
+      knowledge.reviewProposal(proposal.id, "accepted", "Repeated and verified.");
+      expect(knowledge.recall("project", "prepare orship deployment").map((record) => record.kind)).toEqual(["learning-proposal", "evidence"]);
+      knowledge.close();
+    } finally { rmSync(folder, { recursive: true, force: true }); }
+  });
 });

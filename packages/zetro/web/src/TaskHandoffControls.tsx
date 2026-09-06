@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { BarChart3, CheckCircle2, ClipboardCheck, Eye, Loader2, MessagesSquare, Play, RefreshCw, Send, Wrench } from "lucide-react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { BarChart3, CheckCircle2, ClipboardCheck, Eye, Loader2, MessagesSquare, Play, RefreshCw, Rocket, Send, ShieldCheck, Wrench } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@codexsun/ui/components/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@codexsun/ui/components/ui/dialog";
-import { createAndStartAiTask, getAiTask } from "./ai-task-api.js";
+import { approveAiTask, createAndStartAiTask, getAiTask, prepareTaskRelease } from "./ai-task-api.js";
 
-export function TaskHandoffControls({ chatReview, prompt, response, taskId, onTaskCreated }: { chatReview: string; prompt: string; response: string; taskId?: string; onTaskCreated: (id: string) => void }) {
+export function TaskHandoffControls({ chatReview, prompt, response, taskId, workCaseId, onTaskCreated }: { chatReview: string; prompt: string; response: string; taskId?: string; workCaseId?: string; onTaskCreated: (id: string) => void }) {
   const [open, setOpen] = useState(false);
   const [reviewMode, setReviewMode] = useState<"prompt" | "chat">("prompt");
   const [taskRequest, setTaskRequest] = useState(() => composeTaskRequest(prompt, response, chatReview));
@@ -33,7 +33,7 @@ export function TaskHandoffControls({ chatReview, prompt, response, taskId, onTa
         </div>
         {reviewMode === "prompt" ? <textarea aria-label="Task request" className="min-h-64 w-full resize-y rounded-xl border border-input bg-background p-3 text-sm leading-6 outline-none focus-visible:ring-2 focus-visible:ring-ring" maxLength={8000} value={taskRequest} onChange={(event) => setTaskRequest(event.target.value)} /> : <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-xl border border-border bg-muted/30 p-3 text-xs leading-5">{chatReview || "No earlier chat context."}</pre>}
         {send.error && <p className="text-sm text-destructive" role="alert">{send.error.message}</p>}
-        <DialogFooter><Button type="button" variant="outline" className="cursor-pointer" onClick={() => setOpen(false)}>Cancel</Button><Button type="button" className="cursor-pointer gap-2" disabled={send.isPending || taskRequest.trim().length < 8} onClick={() => send.mutate(taskRequest.trim())}>{send.isPending ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}Send and start task</Button></DialogFooter>
+        <DialogFooter><Button type="button" variant="outline" className="cursor-pointer" onClick={() => setOpen(false)}>Cancel</Button><Button type="button" className="cursor-pointer gap-2" disabled={send.isPending || taskRequest.trim().length < 8} onClick={() => send.mutate({ requestText: taskRequest.trim(), workCaseId })}>{send.isPending ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}Send and start task</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   </>;
@@ -49,6 +49,12 @@ export function TaskHandoffResult({ taskId }: { taskId?: string }) {
 }
 
 function TaskResult({ task }: { task: Awaited<ReturnType<typeof getAiTask>> }) {
+  const client = useQueryClient();
+  const [releaseOpen, setReleaseOpen] = useState(false);
+  const [projectKey, setProjectKey] = useState("codexsun-os");
+  const [repository, setRepository] = useState("");
+  const approve = useMutation({ mutationFn: () => approveAiTask(task.id), onSuccess: () => void client.invalidateQueries({ queryKey: ["zetro-linked-task", task.id] }) });
+  const release = useMutation({ mutationFn: () => prepareTaskRelease({ taskId: task.id, projectKey: projectKey.trim(), repository }), onSuccess: () => setReleaseOpen(false) });
   const completed = task.workItems.filter((item) => item.status === "completed");
   const agents = [...new Set(task.workItems.map((item) => item.agentId))];
   const capabilities = [...new Set(task.workItems.map((item) => item.capability))];
@@ -59,6 +65,13 @@ function TaskResult({ task }: { task: Awaited<ReturnType<typeof getAiTask>> }) {
     <div className="grid gap-2 text-muted-foreground sm:grid-cols-3"><span className="flex items-center gap-1"><BarChart3 className="size-3.5" />{formatDuration(duration)}</span><span className="flex items-center gap-1"><Wrench className="size-3.5" />{agents.length} agent{agents.length === 1 ? "" : "s"}</span><span>{capabilities.join(", ")}</span></div>
     {skills.length > 0 && <p className="text-muted-foreground"><span className="font-medium text-foreground">Skills:</span> {skills.join(", ")}</p>}
     {completed.map((item) => <details key={item.id} className="rounded-lg border border-border/70 bg-background p-2"><summary className="cursor-pointer font-medium">{item.title} · {item.agentId}</summary><p className="mt-2 whitespace-pre-wrap leading-5 text-muted-foreground">{item.output ?? "No result was reported."}</p></details>)}
+    <div className="flex flex-wrap gap-2 pt-1">
+      {task.status === "awaiting_review" && <Button type="button" size="sm" variant="outline" className="h-8 cursor-pointer gap-1.5 text-xs" disabled={approve.isPending} onClick={() => approve.mutate()}>{approve.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}Approve evidence</Button>}
+      {task.status === "completed" && <Button type="button" size="sm" variant="outline" className="h-8 cursor-pointer gap-1.5 text-xs" onClick={() => setReleaseOpen(true)}><Rocket className="size-3.5" />Prepare release</Button>}
+    </div>
+    {(approve.error || release.error) && <p className="text-destructive" role="alert">{approve.error?.message ?? release.error?.message}</p>}
+    {release.data && <p className="text-muted-foreground">Orship release prepared: {release.data.id}</p>}
+    <Dialog open={releaseOpen} onOpenChange={setReleaseOpen}><DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>Prepare Orship release</DialogTitle><DialogDescription>This creates an approval-required release record. It does not publish or deploy.</DialogDescription></DialogHeader><label className="space-y-1.5"><span className="text-xs font-medium">Project key</span><input className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={projectKey} onChange={(event) => setProjectKey(event.target.value)} /></label><label className="space-y-1.5"><span className="text-xs font-medium">Repository path or URL (optional)</span><input className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={repository} onChange={(event) => setRepository(event.target.value)} /></label><DialogFooter><Button type="button" variant="outline" className="cursor-pointer" onClick={() => setReleaseOpen(false)}>Cancel</Button><Button type="button" className="cursor-pointer gap-2" disabled={release.isPending || projectKey.trim().length < 2} onClick={() => release.mutate()}>{release.isPending ? <Loader2 className="size-4 animate-spin" /> : <Rocket className="size-4" />}Create release record</Button></DialogFooter></DialogContent></Dialog>
   </div>;
 }
 

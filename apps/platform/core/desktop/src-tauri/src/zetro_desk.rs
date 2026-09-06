@@ -30,6 +30,11 @@ pub async fn zetro_desk_send_prompt(input: Value) -> Result<Value, String> {
     request("POST", "/api/v1/desktop/zetro/messages", Some(input)).await
 }
 
+#[tauri::command]
+pub async fn zetro_desk_coordinator(input: Value) -> Result<Value, String> {
+    request("POST", "/api/v1/desktop/zetro/coordinator", Some(input)).await
+}
+
 async fn request(method: &str, path: &str, payload: Option<Value>) -> Result<Value, String> {
     let client = Client::builder().timeout(Duration::from_secs(130)).build().map_err(|_| "Desktop network client is unavailable.")?;
     let mut request = match method {

@@ -7,6 +7,7 @@ export const runInputSchema = z.object({
   mode: z.enum(["sequential", "langgraph"]).default("sequential"),
   manualApprovals: z.boolean().default(true),
   queue: z.boolean().default(false),
+  workCaseId: z.string().uuid().optional(),
 }).strict();
 export type RunInput = z.input<typeof runInputSchema>;
 export type RunTask = {
@@ -17,6 +18,7 @@ export type RunTask = {
 };
 export type OrchestrationRun = {
   id: string; message: string; createdAt: string; updatedAt: string;
+  workCaseId?: string;
   mode: "sequential" | "langgraph"; manualApprovals: boolean;
   status: "queued" | "running" | "awaiting_approval" | "completed" | "failed" | "interrupted" | "cancelled";
   approval?: { taskId: string; kind: "plan" | "completion"; status: "pending" | "approved" | "rejected"; requestedAt: string; decidedAt?: string; note?: string };

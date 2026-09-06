@@ -6,6 +6,7 @@ export type Exchange = {
   feedback?: "up" | "down";
   activities?: { id: string; label: string; status: string }[];
   taskId?: string;
+  workCaseId?: string;
 };
 export type Project = {
   id: string;

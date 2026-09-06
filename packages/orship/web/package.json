@@ -1,6 +1,6 @@
 {
   "name": "@codexsun/orship-web",
-  "version": "0.1.31",
+  "version": "0.1.33",
   "private": true,
   "type": "module",
   "exports": {
@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@codexsun/orship-contracts": "*",
+    "@codexsun/devkit-ito": "*",
     "@codexsun/ui": "*",
     "@codexsun/ui-desk": "*",
     "lucide-react": "latest",

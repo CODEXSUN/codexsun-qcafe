@@ -25,4 +25,15 @@ it("runs independently and records a release through its HTTP contract", async (
   expect((await app.inject("/api/v1/orship")).json()).toHaveLength(1);
   expect((await app.inject("/api/v1/orship/cloud-state")).json()).toMatchObject({ version: "0.1.25", phase: "running" });
   expect((await app.inject("/api/v1/orship/events")).json()).toHaveLength(1);
+  const id = created.json().id as string;
+  await app.inject({ method: "POST", url: `/api/v1/orship/${id}/approve` });
+  await app.inject({ method: "POST", url: `/api/v1/orship/${id}/publish`, payload: { version: "0.1.26" } });
+  await app.inject({ method: "POST", url: `/api/v1/orship/${id}/deployment/start`, payload: {} });
+  await app.inject({ method: "POST", url: `/api/v1/orship/${id}/deployment/complete`, payload: {} });
+  const history = await app.inject("/api/v1/orship/history");
+  expect(history.statusCode).toBe(200);
+  expect(history.json()).toMatchObject([{ operation: { id, phase: "running" }, summary: { outcome: "completed", eventCount: 5 }, review: null }]);
+  const reviewed = await app.inject({ method: "PUT", url: `/api/v1/orship/history/${id}/review`, payload: { status: "reviewed", notes: "Health and deployment evidence accepted." } });
+  expect(reviewed.statusCode).toBe(200);
+  expect(reviewed.json()).toMatchObject({ review: { status: "reviewed", notes: "Health and deployment evidence accepted." }, reviews: [{ status: "reviewed" }] });
 });

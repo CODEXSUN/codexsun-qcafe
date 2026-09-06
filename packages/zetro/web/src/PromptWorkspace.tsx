@@ -47,6 +47,12 @@ export type PendingTurn = {
   streamedResult: string;
 };
 
+type QueuedPrompt = {
+  id: string;
+  message: string;
+  attachments: PromptAttachment[];
+};
+
 function streamText(
   fullText: string,
   onUpdate: (partial: string) => void,
@@ -117,6 +123,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
   const mutation = useMutation({ mutationFn: sendPrompt });
   const workflowMutation = useMutation({ mutationFn: createRun });
   const [pendingTurn, setPendingTurn] = useState<PendingTurn | null>(null);
+  const [queuedPrompts, setQueuedPrompts] = useState<QueuedPrompt[]>([]);
   const activeStreamCancel = useRef<(() => void) | null>(null);
   const sending = mutation.isPending || workflowMutation.isPending || pendingTurn !== null;
   const [error, setError] = useState("");
@@ -329,6 +336,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
     setExchanges([]);
     setPrompt("");
     setAttachments([]);
+    setQueuedPrompts([]);
     setError("");
     setTimeout(() => promptInputRef.current?.focus(), 0);
   }
@@ -395,9 +403,23 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
 
   async function send(event: FormEvent) {
     event.preventDefault();
-    if (request.current || attachmentBusy || (!prompt.trim() && !attachments.length) || pendingTurn) return;
+    if (attachmentBusy || (!prompt.trim() && !attachments.length)) return;
     const submitted = prompt.trim() || "Process attached files";
     const submittedAttachments = [...attachments];
+
+    if (request.current || pendingTurn || workflowMutation.isPending) {
+      setQueuedPrompts((current) => [...current, {
+        id: `queued-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        message: submitted,
+        attachments: submittedAttachments,
+      }]);
+      setPrompt("");
+      setAttachments([]);
+      setError("");
+      setActionNotice("Message queued for your next steer.");
+      setTimeout(() => setActionNotice(null), 2500);
+      return;
+    }
 
     // Immediately remove from input area on submit
     setPrompt("");
@@ -406,8 +428,8 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
 
     if (workflowEnabled) {
       try {
-        await workflowMutation.mutateAsync({ message: submitted, mode: workflowMode, manualApprovals });
-        setActionNotice("Workflow saved and started.");
+        await workflowMutation.mutateAsync({ message: submitted, mode: workflowMode, manualApprovals, queue: true });
+        setActionNotice("Workflow added to the orchestration queue.");
         setTimeout(() => setActionNotice(null), 2500);
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : "Unable to start workflow.");
@@ -522,6 +544,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
           result: result.message,
           timestamp: now,
           activities: finalActivities,
+          workCaseId: result.workCaseId,
         },
       ];
       setExchanges(updated);
@@ -562,6 +585,21 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
     }
   }
 
+  function prepareQueuedPrompt(id: string) {
+    const queued = queuedPrompts.find((item) => item.id === id);
+    if (!queued) return;
+    setPrompt(queued.message);
+    setAttachments(queued.attachments);
+    setQueuedPrompts((current) => current.filter((item) => item.id !== id));
+    setError("");
+    setActionNotice("Queued message ready for your steer.");
+    setTimeout(() => promptInputRef.current?.focus(), 0);
+  }
+
+  function discardQueuedPrompt(id: string) {
+    setQueuedPrompts((current) => current.filter((item) => item.id !== id));
+  }
+
   return <MdiTopologyRegion id="z1" topology={topology} className="flex h-full min-h-0 flex-col bg-background [&>.technical-label]:!left-auto [&>.technical-label]:!right-3">
     {sideCarTarget && createPortal(<ConversationSideCar
       topology={topology}
@@ -579,6 +617,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
         setExchanges(item.exchanges);
         setPrompt("");
         setAttachments([]);
+        setQueuedPrompts([]);
         setError("");
         setTimeout(() => promptInputRef.current?.focus(), 0);
       }}
@@ -841,6 +880,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
                                 prompt={exchange.prompt}
                                 response={exchange.result}
                                 taskId={exchange.taskId}
+                                workCaseId={exchange.workCaseId}
                               />
                               <div className="ml-auto">
                                 <Popover>
@@ -978,15 +1018,19 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
         className="relative mx-auto w-full md:w-4/5 max-w-5xl rounded-2xl border border-input bg-card p-3 shadow-sm cursor-text"
       >
         <MdiTopologyRegion id="z5.5" topology={topology} className="!absolute -top-5 right-3 z-10 cursor-default"><ComposerOptions activity={showActivity} motion={motion} onActivity={setShowActivity} onMotion={setMotion} workflow={<MdiTopologyRegion id="z5.6" topology={topology}><WorkflowPanel enabled={workflowEnabled} mode={workflowMode} manualApprovals={manualApprovals} onEnabled={setWorkflowEnabled} onMode={setWorkflowMode} onManualApprovals={setManualApprovals} /></MdiTopologyRegion>} /></MdiTopologyRegion>
-        <MdiTopologyRegion id="z5.1" topology={topology}><textarea ref={promptInputRef} autoFocus aria-label="Prompt" disabled={sending} maxLength={20000} value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={sending ? "Waiting for Zetro to respond…" : "Send a prompt…"} className="min-h-20 w-full resize-none border-0 bg-transparent p-2 text-sm leading-6 shadow-none outline-none ring-0 focus:border-0 focus:shadow-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0" onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); setTimeout(() => promptInputRef.current?.focus(), 0); } }} />
+        <MdiTopologyRegion id="z5.1" topology={topology}><textarea ref={promptInputRef} autoFocus aria-label="Prompt" disabled={attachmentBusy} maxLength={20000} value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={sending ? "Queue a message for your next steer…" : "Send a prompt…"} className="min-h-20 w-full resize-none border-0 bg-transparent p-2 text-sm leading-6 shadow-none outline-none ring-0 focus:border-0 focus:shadow-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0" onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); setTimeout(() => promptInputRef.current?.focus(), 0); } }} />
         </MdiTopologyRegion>
-        <AttachmentPreviews items={attachments} onChange={setAttachments} disabled={sending || attachmentBusy} />
+        <AttachmentPreviews items={attachments} onChange={setAttachments} disabled={attachmentBusy} />
+        {queuedPrompts.length > 0 && <MdiTopologyRegion id="z5.7" topology={topology} className="mt-2 block rounded-xl border border-dashed border-primary/35 bg-primary/5 p-2.5">
+          <div className="flex items-center justify-between gap-3"><p className="text-xs font-medium text-foreground">{queuedPrompts.length} message{queuedPrompts.length === 1 ? "" : "s"} queued for your next steer</p><span className="text-[11px] text-muted-foreground">Review the response before sending.</span></div>
+          <ul className="mt-2 space-y-1.5">{queuedPrompts.map((item) => <li key={item.id} className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{item.message}</p><Button type="button" variant="ghost" size="sm" className="h-7 cursor-pointer px-2 text-xs" onClick={() => prepareQueuedPrompt(item.id)}>Use next</Button><Button type="button" variant="ghost" size="sm" className="h-7 cursor-pointer px-2 text-xs text-muted-foreground" onClick={() => discardQueuedPrompt(item.id)}>Discard</Button></li>)}</ul>
+        </MdiTopologyRegion>}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
-            <AttachmentControls items={attachments} onChange={setAttachments} disabled={sending} onBusy={setAttachmentBusy} onError={setError} />
-            <MdiTopologyRegion id="z5.2" topology={topology}><span role="status" className="text-xs text-muted-foreground">{sending ? "Waiting for Zetro…" : "Zetro · Docker"}</span></MdiTopologyRegion>
+            <AttachmentControls items={attachments} onChange={setAttachments} disabled={attachmentBusy} onBusy={setAttachmentBusy} onError={setError} />
+            <MdiTopologyRegion id="z5.2" topology={topology}><span role="status" className="text-xs text-muted-foreground">{sending ? "Zetro is responding · queue for your next steer" : queuedPrompts.length ? "Queued message waiting for your steer" : "Zetro · Docker"}</span></MdiTopologyRegion>
           </div>
-          <MdiTopologyRegion id="z5.3" topology={topology}><Button type="submit" aria-label="Send prompt" disabled={sending || attachmentBusy || (!prompt.trim() && !attachments.length)} className="rounded-full cursor-pointer" size="icon"><ArrowUp className="size-4" /></Button></MdiTopologyRegion>
+          <MdiTopologyRegion id="z5.3" topology={topology}><Button type="submit" aria-label={sending ? "Queue prompt for next steer" : "Send prompt"} title={sending ? "Queue prompt for next steer" : "Send prompt"} disabled={attachmentBusy || (!prompt.trim() && !attachments.length)} className="rounded-full cursor-pointer" size="icon"><ArrowUp className="size-4" /></Button></MdiTopologyRegion>
         </div>
         {error && <MdiTopologyRegion id="z5.4" topology={topology}><p role="alert" className="mt-3 text-sm text-destructive">{error}</p></MdiTopologyRegion>}
       </form>

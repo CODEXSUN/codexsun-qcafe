@@ -8,7 +8,7 @@ export const messageInputSchema = z.object({
   message: z.string().trim().min(1).max(20_000),
   attachments: z.array(attachmentSchema).max(3).refine((items) => items.reduce((size, item) => size + item.data.length, 0) <= 2_800_000, "Attachments exceed 2 MB.").optional(),
 }).strict();
-export const dispatchInputSchema = messageInputSchema.extend({ agentId: agentIdSchema });
+export const dispatchInputSchema = messageInputSchema.extend({ agentId: agentIdSchema, workCaseId: z.string().uuid().optional() });
 export const agentProfileSchema = z.object({
   id: agentIdSchema,
   name: z.string().min(1).max(100),
@@ -25,6 +25,7 @@ export const turnSchema = z.object({
     id: z.string(), kind: z.literal("tool"), label: z.string(), status: z.literal("completed"),
   })),
   usage: z.object({ inputTokens: z.number(), outputTokens: z.number(), cachedInputTokens: z.number() }).nullable(),
+  workCaseId: z.string().uuid().optional(),
 });
 export type AgentProfile = z.infer<typeof agentProfileSchema>;
 export type MessageInput = z.infer<typeof messageInputSchema>;

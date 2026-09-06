@@ -22,6 +22,8 @@ export function Pos1HeaderSection({
   onFocusPayment,
   showPaymentCollector,
   onTogglePaymentCollector,
+  showOrderTabs = true,
+  showKitchenButton = true,
 }: Pos1HeaderSectionProps) {
   return (
     <header
@@ -85,78 +87,80 @@ export function Pos1HeaderSection({
         </div>
 
         {/* Order Tabs (Immediately after search on left) */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          {tabs.map((tab) => {
-            const isActive = tab.id === activeTabId;
-            const count = tab.lines.reduce((s, l) => s + l.quantity, 0);
-            return (
-              <div key={tab.id} className="relative group shrink-0">
-                <div
-                  onClick={() => onSelectTab(tab.id)}
-                  className={`flex items-center gap-2 cursor-pointer rounded-xl px-3 py-1.5 text-xs font-semibold transition-all ${
-                    isActive
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'border border-border bg-muted/30 text-muted-foreground hover:bg-muted'
-                  }`}
-                >
-                  <span>{tab.name}</span>
-                  {count > 0 && (
-                    <span
-                      className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
-                        isActive
-                          ? 'bg-white text-blue-600'
-                          : 'bg-background text-foreground border border-border'
-                      }`}
-                    >
-                      {count}
+        {showOrderTabs !== false && (
+          <div className="flex items-center gap-1.5 shrink-0">
+            {tabs.map((tab) => {
+              const isActive = tab.id === activeTabId;
+              const count = tab.lines.reduce((s, l) => s + l.quantity, 0);
+              return (
+                <div key={tab.id} className="relative group shrink-0">
+                  <div
+                    onClick={() => onSelectTab(tab.id)}
+                    className={`flex items-center gap-2 cursor-pointer rounded-xl px-3 py-1.5 text-xs font-semibold transition-all ${
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'border border-border bg-muted/30 text-muted-foreground hover:bg-muted'
+                    }`}
+                  >
+                    <span>{tab.name}</span>
+                    {count > 0 && (
+                      <span
+                        className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                          isActive
+                            ? 'bg-white text-blue-600'
+                            : 'bg-background text-foreground border border-border'
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    )}
+                    {tabs.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onCloseTab(tab.id);
+                        }}
+                        className={`grid size-4 place-items-center rounded hover:bg-black/20 ${
+                          isActive ? 'text-white' : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                        aria-label={`Close ${tab.name}`}
+                      >
+                        <X size={10} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Tab Tooltip */}
+                  <div className="pointer-events-none absolute left-0 top-[calc(100%+0.35rem)] z-50 whitespace-nowrap rounded-lg border border-border bg-popover px-2.5 py-1 text-[11px] font-medium text-popover-foreground opacity-0 shadow-lg transition-all duration-150 group-hover:opacity-100 flex items-center gap-1.5">
+                    <span>
+                      {tab.name} • Table {tab.tableName}
                     </span>
-                  )}
-                  {tabs.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onCloseTab(tab.id);
-                      }}
-                      className={`grid size-4 place-items-center rounded hover:bg-black/20 ${
-                        isActive ? 'text-white' : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                      aria-label={`Close ${tab.name}`}
-                    >
-                      <X size={10} />
-                    </button>
-                  )}
+                  </div>
                 </div>
+              );
+            })}
 
-                {/* Tab Tooltip */}
-                <div className="pointer-events-none absolute left-0 top-[calc(100%+0.35rem)] z-50 whitespace-nowrap rounded-lg border border-border bg-popover px-2.5 py-1 text-[11px] font-medium text-popover-foreground opacity-0 shadow-lg transition-all duration-150 group-hover:opacity-100 flex items-center gap-1.5">
-                  <span>
-                    {tab.name} • Table {tab.tableName}
-                  </span>
-                </div>
+            {/* New Order Button with Tooltip */}
+            <div className="relative group shrink-0">
+              <button
+                type="button"
+                onClick={onCreateTab}
+                aria-label="New order tab (F9)"
+                className="flex h-7 cursor-pointer items-center gap-1 rounded-xl border border-dashed border-border px-2.5 text-xs font-medium text-muted-foreground hover:border-primary hover:bg-accent hover:text-foreground transition-colors"
+              >
+                <Plus size={13} />
+                <span>New Order</span>
+              </button>
+              <div className="pointer-events-none absolute left-0 top-[calc(100%+0.35rem)] z-50 whitespace-nowrap rounded-lg border border-border bg-popover px-2.5 py-1 text-[11px] font-medium text-popover-foreground opacity-0 shadow-lg transition-all duration-150 group-hover:opacity-100 flex items-center gap-1.5">
+                <span>New order tab</span>
+                <kbd className="font-mono text-[10px] font-semibold bg-muted text-muted-foreground px-1.5 py-0.5 rounded border border-border">
+                  F9
+                </kbd>
               </div>
-            );
-          })}
-
-          {/* New Order Button with Tooltip */}
-          <div className="relative group shrink-0">
-            <button
-              type="button"
-              onClick={onCreateTab}
-              aria-label="New order tab (F9)"
-              className="flex h-7 cursor-pointer items-center gap-1 rounded-xl border border-dashed border-border px-2.5 text-xs font-medium text-muted-foreground hover:border-primary hover:bg-accent hover:text-foreground transition-colors"
-            >
-              <Plus size={13} />
-              <span>New Order</span>
-            </button>
-            <div className="pointer-events-none absolute left-0 top-[calc(100%+0.35rem)] z-50 whitespace-nowrap rounded-lg border border-border bg-popover px-2.5 py-1 text-[11px] font-medium text-popover-foreground opacity-0 shadow-lg transition-all duration-150 group-hover:opacity-100 flex items-center gap-1.5">
-              <span>New order tab</span>
-              <kbd className="font-mono text-[10px] font-semibold bg-muted text-muted-foreground px-1.5 py-0.5 rounded border border-border">
-                F9
-              </kbd>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Right: Action Buttons Row (Settle FIRST matching screenshot, Kitchen, Preview Eye, Print LAST) */}
@@ -206,27 +210,29 @@ export function Pos1HeaderSection({
         </div>
 
         {/* 1. Kitchen Button (with Kitchen label, Send icon, and F4 shortcut key) */}
-        <div className="relative group shrink-0">
-          <button
-            type="button"
-            onClick={onSendToKitchen}
-            disabled={!linesCount || busy}
-            aria-label="Send to kitchen (F4)"
-            className="flex items-center gap-1.5 rounded-xl bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 px-3 py-1.5 text-xs font-semibold shadow-xs hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
-          >
-            <Send size={13} />
-            <span>Kitchen</span>
-            <kbd className="font-mono text-[10px] font-semibold bg-white/20 text-white dark:bg-black/20 dark:text-neutral-900 px-1.5 py-0.5 rounded select-none">
-              F4
-            </kbd>
-          </button>
-          <div className="pointer-events-none absolute right-0 top-[calc(100%+0.35rem)] z-50 whitespace-nowrap rounded-lg border border-border bg-popover px-2.5 py-1 text-[11px] font-medium text-popover-foreground opacity-0 shadow-lg transition-all duration-150 group-hover:opacity-100 group-focus-within:opacity-100 flex items-center gap-1.5">
-            <span>Send order to kitchen</span>
-            <kbd className="font-mono text-[10px] font-semibold bg-muted text-muted-foreground px-1.5 py-0.5 rounded border border-border">
-              F4
-            </kbd>
+        {showKitchenButton !== false && (
+          <div className="relative group shrink-0">
+            <button
+              type="button"
+              onClick={onSendToKitchen}
+              disabled={!linesCount || busy}
+              aria-label="Send to kitchen (F4)"
+              className="flex items-center gap-1.5 rounded-xl bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 px-3 py-1.5 text-xs font-semibold shadow-xs hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
+            >
+              <Send size={13} />
+              <span>Kitchen</span>
+              <kbd className="font-mono text-[10px] font-semibold bg-white/20 text-white dark:bg-black/20 dark:text-neutral-900 px-1.5 py-0.5 rounded select-none">
+                F4
+              </kbd>
+            </button>
+            <div className="pointer-events-none absolute right-0 top-[calc(100%+0.35rem)] z-50 whitespace-nowrap rounded-lg border border-border bg-popover px-2.5 py-1 text-[11px] font-medium text-popover-foreground opacity-0 shadow-lg transition-all duration-150 group-hover:opacity-100 group-focus-within:opacity-100 flex items-center gap-1.5">
+              <span>Send order to kitchen</span>
+              <kbd className="font-mono text-[10px] font-semibold bg-muted text-muted-foreground px-1.5 py-0.5 rounded border border-border">
+                F4
+              </kbd>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* 2. Preview Slip (MIDDLE - Icon with Tooltip) */}
         <div className="relative group shrink-0">

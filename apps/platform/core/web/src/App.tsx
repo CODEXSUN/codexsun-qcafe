@@ -18,7 +18,7 @@ import { desktopCredentialStore } from "@codexsun/core-desktop";
 import { platformWorkspace } from "./modules/access-management/index.js";
 import { platformTopology } from "./platform-topology.js";
 import { todosWorkspaceAddon } from "@codexsun/todos-web";
-import { orshipWorkspaceAddon } from "@codexsun/orship-web";
+import { orshipTopology, orshipWorkspaceAddon } from "@codexsun/orship-web";
 
 declare const __CODEXSUN_VERSION__: string;
 
@@ -32,6 +32,7 @@ export function App() {
   const sections = page.addonId === "platform" ? platformTopology
     : page.addonId === "zetro" ? zetroPageTopology(page.pageId ?? "chat")
     : page.addonId === "ai-tasks" ? aiTaskTopology
+    : page.addonId === "orship" ? orshipTopology
     : page.addonId === "docs" ? docsTopology
     : page.addonId === "device-chat" ? deviceChatTopology
     : page.addonId === "settings" ? settingsTopology
@@ -68,7 +69,7 @@ export function App() {
     rootAttributes: controller.rootAttributes,
   };
   function ownedId(id: string) {
-    const prefix = page.addonId === "chat" ? "c" : page.addonId === "zetro" ? "z" : page.addonId === "ai-tasks" ? "t" : page.addonId === "settings" ? "s" : page.addonId === "docs" ? "d" : page.addonId === "device-chat" ? "dc" : "";
+    const prefix = page.addonId === "chat" ? "c" : page.addonId === "zetro" ? "z" : page.addonId === "ai-tasks" ? "t" : page.addonId === "orship" ? "o" : page.addonId === "settings" ? "s" : page.addonId === "docs" ? "d" : page.addonId === "device-chat" ? "dc" : "";
     if (!prefix) return id;
     return ({ "11": `${prefix}2`, "11.1": `${prefix}2.1`, "12": `${prefix}2.2` } as Record<string, string>)[id] ?? id;
   }

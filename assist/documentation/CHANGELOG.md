@@ -2,11 +2,11 @@
 
 ## Version State
 
-Current version: 0.1.31
+Current version: 0.1.33
 
-Release tag: v-0.1.31
+Release tag: v-0.1.33
 
-Changelog label: v 0.1.31
+Changelog label: v 0.1.33
 
 ## Unreleased
 
@@ -41,6 +41,49 @@ Changelog label: v 0.1.31
 - Added ITO entries for the workspace canvas, navigation, navigation rail, and workspace surface.
 - Cleared workspace canvas child blocks and reserved the full canvas for the next MDI feature.
 - Bound the shared AppSidebar and SidebarInset composition inside the workspace canvas.
+
+## v-0.1.33
+
+### [v 0.1.33] 2026-09-06 4:14 p.m. - Connect Zetro work cases, Orship history, ZXA providers, and Q Cafe settings
+
+#### Database Changes
+
+- Database update: Yes.
+
+#### App Codebase Changes
+
+- Bumped the workspace version to 0.1.33.
+- Added durable Zetro work cases that connect prompts, conversations, workflow runs, AI tasks, evidence, learning proposals, and release handoffs.
+- Added bounded project-memory recall and explicit accept or reject review for learning proposals before they can influence later prompts.
+- Added AI Task correlation, task evidence approval, and approval-gated Orship release preparation.
+- Routed Zetro Desk chat, workflows, tasks, knowledge reviews, and release handoffs through the private desktop coordinator and allowlisted Tauri bridge.
+- Added scoped permissions for Zetro chat, task mutation, repository indexing, knowledge review, and release preparation operations.
+- Added completed Orship release history with filters, evidence timelines, durable review notes, and action-required decisions.
+- Added Orship Interface Topology Overlay coverage and registered its history workspace in the shared platform shell.
+- Added OpenCode free-model support, provider diagnostics, parallel provider testing, connection management, usage evidence, and deployment guidance to ZXA.
+- Added ZXA setup scripts and a reusable agent descriptor for desktop agent discovery.
+- Added Q Cafe settings for navigation visibility, POS order tabs, the kitchen action, and optional service-time presentation.
+- Added focused contract, persistence, access-control, work-case, task-lifecycle, and release-history tests.
+
+## v-0.1.32
+
+### [v 0.1.32] 2026-09-06 3:55 p.m. - Add OpenCode provider and free built-in inference to ZXA
+
+#### Database Changes
+
+- Database update: No.
+
+#### App Codebase Changes
+
+- Bumped the workspace version to 0.1.32.
+- Integrated OpenCode CLI (`opencode-ai@1.18.28`) as provider `o` inside the isolated ZXA Docker runtime.
+- Added support for free built-in inference models (`nemotron-3-ultra-free`, `mimo-v2.5-free`, `big-pickle`, `ling-3.0-flash-fin-free`) requiring zero API keys.
+- Added streaming NDJSON parser in ZXA daemon extracting text output and token metrics from `step_finish` events.
+- Added dynamic model catalog discovery endpoint (`GET /api/v1/zxa/connections/o/models`) querying the container CLI.
+- Extended ZXA Web UI with OpenCode 1-click free connect, model selector, API key input, and custom base URL configuration.
+- Added CLI commands for OpenCode: `zxa models opencode`, `zxa connect opencode --free`, `zxa set-model opencode`, `zxa test opencode`, `zxa chat opencode`.
+- Added parallel multi-provider prompt runner (`zxa test parallel`) and preflight diagnostics (`zxa doctor`).
+- Documented operational patterns, edge cases, and server installation procedures in `packages/zxa/docker/DEPLOYMENT.md`.
 
 ## v-0.1.31
 

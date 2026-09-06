@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Store, Receipt, Palette, Server, Check, RotateCcw, HardDrive, FlaskConical, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
+import { Store, Receipt, Palette, Server, Check, RotateCcw, HardDrive, FlaskConical, CheckCircle2, AlertCircle, Sparkles, Sliders } from 'lucide-react';
 import { Button } from '@codexsun/ui/components/ui/button';
 import type { InterfaceTopologyController } from '@codexsun/devkit-ito';
 import { type Snapshot } from './api';
@@ -29,6 +29,15 @@ export type CafeSettings = {
   showItoIcon: boolean;
   imageFolderPath?: string;
   imageWriteProtection?: boolean;
+
+  // Screen Feature & Navigation Toggles
+  showOrderTabs?: boolean;
+  showKitchenButton?: boolean;
+  showNavKitchen?: boolean;
+  showNavInventory?: boolean;
+  showNavBookings?: boolean;
+  showNavDashboard?: boolean;
+  showNavMasters?: boolean;
 };
 
 const DEFAULT_SETTINGS: CafeSettings = {
@@ -48,6 +57,15 @@ const DEFAULT_SETTINGS: CafeSettings = {
   showItoIcon: false,
   imageFolderPath: 'C:\\q-cafe\\images',
   imageWriteProtection: false,
+
+  // Screen Feature & Navigation Toggles default to true
+  showOrderTabs: true,
+  showKitchenButton: true,
+  showNavKitchen: true,
+  showNavInventory: true,
+  showNavBookings: true,
+  showNavDashboard: true,
+  showNavMasters: true,
 };
 
 const STORAGE_KEY = 'q-cafe-settings';
@@ -62,6 +80,13 @@ export function loadSettings(): CafeSettings {
     return {
       ...DEFAULT_SETTINGS,
       ...parsed,
+      showOrderTabs: parsed.showOrderTabs ?? true,
+      showKitchenButton: parsed.showKitchenButton ?? true,
+      showNavKitchen: parsed.showNavKitchen ?? true,
+      showNavInventory: parsed.showNavInventory ?? true,
+      showNavBookings: parsed.showNavBookings ?? true,
+      showNavDashboard: parsed.showNavDashboard ?? true,
+      showNavMasters: parsed.showNavMasters ?? true,
       showItoIcon: explicitlyEnabled ? Boolean(parsed.showItoIcon) : false,
     };
   } catch {
@@ -92,7 +117,7 @@ type Props = {
   onToggleItoIcon?: (show: boolean) => void;
 };
 
-type TabId = 'general' | 'pos' | 'media' | 'appearance' | 'system';
+type TabId = 'general' | 'features' | 'pos' | 'media' | 'appearance' | 'system';
 
 export function Settings({ data, topology, onToggleItoIcon }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>('general');
@@ -112,6 +137,13 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
     if (key === 'theme') {
       applyTheme(value as CafeSettings['theme']);
     }
+  }
+
+  function handleToggleFeature<K extends keyof CafeSettings>(key: K, visible: boolean) {
+    handleChange(key, visible as CafeSettings[K]);
+    const updated = { ...settings, [key]: visible };
+    saveSettings(updated);
+    window.dispatchEvent(new CustomEvent('q-cafe-settings-updated', { detail: updated }));
   }
 
   function handleToggleIto(visible: boolean) {
@@ -168,6 +200,7 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
 
   const tabs: { id: TabId; label: string; icon: typeof Store }[] = [
     { id: 'general', label: 'General & Profile', icon: Store },
+    { id: 'features', label: 'Features & Toggles', icon: Sliders },
     { id: 'pos', label: 'POS & Billing', icon: Receipt },
     { id: 'media', label: 'Image Storage & Media', icon: HardDrive },
     { id: 'appearance', label: 'Appearance', icon: Palette },
@@ -280,6 +313,89 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                       checked={settings.showItoIcon}
                       onToggle={handleToggleIto}
                     />
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'features' && (
+                <div className="space-y-6">
+                  <div>
+                    <h2 className="text-lg font-semibold tracking-tight text-foreground flex items-center gap-2">
+                      <span className="grid size-7 place-items-center rounded-lg bg-primary/10 text-primary">
+                        <Sliders size={16} />
+                      </span>
+                      Screen Features & Navigation Toggles
+                    </h2>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      Enable or disable header actions, order tabs, and workspace navigation items across screens.
+                    </p>
+                  </div>
+
+                  {/* POS 1 Header Elements */}
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      POS Top Header Elements
+                    </h3>
+                    <div className="grid gap-3">
+                      <FeatureToggleCard
+                        title="Tab Order (Multi-Order Tabs)"
+                        description="Show or hide the order tabs ('Order 1', 'Order 2') and '+ New Order' button in the POS 1 top header."
+                        checked={settings.showOrderTabs ?? true}
+                        onToggle={(v) => handleToggleFeature('showOrderTabs', v)}
+                        badge="POS Header"
+                      />
+                      <FeatureToggleCard
+                        title="Send to Kitchen Button"
+                        description="Show or hide the 'Kitchen (F4)' order dispatch button in the POS 1 top header."
+                        checked={settings.showKitchenButton ?? true}
+                        onToggle={(v) => handleToggleFeature('showKitchenButton', v)}
+                        badge="POS Header"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Sidebar Navigation Items */}
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Sidebar Navigation Workspaces
+                    </h3>
+                    <div className="grid gap-3">
+                      <FeatureToggleCard
+                        title="Kitchen Workspace"
+                        description="Display the Kitchen live order preparation screen in the left navigation sidebar."
+                        checked={settings.showNavKitchen ?? true}
+                        onToggle={(v) => handleToggleFeature('showNavKitchen', v)}
+                        badge="Sidebar"
+                      />
+                      <FeatureToggleCard
+                        title="Inventory Workspace"
+                        description="Display the Stock and Inventory management workspace in the left navigation sidebar."
+                        checked={settings.showNavInventory ?? true}
+                        onToggle={(v) => handleToggleFeature('showNavInventory', v)}
+                        badge="Sidebar"
+                      />
+                      <FeatureToggleCard
+                        title="Bookings Workspace"
+                        description="Display the Table reservations and guest bookings screen in the left navigation sidebar."
+                        checked={settings.showNavBookings ?? true}
+                        onToggle={(v) => handleToggleFeature('showNavBookings', v)}
+                        badge="Sidebar"
+                      />
+                      <FeatureToggleCard
+                        title="Dashboard Workspace"
+                        description="Display the Service overview dashboard workspace in the left navigation sidebar."
+                        checked={settings.showNavDashboard ?? true}
+                        onToggle={(v) => handleToggleFeature('showNavDashboard', v)}
+                        badge="Sidebar"
+                      />
+                      <FeatureToggleCard
+                        title="Masters Workspace"
+                        description="Display the Menu item and table master configuration in the left navigation sidebar."
+                        checked={settings.showNavMasters ?? true}
+                        onToggle={(v) => handleToggleFeature('showNavMasters', v)}
+                        badge="Sidebar"
+                      />
+                    </div>
                   </div>
                 </div>
               )}
@@ -727,3 +843,59 @@ function ItoIconToggleCard({
   );
 }
 
+function FeatureToggleCard({
+  title,
+  description,
+  checked,
+  onToggle,
+  badge,
+}: {
+  title: string;
+  description: string;
+  checked: boolean;
+  onToggle: (next: boolean) => void;
+  badge?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-border bg-card hover:bg-accent/15 p-4 sm:flex-row sm:items-center sm:justify-between transition-colors">
+      <div className="space-y-1">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-foreground">{title}</span>
+          {badge && (
+            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+              {badge}
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </div>
+
+      <div className="flex items-center gap-3 shrink-0">
+        <span
+          className={`text-xs font-semibold uppercase tracking-wider ${
+            checked ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'
+          }`}
+        >
+          {checked ? 'Visible' : 'Hidden'}
+        </span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={checked}
+          aria-label={`Toggle ${title}`}
+          onClick={() => onToggle(!checked)}
+          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+            checked ? 'bg-emerald-600' : 'bg-muted-foreground/30'
+          }`}
+        >
+          <span className="sr-only">Toggle {title}</span>
+          <span
+            className={`pointer-events-none inline-block size-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+              checked ? 'translate-x-5' : 'translate-x-0'
+            }`}
+          />
+        </button>
+      </div>
+    </div>
+  );
+}

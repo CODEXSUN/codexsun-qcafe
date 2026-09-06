@@ -7,7 +7,7 @@ COPY packages/zxa/docker/update-zxa.mjs /app/update-zxa.mjs
 COPY packages/zxa/docker/update-zxa.sh /app/update-zxa.sh
 COPY packages/zxa/web/dist /app/web
 RUN chmod +x /app/update-zxa.sh && mkdir -p /state/codex /state/gemini /state/opencode /state/agents/candidates /runtime/releases /workspace && chown -R node:node /state /runtime /workspace
-ENV NODE_ENV=production HOME=/state CODEX_HOME=/state/codex GEMINI_CLI_HOME=/state/gemini XDG_CONFIG_HOME=/state/opencode PATH=/runtime/current/node_modules/.bin:/app/node_modules/.bin:$PATH
+ENV NODE_ENV=production HOME=/state CODEX_HOME=/state/codex GEMINI_CLI_HOME=/state/gemini XDG_CONFIG_HOME=/state/opencode GEMINI_CLI_TRUST_WORKSPACE=true PATH=/runtime/current/node_modules/.bin:/app/node_modules/.bin:$PATH
 USER node
 EXPOSE 4200
 CMD ["node", "/app/server.mjs"]

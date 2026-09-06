@@ -57,6 +57,8 @@ export interface Pos1HeaderSectionProps {
   onFocusPayment?: () => void;
   showPaymentCollector?: boolean;
   onTogglePaymentCollector?: () => void;
+  showOrderTabs?: boolean;
+  showKitchenButton?: boolean;
 }
 
 export interface Pos1ProductSectionProps {

@@ -153,6 +153,7 @@ vite.config.ts.timestamp-*
 .idea/
 .vscode/
 .local/
+.tmp-knowledge-backup/
 
 # Deployment artifacts and private device configuration
 /deploy/portal/
