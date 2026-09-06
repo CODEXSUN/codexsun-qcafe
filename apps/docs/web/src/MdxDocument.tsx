@@ -23,6 +23,8 @@ function parseMdx(source: string) {
     if (line.startsWith("# ")) { blocks.push(<h1>{line.slice(2)}</h1>); index += 1; continue; }
     if (line.startsWith("## ")) { blocks.push(<h2>{line.slice(3)}</h2>); index += 1; continue; }
     if (line.startsWith("### ")) { blocks.push(<h3>{line.slice(4)}</h3>); index += 1; continue; }
+    const image = parseImage(line);
+    if (image) { blocks.push(<figure className="docs-image"><img alt={image.alt} src={image.source} /><figcaption>{image.alt}</figcaption></figure>); index += 1; continue; }
     if (line.startsWith("- ")) {
       const items: string[] = [];
       while ((lines[index] ?? "").startsWith("- ")) items.push((lines[index++] ?? "").slice(2));
@@ -35,6 +37,11 @@ function parseMdx(source: string) {
     blocks.push(<p>{inline(paragraph.join(" "))}</p>);
   }
   return blocks;
+}
+
+function parseImage(line: string) {
+  const match = /^!\[([^\]]*)\]\((\/docs-assets\/[a-zA-Z0-9._/-]+)\)$/u.exec(line);
+  return match ? { alt: match[1] ?? "Documentation image", source: match[2] ?? "" } : null;
 }
 
 function MermaidDiagram({ source }: { source: string }) {

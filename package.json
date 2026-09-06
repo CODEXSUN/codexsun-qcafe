@@ -1,6 +1,6 @@
 {
   "name": "codexsun-os",
-  "version": "0.1.29",
+  "version": "0.1.30",
   "private": true,
   "description": "CODEXSUN application core and agent-first orchestration runtime",
   "engines": {
@@ -63,6 +63,9 @@
     "zxa:setup": "powershell -ExecutionPolicy Bypass -File packages/zxa/docker/setup-zxa.ps1",
     "zxa:up": "docker compose -f packages/zxa/docker/compose.json up -d --wait",
     "zxa:down": "docker compose -f packages/zxa/docker/compose.json down",
+    "zetro:knowledge:semantic": "docker compose -f packages/zetro/knowledge/docker/compose.json --profile semantic up -d",
+    "zetro:knowledge:backup": "node tools/zetro-knowledge-backup.mjs backup",
+    "zetro:knowledge:restore": "node tools/zetro-knowledge-backup.mjs restore",
     "zetro:desk": "npm run desk -w @codexsun/zetro-local-runner -- --docker"
   },
   "devDependencies": {

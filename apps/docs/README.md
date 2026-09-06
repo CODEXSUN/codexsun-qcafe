@@ -18,3 +18,4 @@ The API listens on `4185`. The standalone web app listens on `5185`.
 ## Operational documents
 
 - `release-task-system.md` defines the daily release process, state phases, device events, verification, and recovery.
+- `orship.md` explains how to run, observe, and recover a release through Orship.

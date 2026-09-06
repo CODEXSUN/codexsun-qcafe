@@ -1,0 +1,19 @@
+{
+  "name": "zetro-knowledge",
+  "services": {
+    "qdrant": {
+      "image": "qdrant/qdrant:v1.13.6",
+      "profiles": ["semantic"],
+      "ports": ["127.0.0.1:6333:6333"],
+      "volumes": ["zetro-knowledge-qdrant:/qdrant/storage"],
+      "healthcheck": { "test": ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/6333'"], "interval": "10s", "timeout": "3s", "retries": 10 }
+    },
+    "ollama": {
+      "image": "ollama/ollama:0.11.4",
+      "profiles": ["semantic"],
+      "ports": ["127.0.0.1:11434:11434"],
+      "volumes": ["zetro-knowledge-ollama:/root/.ollama"]
+    }
+  },
+  "volumes": { "zetro-knowledge-qdrant": {}, "zetro-knowledge-ollama": {} }
+}

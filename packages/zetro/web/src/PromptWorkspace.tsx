@@ -37,6 +37,50 @@ export const ZETRO_FEATURES = [
   { id: "webTools", label: "Web & API Tools", desc: "External search and specialist tool dispatch" },
 ];
 
+export type PendingTurn = {
+  id: string;
+  prompt: string;
+  timestamp: string;
+  status: "thinking" | "streaming";
+  statusText: string;
+  activities?: { id: string; label: string; status: string }[];
+  streamedResult: string;
+};
+
+function streamText(
+  fullText: string,
+  onUpdate: (partial: string) => void,
+  onDone: () => void
+): () => void {
+  if (!fullText) {
+    onDone();
+    return () => {};
+  }
+  const len = fullText.length;
+  const targetDuration = Math.min(1500, Math.max(200, len * 3));
+  const intervalMs = 20;
+  const totalSteps = Math.max(1, Math.floor(targetDuration / intervalMs));
+  const stepSize = Math.max(1, Math.ceil(len / totalSteps));
+
+  let currentIndex = 0;
+  let timer: ReturnType<typeof setInterval> | null = setInterval(() => {
+    currentIndex = Math.min(len, currentIndex + stepSize);
+    onUpdate(fullText.slice(0, currentIndex));
+    if (currentIndex >= len) {
+      if (timer) clearInterval(timer);
+      timer = null;
+      onDone();
+    }
+  }, intervalMs);
+
+  return () => {
+    if (timer) {
+      clearInterval(timer);
+      timer = null;
+    }
+  };
+}
+
 export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTopologyAdapter; sideCarTarget?: HTMLElement | null }) {
   const [conversations, setConversations] = useState<Conversation[]>(() => { try { return loadConversations(localStorage); } catch { return []; } });
   const [projects, setProjects] = useState<Project[]>(() => { try { return loadProjects(localStorage); } catch { return DEFAULT_PROJECTS; } });
@@ -72,12 +116,17 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
   const zetroSettings = useQuery({ queryKey: ["zetro-settings"], queryFn: getZetroSettings, retry: 5 });
   const mutation = useMutation({ mutationFn: sendPrompt });
   const workflowMutation = useMutation({ mutationFn: createRun });
-  const sending = mutation.isPending || workflowMutation.isPending;
+  const [pendingTurn, setPendingTurn] = useState<PendingTurn | null>(null);
+  const activeStreamCancel = useRef<(() => void) | null>(null);
+  const sending = mutation.isPending || workflowMutation.isPending || pendingTurn !== null;
   const [error, setError] = useState("");
   const request = useRef<AbortController | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
   const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
-  useEffect(() => () => request.current?.abort(), []);
+  useEffect(() => () => {
+    request.current?.abort();
+    activeStreamCancel.current?.();
+  }, []);
   useEffect(() => {
     if (!workspace.data || workspaceHydrated.current) return;
     workspaceHydrated.current = true;
@@ -88,7 +137,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
     }
     void Promise.all([...projects.map(saveStoredProject), ...conversations.map(saveStoredConversation)]);
   }, [workspace.data, projects, conversations]);
-  useEffect(() => { bottom.current?.scrollIntoView({ block: "end" }); }, [exchanges, sending]);
+  useEffect(() => { bottom.current?.scrollIntoView({ block: "end" }); }, [exchanges, sending, pendingTurn?.streamedResult, pendingTurn?.statusText]);
   useEffect(() => { promptInputRef.current?.focus(); }, [activeId]);
   useEffect(() => { if (!sending) promptInputRef.current?.focus(); }, [sending]);
   useEffect(() => {
@@ -271,6 +320,10 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
   }
 
   function handleNewChat(projectId?: string) {
+    if (request.current) request.current.abort();
+    activeStreamCancel.current?.();
+    activeStreamCancel.current = null;
+    setPendingTurn(null);
     setActiveId(crypto.randomUUID());
     setNewConversationProjectId(projectId);
     setExchanges([]);
@@ -342,30 +395,167 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
 
   async function send(event: FormEvent) {
     event.preventDefault();
-    if (request.current || attachmentBusy || (!prompt.trim() && !attachments.length)) return;
+    if (request.current || attachmentBusy || (!prompt.trim() && !attachments.length) || pendingTurn) return;
     const submitted = prompt.trim() || "Process attached files";
-    const controller = new AbortController();
-    request.current = controller; setError("");
-    try {
-      if (workflowEnabled) {
+    const submittedAttachments = [...attachments];
+
+    // Immediately remove from input area on submit
+    setPrompt("");
+    setAttachments([]);
+    setError("");
+
+    if (workflowEnabled) {
+      try {
         await workflowMutation.mutateAsync({ message: submitted, mode: workflowMode, manualApprovals });
-        setPrompt(""); setAttachments([]); setActionNotice("Workflow saved and started.");
+        setActionNotice("Workflow saved and started.");
         setTimeout(() => setActionNotice(null), 2500);
-        return;
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "Unable to start workflow.");
+        setPrompt(submitted);
+      } finally {
+        setTimeout(() => promptInputRef.current?.focus(), 0);
       }
-      const result = await mutation.mutateAsync({ agentId: zetroSettings.data?.defaultAgentId ?? "zetro", message: submitted, signal: controller.signal, attachments });
-      const now = new Date().toISOString();
-      const updated: Exchange[] = [...exchanges, { id: result.runId, prompt: submitted, result: result.message, timestamp: now, activities: result.activities }];
+      return;
+    }
+
+    const pendingId = `turn-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const now = new Date().toISOString();
+
+    // Immediately show on history and display live processing actions
+    setPendingTurn({
+      id: pendingId,
+      prompt: submitted,
+      timestamp: now,
+      status: "thinking",
+      statusText: "Thinking",
+      activities: [
+        { id: "act-1", label: "Receiving prompt", status: "completed" },
+        { id: "act-2", label: "Analyzing request", status: "running" },
+      ],
+      streamedResult: "",
+    });
+
+    const controller = new AbortController();
+    request.current = controller;
+
+    const stageTimer1 = setTimeout(() => {
+      setPendingTurn((prev) => {
+        if (!prev || prev.status !== "thinking") return prev;
+        return {
+          ...prev,
+          statusText: "Consulting context & tools…",
+          activities: [
+            { id: "act-1", label: "Receiving prompt", status: "completed" },
+            { id: "act-2", label: "Analyzing request", status: "completed" },
+            { id: "act-3", label: "Gathering context", status: "running" },
+          ],
+        };
+      });
+    }, 1800);
+
+    const stageTimer2 = setTimeout(() => {
+      setPendingTurn((prev) => {
+        if (!prev || prev.status !== "thinking") return prev;
+        return {
+          ...prev,
+          statusText: "Synthesizing response…",
+          activities: [
+            { id: "act-1", label: "Receiving prompt", status: "completed" },
+            { id: "act-2", label: "Analyzing request", status: "completed" },
+            { id: "act-3", label: "Gathering context", status: "completed" },
+            { id: "act-4", label: "Synthesizing answer", status: "running" },
+          ],
+        };
+      });
+    }, 3800);
+
+    try {
+      const result = await mutation.mutateAsync({
+        agentId: zetroSettings.data?.defaultAgentId ?? "zetro",
+        message: submitted,
+        signal: controller.signal,
+        attachments: submittedAttachments,
+      });
+
+      clearTimeout(stageTimer1);
+      clearTimeout(stageTimer2);
+
+      const finalActivities = result.activities?.length
+        ? result.activities
+        : [
+            { id: "act-1", label: "Receiving prompt", status: "completed" },
+            { id: "act-2", label: "Analyzing request", status: "completed" },
+            { id: "act-3", label: "Synthesizing answer", status: "completed" },
+          ];
+
+      // Stream response live
+      setPendingTurn((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: "streaming",
+              statusText: "Responding",
+              activities: finalActivities,
+              streamedResult: "",
+            }
+          : null
+      );
+
+      await new Promise<void>((resolve) => {
+        activeStreamCancel.current = streamText(
+          result.message,
+          (partial) => {
+            setPendingTurn((prev) => (prev ? { ...prev, streamedResult: partial } : null));
+          },
+          () => {
+            activeStreamCancel.current = null;
+            resolve();
+          }
+        );
+      });
+
+      const updated: Exchange[] = [
+        ...exchanges,
+        {
+          id: result.runId || pendingId,
+          prompt: submitted,
+          result: result.message,
+          timestamp: now,
+          activities: finalActivities,
+        },
+      ];
       setExchanges(updated);
       const prior = conversations.find((item) => item.id === activeId);
-      const conversation: Conversation = { id: activeId, title: updated[0]!.prompt.slice(0, 100), updatedAt: now, exchanges: updated, projectId: prior?.projectId ?? newConversationProjectId, pinned: prior?.pinned, archived: prior?.archived };
+      const conversation: Conversation = {
+        id: activeId,
+        title: updated[0]!.prompt.slice(0, 100),
+        updatedAt: now,
+        exchanges: updated,
+        projectId: prior?.projectId ?? newConversationProjectId,
+        pinned: prior?.pinned,
+        archived: prior?.archived,
+      };
       const next = [conversation, ...conversations.filter((item) => item.id !== activeId)];
       setConversations(next);
-      try { saveConversations(localStorage, next); } catch { setError("Unable to save chat history in this browser."); }
-      void saveStoredConversation(conversation).catch(() => setError("Unable to save chat history in Zetro."));
-      setPrompt(""); setAttachments([]);
+      try {
+        saveConversations(localStorage, next);
+      } catch {
+        setError("Unable to save chat history in this browser.");
+      }
+      void saveStoredConversation(conversation).catch(() =>
+        setError("Unable to save chat history in Zetro.")
+      );
+      setPendingTurn(null);
     } catch (cause) {
-      if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Unable to connect to Zetro.");
+      clearTimeout(stageTimer1);
+      clearTimeout(stageTimer2);
+      activeStreamCancel.current?.();
+      activeStreamCancel.current = null;
+      setPendingTurn(null);
+      if (!controller.signal.aborted) {
+        setError(cause instanceof Error ? cause.message : "Unable to connect to Zetro.");
+        setPrompt(submitted);
+      }
     } finally {
       request.current = null;
       setTimeout(() => promptInputRef.current?.focus(), 0);
@@ -379,7 +569,19 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
       projects={projects}
       activeId={activeId}
       disabled={sending || attachmentBusy}
-      onSelect={(item) => { setActiveId(item.id); setNewConversationProjectId(item.projectId); setExchanges(item.exchanges); setPrompt(""); setAttachments([]); setError(""); setTimeout(() => promptInputRef.current?.focus(), 0); }}
+      onSelect={(item) => {
+        if (request.current) request.current.abort();
+        activeStreamCancel.current?.();
+        activeStreamCancel.current = null;
+        setPendingTurn(null);
+        setActiveId(item.id);
+        setNewConversationProjectId(item.projectId);
+        setExchanges(item.exchanges);
+        setPrompt("");
+        setAttachments([]);
+        setError("");
+        setTimeout(() => promptInputRef.current?.focus(), 0);
+      }}
       onNew={handleNewChat}
       onPin={handlePinConversation}
       onRename={handleRenameConversation}
@@ -511,138 +713,41 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
     </header>
     <MdiTopologyRegion id="z4" topology={topology} className="min-h-0 flex-1 overflow-y-auto px-6 py-8"><div aria-live="polite">
       <MdiTopologyRegion id="z4.1" topology={topology} className="mx-auto w-full md:w-4/5 max-w-5xl space-y-8">
-        {exchanges.length ? (
-          groupExchangesByDate(exchanges).map((dateGroup) => (
-            <section key={dateGroup.dateKey} aria-label={`Messages from ${dateGroup.dateLabel}`} className="space-y-6">
-              <div className="relative my-6 flex items-center justify-center">
-                <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                  <div className="w-full border-t border-border" />
-                </div>
-                <div className="relative flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1 text-xs font-medium text-muted-foreground shadow-2xs">
-                  <Calendar className="size-3 text-muted-foreground" />
-                  <span>{dateGroup.dateLabel}</span>
-                </div>
-              </div>
-
-              <div className="space-y-6">
-                {dateGroup.items.map(({ exchange, index }) => (
-                  <article
-                    key={exchange.id}
-                    className="group/turn relative space-y-4 border-b border-border/50 pb-6 pt-2"
-                  >
-                    <div className="group ml-auto flex max-w-[90%] flex-col items-end gap-1">
-                      <div className="rounded-2xl bg-muted px-4 py-3"><p className="whitespace-pre-wrap break-words text-sm leading-6">{exchange.prompt}</p></div>
-                      <div className="flex items-center gap-1.5 px-1 text-[11px] text-muted-foreground opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                        {exchange.timestamp && <span>{formatShortTime(exchange.timestamp)}</span>}
-                        <Button type="button" variant="ghost" size="icon" className="size-6 cursor-pointer text-muted-foreground hover:text-foreground" title="Copy prompt" aria-label="Copy prompt" onClick={() => copyText(exchange.prompt, `${exchange.id}-prompt`)}>
-                          {copiedId === `${exchange.id}-prompt` ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
-                        </Button>
-                        <Button type="button" variant="ghost" size="icon" className="size-6 cursor-pointer text-muted-foreground hover:text-foreground" title="Undo to this prompt" aria-label="Undo to this prompt" onClick={() => undoTo(index)}>
-                          <RotateCcw className="size-3" />
-                        </Button>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button type="button" variant="ghost" size="icon" className="size-6 cursor-pointer text-muted-foreground hover:text-foreground" title="More options" aria-label="Prompt options">
-                              <MoreHorizontal className="size-3" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent align="end" className="w-36 p-1 rounded-xl border-border shadow-md">
-                            <Button type="button" variant="ghost" className="w-full justify-start gap-2 h-8 px-2 text-xs cursor-pointer" onClick={() => handlePinConversation(activeId)}>
-                              <Pin className="size-3.5" />
-                              Pin
-                            </Button>
-                            <Button type="button" variant="ghost" className="w-full justify-start gap-2 h-8 px-2 text-xs cursor-pointer" onClick={() => {
-                              const current = conversations.find((c) => c.id === activeId);
-                              setRenameTargetId(activeId);
-                              setNewChatTitle(current?.title ?? "New Chat");
-                              setRenameDialogOpen(true);
-                            }}>
-                              <Pencil className="size-3.5" />
-                              Rename
-                            </Button>
-                            <Button type="button" variant="ghost" className="w-full justify-start gap-2 h-8 px-2 text-xs cursor-pointer" onClick={() => copyText(exchange.prompt, `${exchange.id}-prompt`)}>
-                              <Copy className="size-3.5" />
-                              Copy
-                            </Button>
-                            <Button type="button" variant="ghost" className="w-full justify-start gap-2 h-8 px-2 text-xs cursor-pointer" onClick={() => handleArchiveConversation(activeId)}>
-                              <Archive className="size-3.5" />
-                              Archive
-                            </Button>
-                            <Button type="button" variant="ghost" className="w-full justify-start gap-2 h-8 px-2 text-xs cursor-pointer text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteExchange(index)}>
-                              <Trash2 className="size-3.5" />
-                              Delete
-                            </Button>
-                          </PopoverContent>
-                        </Popover>
-                      </div>
+        {exchanges.length || pendingTurn ? (
+          <>
+            {exchanges.length ? (
+              groupExchangesByDate(exchanges).map((dateGroup) => (
+                <section key={dateGroup.dateKey} aria-label={`Messages from ${dateGroup.dateLabel}`} className="space-y-6">
+                  <div className="relative my-6 flex items-center justify-center">
+                    <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                      <div className="w-full border-t border-border" />
                     </div>
-                    <div className={`group flex items-start gap-3 ${motion ? "motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300" : ""}`}>
-                      <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary mt-0.5">
-                        <Bot className="size-3.5" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="whitespace-pre-wrap break-words text-sm leading-7">{exchange.result}</p>
-                        <div className="mt-1 flex items-center gap-1 text-muted-foreground opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                          {exchange.timestamp && <span className="mr-1 text-[10px] text-muted-foreground">{formatShortTime(exchange.timestamp)}</span>}
-                          <Button type="button" variant="ghost" size="icon" className="size-7 cursor-pointer hover:text-foreground" title="Copy response" aria-label="Copy response" onClick={() => copyText(exchange.result, `${exchange.id}-result`)}>
-                            {copiedId === `${exchange.id}-result` ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
-                          </Button>
-                          <Button type="button" variant="ghost" size="icon" className={`size-7 cursor-pointer hover:text-foreground ${exchange.feedback === "up" ? "text-primary bg-primary/10" : ""}`} title="Thumbs up" aria-label="Thumbs up" onClick={() => toggleFeedback(exchange.id, "up")}>
-                            <ThumbsUp className={`size-3.5 ${exchange.feedback === "up" ? "fill-current" : ""}`} />
-                          </Button>
-                          <Button type="button" variant="ghost" size="icon" className={`size-7 cursor-pointer hover:text-foreground ${exchange.feedback === "down" ? "text-destructive bg-destructive/10" : ""}`} title="Thumbs down" aria-label="Thumbs down" onClick={() => toggleFeedback(exchange.id, "down")}>
-                            <ThumbsDown className={`size-3.5 ${exchange.feedback === "down" ? "fill-current" : ""}`} />
-                          </Button>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button type="button" variant="ghost" size="icon" className="size-7 cursor-pointer hover:text-foreground" title="Share" aria-label="Share response">
-                                <Share2 className="size-3.5" />
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent align="start" className="w-52 p-1.5 rounded-xl">
-                              <Button type="button" variant="ghost" className="w-full justify-start gap-2 h-8 px-2 text-xs cursor-pointer" onClick={() => shareWhatsApp(`Zetro Response:\n\n${exchange.result}`)}>
-                                <MessageSquare className="size-3.5 text-emerald-600" />
-                                Share via WhatsApp
-                              </Button>
-                              <Button type="button" variant="ghost" className="w-full justify-start gap-2 h-8 px-2 text-xs cursor-pointer" onClick={() => shareEmail(`Zetro: ${exchange.prompt.slice(0, 40)}`, `Prompt: ${exchange.prompt}\n\nResponse:\n${exchange.result}`)}>
-                                <Mail className="size-3.5 text-blue-500" />
-                                Share via Email
-                              </Button>
-                            </PopoverContent>
-                          </Popover>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button type="button" variant="ghost" size="icon" className="size-7 cursor-pointer hover:text-foreground" title="Actions" aria-label="Response actions">
-                                <Sparkles className="size-3.5" />
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent align="start" className="w-48 p-1.5 rounded-xl">
-                              <Button type="button" variant="ghost" className="w-full justify-start gap-2 h-8 px-2 text-xs cursor-pointer" onClick={() => handleAction(exchange, "task")}>
-                                <CheckSquare className="size-3.5 text-primary" />
-                                Convert to task
-                              </Button>
-                              <Button type="button" variant="ghost" className="w-full justify-start gap-2 h-8 px-2 text-xs cursor-pointer" onClick={() => handleAction(exchange, "idea")}>
-                                <Lightbulb className="size-3.5 text-amber-500" />
-                                Add to ideas
-                              </Button>
-                              <Button type="button" variant="ghost" className="w-full justify-start gap-2 h-8 px-2 text-xs cursor-pointer" onClick={() => handleAction(exchange, "module")}>
-                                <Boxes className="size-3.5 text-indigo-500" />
-                                Generate modules
-                              </Button>
-                            </PopoverContent>
-                          </Popover>
-                          <TaskHandoffControls
-                            chatReview={exchanges.slice(0, index).map((item) => `You: ${item.prompt}\nZetro: ${item.result}`).join("\n\n")}
-                            onTaskCreated={(taskId) => linkTask(exchange.id, taskId)}
-                            prompt={exchange.prompt}
-                            response={exchange.result}
-                            taskId={exchange.taskId}
-                          />
-                          <div className="ml-auto">
+                    <div className="relative flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1 text-xs font-medium text-muted-foreground shadow-2xs">
+                      <Calendar className="size-3 text-muted-foreground" />
+                      <span>{dateGroup.dateLabel}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-6">
+                    {dateGroup.items.map(({ exchange, index }) => (
+                      <article
+                        key={exchange.id}
+                        className="group/turn relative space-y-4 border-b border-border/50 pb-6 pt-2"
+                      >
+                        <div className="group ml-auto flex max-w-[90%] flex-col items-end gap-1">
+                          <div className="rounded-2xl bg-muted px-4 py-3"><p className="whitespace-pre-wrap break-words text-sm leading-6">{exchange.prompt}</p></div>
+                          <div className="flex items-center gap-1.5 px-1 text-[11px] text-muted-foreground opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                            {exchange.timestamp && <span>{formatShortTime(exchange.timestamp)}</span>}
+                            <Button type="button" variant="ghost" size="icon" className="size-6 cursor-pointer text-muted-foreground hover:text-foreground" title="Copy prompt" aria-label="Copy prompt" onClick={() => copyText(exchange.prompt, `${exchange.id}-prompt`)}>
+                              {copiedId === `${exchange.id}-prompt` ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+                            </Button>
+                            <Button type="button" variant="ghost" size="icon" className="size-6 cursor-pointer text-muted-foreground hover:text-foreground" title="Undo to this prompt" aria-label="Undo to this prompt" onClick={() => undoTo(index)}>
+                              <RotateCcw className="size-3" />
+                            </Button>
                             <Popover>
                               <PopoverTrigger asChild>
-                                <Button type="button" variant="ghost" size="icon" className="size-7 cursor-pointer hover:text-foreground" title="More options" aria-label="More options">
-                                  <MoreHorizontal className="size-3.5" />
+                                <Button type="button" variant="ghost" size="icon" className="size-6 cursor-pointer text-muted-foreground hover:text-foreground" title="More options" aria-label="Prompt options">
+                                  <MoreHorizontal className="size-3" />
                                 </Button>
                               </PopoverTrigger>
                               <PopoverContent align="end" className="w-36 p-1 rounded-xl border-border shadow-md">
@@ -659,7 +764,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
                                   <Pencil className="size-3.5" />
                                   Rename
                                 </Button>
-                                <Button type="button" variant="ghost" className="w-full justify-start gap-2 h-8 px-2 text-xs cursor-pointer" onClick={() => copyText(exchange.result, `${exchange.id}-result`)}>
+                                <Button type="button" variant="ghost" className="w-full justify-start gap-2 h-8 px-2 text-xs cursor-pointer" onClick={() => copyText(exchange.prompt, `${exchange.id}-prompt`)}>
                                   <Copy className="size-3.5" />
                                   Copy
                                 </Button>
@@ -675,19 +780,179 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
                             </Popover>
                           </div>
                         </div>
-                        <TaskHandoffResult taskId={exchange.taskId} />
-                      </div>
-                    </div>
-                    {showActivity && <div className="ml-9 space-y-1 border-l border-border pl-3 text-xs text-muted-foreground">{exchange.activities?.length ? exchange.activities.map((item) => <p key={item.id}>{item.label} · {item.status}</p>) : <p>No tool evidence reported.</p>}</div>}
-                  </article>
-                ))}
+                        <div className={`group flex items-start gap-3 ${motion ? "motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300" : ""}`}>
+                          <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary mt-0.5">
+                            <Bot className="size-3.5" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="whitespace-pre-wrap break-words text-sm leading-7">{exchange.result}</p>
+                            <div className="mt-1 flex items-center gap-1 text-muted-foreground opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                              {exchange.timestamp && <span className="mr-1 text-[10px] text-muted-foreground">{formatShortTime(exchange.timestamp)}</span>}
+                              <Button type="button" variant="ghost" size="icon" className="size-7 cursor-pointer hover:text-foreground" title="Copy response" aria-label="Copy response" onClick={() => copyText(exchange.result, `${exchange.id}-result`)}>
+                                {copiedId === `${exchange.id}-result` ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
+                              </Button>
+                              <Button type="button" variant="ghost" size="icon" className={`size-7 cursor-pointer hover:text-foreground ${exchange.feedback === "up" ? "text-primary bg-primary/10" : ""}`} title="Thumbs up" aria-label="Thumbs up" onClick={() => toggleFeedback(exchange.id, "up")}>
+                                <ThumbsUp className={`size-3.5 ${exchange.feedback === "up" ? "fill-current" : ""}`} />
+                              </Button>
+                              <Button type="button" variant="ghost" size="icon" className={`size-7 cursor-pointer hover:text-foreground ${exchange.feedback === "down" ? "text-destructive bg-destructive/10" : ""}`} title="Thumbs down" aria-label="Thumbs down" onClick={() => toggleFeedback(exchange.id, "down")}>
+                                <ThumbsDown className={`size-3.5 ${exchange.feedback === "down" ? "fill-current" : ""}`} />
+                              </Button>
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button type="button" variant="ghost" size="icon" className="size-7 cursor-pointer hover:text-foreground" title="Share" aria-label="Share response">
+                                    <Share2 className="size-3.5" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent align="start" className="w-52 p-1.5 rounded-xl">
+                                  <Button type="button" variant="ghost" className="w-full justify-start gap-2 h-8 px-2 text-xs cursor-pointer" onClick={() => shareWhatsApp(`Zetro Response:\n\n${exchange.result}`)}>
+                                    <MessageSquare className="size-3.5 text-emerald-600" />
+                                    Share via WhatsApp
+                                  </Button>
+                                  <Button type="button" variant="ghost" className="w-full justify-start gap-2 h-8 px-2 text-xs cursor-pointer" onClick={() => shareEmail(`Zetro: ${exchange.prompt.slice(0, 40)}`, `Prompt: ${exchange.prompt}\n\nResponse:\n${exchange.result}`)}>
+                                    <Mail className="size-3.5 text-blue-500" />
+                                    Share via Email
+                                  </Button>
+                                </PopoverContent>
+                              </Popover>
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button type="button" variant="ghost" size="icon" className="size-7 cursor-pointer hover:text-foreground" title="Actions" aria-label="Response actions">
+                                    <Sparkles className="size-3.5" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent align="start" className="w-48 p-1.5 rounded-xl">
+                                  <Button type="button" variant="ghost" className="w-full justify-start gap-2 h-8 px-2 text-xs cursor-pointer" onClick={() => handleAction(exchange, "task")}>
+                                    <CheckSquare className="size-3.5 text-primary" />
+                                    Convert to task
+                                  </Button>
+                                  <Button type="button" variant="ghost" className="w-full justify-start gap-2 h-8 px-2 text-xs cursor-pointer" onClick={() => handleAction(exchange, "idea")}>
+                                    <Lightbulb className="size-3.5 text-amber-500" />
+                                    Add to ideas
+                                  </Button>
+                                  <Button type="button" variant="ghost" className="w-full justify-start gap-2 h-8 px-2 text-xs cursor-pointer" onClick={() => handleAction(exchange, "module")}>
+                                    <Boxes className="size-3.5 text-indigo-500" />
+                                    Generate modules
+                                  </Button>
+                                </PopoverContent>
+                              </Popover>
+                              <TaskHandoffControls
+                                chatReview={exchanges.slice(0, index).map((item) => `You: ${item.prompt}\nZetro: ${item.result}`).join("\n\n")}
+                                onTaskCreated={(taskId) => linkTask(exchange.id, taskId)}
+                                prompt={exchange.prompt}
+                                response={exchange.result}
+                                taskId={exchange.taskId}
+                              />
+                              <div className="ml-auto">
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <Button type="button" variant="ghost" size="icon" className="size-7 cursor-pointer hover:text-foreground" title="More options" aria-label="More options">
+                                      <MoreHorizontal className="size-3.5" />
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent align="end" className="w-36 p-1 rounded-xl border-border shadow-md">
+                                    <Button type="button" variant="ghost" className="w-full justify-start gap-2 h-8 px-2 text-xs cursor-pointer" onClick={() => handlePinConversation(activeId)}>
+                                      <Pin className="size-3.5" />
+                                      Pin
+                                    </Button>
+                                    <Button type="button" variant="ghost" className="w-full justify-start gap-2 h-8 px-2 text-xs cursor-pointer" onClick={() => {
+                                      const current = conversations.find((c) => c.id === activeId);
+                                      setRenameTargetId(activeId);
+                                      setNewChatTitle(current?.title ?? "New Chat");
+                                      setRenameDialogOpen(true);
+                                    }}>
+                                      <Pencil className="size-3.5" />
+                                      Rename
+                                    </Button>
+                                    <Button type="button" variant="ghost" className="w-full justify-start gap-2 h-8 px-2 text-xs cursor-pointer" onClick={() => copyText(exchange.prompt, `${exchange.id}-prompt`)}>
+                                      <Copy className="size-3.5" />
+                                      Copy
+                                    </Button>
+                                    <Button type="button" variant="ghost" className="w-full justify-start gap-2 h-8 px-2 text-xs cursor-pointer" onClick={() => handleArchiveConversation(activeId)}>
+                                      <Archive className="size-3.5" />
+                                      Archive
+                                    </Button>
+                                    <Button type="button" variant="ghost" className="w-full justify-start gap-2 h-8 px-2 text-xs cursor-pointer text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteExchange(index)}>
+                                      <Trash2 className="size-3.5" />
+                                      Delete
+                                    </Button>
+                                  </PopoverContent>
+                                </Popover>
+                              </div>
+                            </div>
+                            <TaskHandoffResult taskId={exchange.taskId} />
+                          </div>
+                        </div>
+                        {showActivity && <div className="ml-9 space-y-1 border-l border-border pl-3 text-xs text-muted-foreground">{exchange.activities?.length ? exchange.activities.map((item) => <p key={item.id}>{item.label} · {item.status}</p>) : <p>No tool evidence reported.</p>}</div>}
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              ))
+            ) : (
+              <div className="relative my-6 flex items-center justify-center">
+                <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                  <div className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1 text-xs font-medium text-muted-foreground shadow-2xs">
+                  <Calendar className="size-3 text-muted-foreground" />
+                  <span>Today</span>
+                </div>
               </div>
-            </section>
-          ))
+            )}
+
+            {pendingTurn && (
+              <article className="group/turn relative space-y-4 pb-6 pt-2">
+                <div className="group ml-auto flex max-w-[90%] flex-col items-end gap-1">
+                  <div className="rounded-2xl bg-muted px-4 py-3">
+                    <p className="whitespace-pre-wrap break-words text-sm leading-6">{pendingTurn.prompt}</p>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-1 text-[11px] text-muted-foreground">
+                    {pendingTurn.timestamp && <span>{formatShortTime(pendingTurn.timestamp)}</span>}
+                    <span className="text-[10px] text-muted-foreground/70">· Live</span>
+                  </div>
+                </div>
+                <div className={`group flex items-start gap-3 ${motion ? "motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300" : ""}`}>
+                  <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary mt-0.5">
+                    <Bot className="size-3.5" />
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-2">
+                    {pendingTurn.status !== "streaming" ? (
+                      <div className="flex items-center gap-2.5 rounded-xl bg-muted/40 px-3.5 py-2 text-sm text-muted-foreground w-fit">
+                        <Spinner className="size-3.5 text-primary" />
+                        <span className="text-xs font-medium text-foreground">{pendingTurn.statusText}</span>
+                        <span className="inline-flex items-center gap-1 pl-0.5">
+                          <span className="size-1 rounded-full bg-primary/70 animate-bounce [animation-delay:-0.3s]" />
+                          <span className="size-1 rounded-full bg-primary/70 animate-bounce [animation-delay:-0.15s]" />
+                          <span className="size-1 rounded-full bg-primary/70 animate-bounce" />
+                        </span>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="whitespace-pre-wrap break-words text-sm leading-7">
+                          {pendingTurn.streamedResult}
+                          <span className="inline-block w-1.5 h-4 ml-1 bg-primary animate-pulse align-middle" />
+                        </p>
+                      </div>
+                    )}
+                    {showActivity && pendingTurn.activities?.length ? (
+                      <div className="ml-9 space-y-1 border-l border-border pl-3 text-xs text-muted-foreground">
+                        {pendingTurn.activities.map((item) => (
+                          <p key={item.id} className="flex items-center gap-2">
+                            <span className={`size-1.5 rounded-full ${item.status === "running" ? "bg-primary animate-ping" : "bg-emerald-500"}`} />
+                            <span>{item.label} · {item.status}</span>
+                          </p>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </article>
+            )}
+          </>
         ) : (
           <div className="py-16 text-center"><h2 className="text-xl font-medium">What would you like to send?</h2><p className="mt-3 text-sm text-muted-foreground">Write a prompt to get a response from Zetro.</p></div>
         )}
-        {sending && <article className="flex items-start gap-3 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300">
+        {sending && !pendingTurn && <article className="flex items-start gap-3 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300">
           <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary mt-0.5">
             <Bot className="size-3.5" />
           </div>
@@ -713,7 +978,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
         className="relative mx-auto w-full md:w-4/5 max-w-5xl rounded-2xl border border-input bg-card p-3 shadow-sm cursor-text"
       >
         <MdiTopologyRegion id="z5.5" topology={topology} className="!absolute -top-5 right-3 z-10 cursor-default"><ComposerOptions activity={showActivity} motion={motion} onActivity={setShowActivity} onMotion={setMotion} workflow={<MdiTopologyRegion id="z5.6" topology={topology}><WorkflowPanel enabled={workflowEnabled} mode={workflowMode} manualApprovals={manualApprovals} onEnabled={setWorkflowEnabled} onMode={setWorkflowMode} onManualApprovals={setManualApprovals} /></MdiTopologyRegion>} /></MdiTopologyRegion>
-        <MdiTopologyRegion id="z5.1" topology={topology}><textarea ref={promptInputRef} autoFocus aria-label="Prompt" disabled={sending} maxLength={20000} value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Send a prompt…" className="min-h-20 w-full resize-none border-0 bg-transparent p-2 text-sm leading-6 shadow-none outline-none ring-0 focus:border-0 focus:shadow-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0" onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); setTimeout(() => promptInputRef.current?.focus(), 0); } }} />
+        <MdiTopologyRegion id="z5.1" topology={topology}><textarea ref={promptInputRef} autoFocus aria-label="Prompt" disabled={sending} maxLength={20000} value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={sending ? "Waiting for Zetro to respond…" : "Send a prompt…"} className="min-h-20 w-full resize-none border-0 bg-transparent p-2 text-sm leading-6 shadow-none outline-none ring-0 focus:border-0 focus:shadow-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0" onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); setTimeout(() => promptInputRef.current?.focus(), 0); } }} />
         </MdiTopologyRegion>
         <AttachmentPreviews items={attachments} onChange={setAttachments} disabled={sending || attachmentBusy} />
         <div className="flex flex-wrap items-center justify-between gap-3">

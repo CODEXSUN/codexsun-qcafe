@@ -15,3 +15,6 @@ html, body, #root { min-height: 100%; margin: 0; }
 .docs-prose pre code { padding: 0; background: transparent; }
 .docs-diagram { margin: 1.25rem 0; overflow: auto; border: 1px solid var(--border); border-radius: 0.75rem; background: var(--card); padding: 1rem; }
 .docs-diagram svg { min-width: 42rem; max-width: none; }
+.docs-image { margin: 1.25rem 0; overflow: hidden; border: 1px solid var(--border); border-radius: 0.75rem; background: var(--card); }
+.docs-image img { display: block; width: 100%; height: auto; }
+.docs-image figcaption { padding: 0.65rem 0.9rem; color: var(--muted-foreground); font-size: 0.85rem; }

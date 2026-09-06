@@ -2,11 +2,11 @@
 
 ## Version State
 
-Current version: 0.1.29
+Current version: 0.1.30
 
-Release tag: v-0.1.29
+Release tag: v-0.1.30
 
-Changelog label: v 0.1.29
+Changelog label: v 0.1.30
 
 ## Unreleased
 
@@ -41,6 +41,22 @@ Changelog label: v 0.1.29
 - Added ITO entries for the workspace canvas, navigation, navigation rail, and workspace surface.
 - Cleared workspace canvas child blocks and reserved the full canvas for the next MDI feature.
 - Bound the shared AppSidebar and SidebarInset composition inside the workspace canvas.
+
+## v-0.1.30
+
+### [v 0.1.30] 2026-09-06 3:19 p.m. - Add Zetro Knowledge Loop and ZXA runtime metrics
+
+#### Database Changes
+
+- Database update: Yes.
+
+#### App Codebase Changes
+
+- Bumped the workspace version to 0.1.30.
+- Added the Zetro Knowledge Loop with a SQLite ledger, Markdown vault, ordered queue, index, bug records, and review-only learning proposals.
+- Added local backup and restore commands that exclude credentials and provider state.
+- Added the optional local Qdrant and Ollama Docker profile for future semantic retrieval.
+- Added ZXA provider disconnect controls, local runtime usage metrics, and clearer provider-limit errors.
 
 ## v-0.1.29
 

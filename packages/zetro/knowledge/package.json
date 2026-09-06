@@ -1,22 +1,21 @@
 {
-  "name": "@codexsun/agent-crew-api",
+  "name": "@codexsun/zetro-knowledge",
   "version": "0.1.30",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
-    "build": "tsup",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
-    "@codexsun/zetro-api": "*",
-    "@openai/codex-sdk": "0.153.2",
-    "fastify": "latest",
     "zod": "latest"
   },
   "devDependencies": {
     "@types/node": "latest",
-    "tsup": "latest",
+    "typescript": "latest",
     "vitest": "latest"
   }
 }

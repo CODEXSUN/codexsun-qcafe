@@ -16,15 +16,25 @@ const providers = {
 };
 const active = new Set();
 const connectionFile = "/state/connections.json";
+const usageFile = "/state/usage.json";
 let connectionSettings = await loadConnectionSettings();
+let usageMetrics = await loadUsageMetrics();
+let usageWrite = Promise.resolve();
 let deviceAuthorization;
+
+app.addHook("onSend", async (_request, reply, payload) => {
+  reply.header("Cache-Control", "no-store");
+  return payload;
+});
 
 app.get("/health", async () => ({ status: "ok", service: "zxa", agentId: "zxa", configured: Object.values(providers).some((provider) => provider.configured()), mode: "provider", providers: providerSettings() }));
 app.get("/api/v1/zxa/providers", { preHandler: authenticate }, async () => ({ agentId: "zxa", defaultProvider: defaultProvider(), requestTimeoutMs: timeoutMs, providers: providerSettings() }));
 app.get("/api/v1/zxa/connections", { preHandler: authenticateOrLocalWeb }, async () => connectionStatus());
+app.get("/api/v1/zxa/usage", { preHandler: authenticateOrLocalWeb }, async () => usageStatus());
 app.post("/api/v1/zxa/connections/codex/device", { preHandler: authenticateOrLocalWeb }, async (request, reply) => startCodexDeviceAuthorization(reply));
 app.delete("/api/v1/zxa/connections/codex/device", { preHandler: authenticateOrLocalWeb }, async () => cancelCodexDeviceAuthorization());
 app.put("/api/v1/zxa/connections/:provider", { preHandler: authenticateOrLocalWeb }, async (request, reply) => saveProviderConnection(request, reply));
+app.delete("/api/v1/zxa/connections/:provider", { preHandler: authenticateOrLocalWeb }, async (request, reply) => disconnectProvider(request, reply));
 app.get("/api/v1/zxa/agents", { preHandler: authenticate }, async () => [{ id: "zxa", name: "ZXA", configured: Object.values(providers).some((provider) => provider.configured()), mode: "provider", duty: "Coordinate prompts across Codex, Gemini, and OpenCode connections.", skills: [] }]);
 app.get("/api/v1/zxa/updates", { preHandler: authenticate }, async (_request, reply) => runUpdate(reply, ["check"]));
 app.post("/api/v1/zxa/updates/check", { preHandler: authenticate }, async (_request, reply) => runUpdate(reply, ["check"]));
@@ -44,11 +54,11 @@ app.post("/api/v1/zxa/images/inspect", { preHandler: authenticate }, async (requ
 });
 
 for (const id of Object.keys(providers)) {
-  for (const path of [`/${id}/messages`, `/zxa/${id}/messages`, `/api/v1/zxa/${id}/messages`]) app.post(path, { preHandler: authenticate }, (request, reply) => respond(id, request, reply));
+  for (const path of [`/${id}/messages`, `/zxa/${id}/messages`, `/api/v1/zxa/${id}/messages`]) app.post(path, { preHandler: authenticateOrLocalWeb }, (request, reply) => respond(id, request, reply));
 }
-app.post("/api/v1/messages", { preHandler: authenticate }, (request, reply) => respond(defaultProvider(), request, reply));
-app.post("/api/v1/zxa/messages", { preHandler: authenticate }, (request, reply) => respond(defaultProvider(), request, reply));
-app.post("/api/v1/zxa/parallel", { preHandler: authenticate }, async (request, reply) => {
+app.post("/api/v1/messages", { preHandler: authenticateOrLocalWeb }, (request, reply) => respond(defaultProvider(), request, reply));
+app.post("/api/v1/zxa/messages", { preHandler: authenticateOrLocalWeb }, (request, reply) => respond(defaultProvider(), request, reply));
+app.post("/api/v1/zxa/parallel", { preHandler: authenticateOrLocalWeb }, async (request, reply) => {
   const input = validInput(request.body);
   const requested = Array.isArray(request.body?.providers) ? [...new Set(request.body.providers)] : ["c", "g", "o"];
   if (!input || requested.some((id) => !providers[id])) return reply.code(400).send({ error: "Provide a prompt and valid provider IDs: c, g, or o." });
@@ -65,7 +75,7 @@ async function respond(id, request, reply) {
   try { return await execute(id, input); }
   catch (error) {
     const status = error?.code === "BUSY" ? 409 : error?.code === "UNCONFIGURED" ? 503 : 502;
-    app.log.error({ provider: id, name: error?.name }, "Provider request failed");
+    app.log.error({ provider: id, name: error?.name, message: safeErrorMessage(error) }, "Provider request failed");
     return reply.code(status).send({ error: publicError(error) });
   }
 }
@@ -80,7 +90,13 @@ async function execute(id, input) {
   try {
     const result = await provider.run(input.message, prepared?.images ?? []);
     const imageActivities = (prepared?.images ?? []).map((image) => ({ id: randomUUID(), kind: "image", label: `${image.name}: ${image.width}x${image.height} ${image.format}`, status: "completed" }));
-    return { agentId: "zxa", conversationId: input.conversationId ?? randomUUID(), runId: randomUUID(), message: result.message, images: (prepared?.images ?? []).map(publicImageDetails), provider: id === "c" ? "codex" : "openai-compatible", activities: [...imageActivities, ...(result.activities ?? [])], usage: result.usage ?? null, connection: { id, name: provider.name, model: provider.model }, durationMs: Date.now() - startedAt };
+    const durationMs = Date.now() - startedAt;
+    await recordUsage(id, { completed: true, durationMs, usage: result.usage ?? null });
+    const activeModel = connectionSettings[id]?.model || provider.model;
+    return { agentId: "zxa", conversationId: input.conversationId ?? randomUUID(), runId: randomUUID(), message: result.message, images: (prepared?.images ?? []).map(publicImageDetails), provider: id === "c" ? "codex" : "openai-compatible", activities: [...imageActivities, ...(result.activities ?? [])], usage: result.usage ?? null, connection: { id, name: provider.name, model: activeModel }, durationMs };
+  } catch (error) {
+    await recordUsage(id, { completed: false, durationMs: Date.now() - startedAt, error: publicError(error) });
+    throw error;
   } finally {
     active.delete(id);
     if (prepared) await rm(prepared.directory, { recursive: true, force: true });
@@ -106,9 +122,15 @@ async function runCodex(message, images) {
 }
 
 async function runGemini(message, images) {
-  const args = ["-p", `${systemInstruction()}\n\nUser request:\n${enrichedMessage(message, images)}${fileReferences(images)}`, "--output-format", "json", "-m", connectionSettings.g?.model || process.env.GEMINI_MODEL || "gemini-2.5-flash"];
-  const output = await runCommand("gemini", args, { GEMINI_CLI_HOME: "/state/gemini", ...(connectionSettings.g?.apiKey ? { GEMINI_API_KEY: connectionSettings.g.apiKey, GOOGLE_GENERATIVE_AI_API_KEY: connectionSettings.g.apiKey } : {}) });
+  const model = connectionSettings.g?.model || process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const apiKey = connectionSettings.g?.apiKey || process.env.GEMINI_API_KEY;
+  const args = ["-p", `${systemInstruction()}\n\nUser request:\n${enrichedMessage(message, images)}${fileReferences(images)}`, "--output-format", "json", "-m", model];
+  const output = await runCommand("gemini", args, {
+    GEMINI_CLI_HOME: "/state/gemini",
+    ...(apiKey ? { GEMINI_API_KEY: apiKey, GOOGLE_GENERATIVE_AI_API_KEY: apiKey, GOOGLE_GENAI_API_KEY: apiKey } : {})
+  });
   const parsed = safeJson(output);
+  if (parsed?.error) throw new Error(parsed.error?.message || JSON.stringify(parsed.error));
   return { message: parsed?.response ?? parsed?.text ?? output.trim(), usage: normalizeUsage(parsed?.stats ?? parsed?.usage) };
 }
 
@@ -128,7 +150,16 @@ function runCommand(command, args, extraEnv) {
     child.stdout.on("data", (chunk) => { stdout += chunk; if (stdout.length > 1_000_000) child.kill("SIGKILL"); });
     child.stderr.on("data", (chunk) => { stderr += chunk; });
     child.once("error", (error) => { clearTimeout(timer); reject(error); });
-    child.once("exit", (code) => { clearTimeout(timer); code === 0 && stdout.trim() ? resolve(stdout) : reject(new Error(stderr.trim() || `${command} exited with code ${code}.`)); });
+    child.once("exit", (code) => {
+      clearTimeout(timer);
+      if (code === 0 && stdout.trim()) {
+        resolve(stdout);
+      } else {
+        const errorParsed = safeJson(stdout) || safeJson(stderr);
+        const msg = stderr.trim() || errorParsed?.error?.message || errorParsed?.message || stdout.trim() || `${command} exited with code ${code}.`;
+        reject(new Error(msg));
+      }
+    });
   });
 }
 
@@ -232,22 +263,111 @@ function systemInstruction() { return "You are ZXA, an isolated local agent runt
 function safeJson(value) { try { return JSON.parse(value); } catch { return null; } }
 function normalizeUsage(value) { return value ? { inputTokens: Number(value.inputTokens ?? value.input_tokens ?? 0), outputTokens: Number(value.outputTokens ?? value.output_tokens ?? 0), cachedInputTokens: Number(value.cachedInputTokens ?? value.cached_input_tokens ?? 0) } : null; }
 function coded(code, message) { const error = new Error(message); error.code = code; return error; }
-function publicError(error) { return error?.code === "BUSY" || error?.code === "UNCONFIGURED" ? error.message : "The selected ZXA provider could not complete the request. Check its connection and model settings."; }
+function publicError(error) {
+  if (error?.code === "BUSY" || error?.code === "UNCONFIGURED") return error.message;
+  const message = safeErrorMessage(error);
+  if (/usage limit|purchase more credits|upgrade to pro/iu.test(message)) return "The connected Codex account has reached its usage limit. Sign in with an available account or retry after its reset time.";
+  if (/unauthorized|authentication|sign.?in|login|API_KEY_INVALID|API key not valid/iu.test(message)) return message || "The selected provider needs to be signed in again or the API key is invalid.";
+  if (/timed out|timeout/iu.test(message)) return "The selected provider did not respond before the local request timeout.";
+  if (message) return message;
+  return "The selected ZXA provider could not complete the request. Check its connection and model settings.";
+}
+function safeErrorMessage(error) { return typeof error?.message === "string" ? error.message.slice(0, 500) : ""; }
 function boundedNumber(value, fallback, minimum, maximum) { const number = Number(value); return Number.isFinite(number) ? Math.min(maximum, Math.max(minimum, number)) : fallback; }
 
 async function loadConnectionSettings() {
   try { return JSON.parse(await readFile(connectionFile, "utf8")); } catch { return {}; }
 }
 
+async function loadUsageMetrics() {
+  try {
+    const metrics = JSON.parse(await readFile(usageFile, "utf8"));
+    return { updatedAt: metrics.updatedAt ?? null, providers: metrics.providers && typeof metrics.providers === "object" ? metrics.providers : {} };
+  } catch { return { updatedAt: null, providers: {} }; }
+}
+
 function connectionStatus() {
   return { providers: providerSettings(), codex: deviceAuthorization ? publicDeviceAuthorization() : { status: providers.c.configured() ? "connected" : "idle" } };
 }
 
+function usageStatus() {
+  return {
+    accountQuota: "unavailable",
+    accountQuotaNote: "Device authorization does not expose remaining account quota to ZXA.",
+    providers: Object.fromEntries(Object.keys(providers).map((id) => [id, usageMetrics.providers[id] ?? emptyUsageMetric()])),
+    updatedAt: usageMetrics.updatedAt ?? null,
+  };
+}
+
+function emptyUsageMetric() { return { requests: 0, completed: 0, failed: 0, lastDurationMs: null, lastSuccessAt: null, lastFailureAt: null, lastUsage: null, lastError: null }; }
+
+async function recordUsage(id, outcome) {
+  const current = usageMetrics.providers[id] ?? emptyUsageMetric();
+  const now = new Date().toISOString();
+  usageMetrics = {
+    updatedAt: now,
+    providers: {
+      ...usageMetrics.providers,
+      [id]: {
+        ...current,
+        requests: current.requests + 1,
+        completed: current.completed + (outcome.completed ? 1 : 0),
+        failed: current.failed + (outcome.completed ? 0 : 1),
+        lastDurationMs: outcome.durationMs,
+        lastSuccessAt: outcome.completed ? now : current.lastSuccessAt,
+        lastFailureAt: outcome.completed ? current.lastFailureAt : now,
+        lastUsage: outcome.completed ? outcome.usage : current.lastUsage,
+        lastError: outcome.completed ? null : outcome.error,
+      },
+    },
+  };
+  usageWrite = usageWrite.then(() => writeFile(usageFile, JSON.stringify(usageMetrics), { mode: 0o600 }));
+  await usageWrite;
+}
+
 async function saveProviderConnection(request, reply) {
   const provider = request.params.provider;
+  if (!["g", "o", "c"].includes(provider)) return reply.code(400).send({ error: "Unknown provider." });
   const apiKey = request.body?.apiKey;
-  if (!["g", "o"].includes(provider) || typeof apiKey !== "string" || apiKey.trim().length < 8 || apiKey.length > 4096) return reply.code(400).send({ error: "Provide a valid local provider API key." });
-  connectionSettings = { ...connectionSettings, [provider]: { ...connectionSettings[provider], apiKey: apiKey.trim() } };
+  const model = request.body?.model;
+
+  if (apiKey !== undefined) {
+    if (typeof apiKey !== "string" || apiKey.trim().length < 8 || apiKey.length > 4096) {
+      return reply.code(400).send({ error: "Provide a valid local provider API key." });
+    }
+  }
+  if (model !== undefined) {
+    if (typeof model !== "string" || model.trim().length === 0 || model.length > 100) {
+      return reply.code(400).send({ error: "Provide a valid model identifier." });
+    }
+  }
+  if (apiKey === undefined && model === undefined) {
+    return reply.code(400).send({ error: "Provide an apiKey or model to update." });
+  }
+
+  const updated = { ...connectionSettings[provider] };
+  if (apiKey !== undefined) updated.apiKey = apiKey.trim();
+  if (model !== undefined) updated.model = model.trim();
+
+  connectionSettings = { ...connectionSettings, [provider]: updated };
+  await writeFile(connectionFile, JSON.stringify(connectionSettings), { mode: 0o600 });
+  return connectionStatus();
+}
+
+async function disconnectProvider(request, reply) {
+  const provider = request.params.provider;
+  if (!providers[provider]) return reply.code(404).send({ error: "Unknown provider." });
+  if (provider === "c") {
+    if (process.env.OPENAI_API_KEY) return reply.code(409).send({ error: "Codex is configured by an environment variable. Remove ZXA_OPENAI_API_KEY from .env to disconnect it." });
+    cancelCodexDeviceAuthorization();
+    await rm("/state/codex/auth.json", { force: true });
+    return connectionStatus();
+  }
+  if (provider === "g" && process.env.GEMINI_API_KEY) return reply.code(409).send({ error: "Gemini is configured by an environment variable. Remove ZXA_GEMINI_API_KEY from .env to disconnect it." });
+  if (provider === "o" && (process.env.OPENCODE_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY)) return reply.code(409).send({ error: "OpenCode is configured by an environment variable. Remove its provider key from .env to disconnect it." });
+  const saved = { ...connectionSettings[provider] };
+  delete saved.apiKey;
+  connectionSettings = { ...connectionSettings, [provider]: saved };
   await writeFile(connectionFile, JSON.stringify(connectionSettings), { mode: 0o600 });
   return connectionStatus();
 }

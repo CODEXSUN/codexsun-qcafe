@@ -10,12 +10,17 @@ ZXA is the first reusable agent runtime behind Zetro Desk. It provides three ind
 - `POST /api/v1/zxa/messages`: configured default provider
 - `POST /api/v1/zxa/parallel`: selected providers in parallel
 - `GET /api/v1/zxa/providers`: safe connection status and model details
+- `GET /api/v1/zxa/usage`: locally observed request, duration, and token metrics by provider
 - `POST /api/v1/zxa/images/inspect`: image dimensions, format, color space, channels, and size
 - `GET /api/v1/zxa/updates`: installed runtime release and last update status
 - `POST /api/v1/zxa/updates/check`: inspect the current runtime release
 - `POST /api/v1/zxa/updates/apply`: apply CLI updates or stage reviewed agent definitions
 
 All API requests require `Authorization: Bearer <ZXA_LOCAL_TOKEN>`. A message request uses `{ "message": "...", "conversationId": "optional UUID" }`. Parallel requests may also include `{ "providers": ["c", "g", "o"] }`.
+
+The local connection page can disconnect a provider. Device-authenticated Codex removes only its local `auth.json`; key-based providers remove only their local ZXA-volume key. A provider configured through `.env` cannot be disconnected from the page because its source of truth is the environment file.
+
+Usage shows completed and failed ZXA requests, duration, and provider-reported token counts. Device authorization does not expose remaining ChatGPT account quota, so the page labels that value as unavailable instead of estimating it.
 
 Image requests accept up to three PNG, JPEG, WebP, or GIF attachments with a combined decoded size of 2.5 MB:
 

@@ -10,7 +10,7 @@ import { ZETRO_AGENT_RUNTIMES } from "./agent-runtimes.js";
 
 export function ZetroPropertiesDrawer({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const queryClient = useQueryClient();
-  const settings = useQuery({ queryKey: ["zetro-settings"], queryFn: getZetroSettings, retry: 5 });
+  const settings = useQuery({ queryKey: ["zetro-settings"], queryFn: getZetroSettings, enabled: open, retry: 1, refetchOnMount: "always" });
   const agents = useQuery({ queryKey: ["zetro-agents"], queryFn: getZetroAgents, enabled: open, refetchInterval: open ? 10_000 : false });
   const [draft, setDraft] = useState<ZetroSettings | null>(null);
   const save = useMutation({
@@ -38,7 +38,10 @@ export function ZetroPropertiesDrawer({ open, onOpenChange }: { open: boolean; o
         <SheetDescription>Connect local project context and choose the Docker agents Zetro can use.</SheetDescription>
       </SheetHeader>
       <div className="min-h-0 flex-1 space-y-7 overflow-y-auto px-6 py-5">
-        {!draft && <p className="text-sm text-muted-foreground">Loading Zetro configuration…</p>}
+        {!draft && <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background p-3">
+          <p className="text-sm text-muted-foreground">{settings.isError ? "Zetro Desk configuration is unavailable." : "Loading Zetro configuration…"}</p>
+          {settings.isError && <Button type="button" variant="outline" size="sm" className="shrink-0 cursor-pointer" onClick={() => void settings.refetch()}>Retry</Button>}
+        </div>}
         {draft && <>
           <section className="space-y-3">
             <div className="flex items-center gap-2"><FolderGit2 className="size-4" /><h3 className="text-sm font-semibold">Repository</h3></div>

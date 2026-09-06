@@ -18,7 +18,7 @@ export function RightIconDock({ propertiesOpen = false, onPropertiesClick, topol
       {topology && <MdiTopologyRegion className="flex items-center" id="10" topology={topology}>{topology.control}</MdiTopologyRegion>}
       <MdiTopologyRegion id="9.3" topology={topology}><IconDockButton icon={Bell} label="Notifications" /></MdiTopologyRegion>
       {version && <MdiTopologyRegion id="9.4" topology={topology}>
-        <span aria-label={`CODEXSUN OS version ${version}`} className="select-none px-1 text-[10px] font-medium tabular-nums text-muted-foreground" title={`CODEXSUN OS v${version}`}>v{version}</span>
+        <span aria-label={`CODEXSUN OS version ${version}`} className="select-none whitespace-nowrap px-0.5 text-[8px] font-medium tabular-nums text-muted-foreground" title={`CODEXSUN OS v${version}`}>v{version}</span>
       </MdiTopologyRegion>}
     </div>
   </aside>;
