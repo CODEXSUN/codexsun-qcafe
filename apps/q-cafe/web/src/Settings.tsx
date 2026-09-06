@@ -58,14 +58,14 @@ const DEFAULT_SETTINGS: CafeSettings = {
   imageFolderPath: 'C:\\q-cafe\\images',
   imageWriteProtection: false,
 
-  // Screen Feature & Navigation Toggles default to true
-  showOrderTabs: true,
-  showKitchenButton: true,
-  showNavKitchen: true,
-  showNavInventory: true,
-  showNavBookings: true,
-  showNavDashboard: true,
-  showNavMasters: true,
+  // Screen Feature & Navigation Toggles default to false (all hidden by default)
+  showOrderTabs: false,
+  showKitchenButton: false,
+  showNavKitchen: false,
+  showNavInventory: false,
+  showNavBookings: false,
+  showNavDashboard: false,
+  showNavMasters: false,
 };
 
 const STORAGE_KEY = 'q-cafe-settings';
@@ -80,13 +80,13 @@ export function loadSettings(): CafeSettings {
     return {
       ...DEFAULT_SETTINGS,
       ...parsed,
-      showOrderTabs: parsed.showOrderTabs ?? true,
-      showKitchenButton: parsed.showKitchenButton ?? true,
-      showNavKitchen: parsed.showNavKitchen ?? true,
-      showNavInventory: parsed.showNavInventory ?? true,
-      showNavBookings: parsed.showNavBookings ?? true,
-      showNavDashboard: parsed.showNavDashboard ?? true,
-      showNavMasters: parsed.showNavMasters ?? true,
+      showOrderTabs: Boolean(parsed.showOrderTabs),
+      showKitchenButton: Boolean(parsed.showKitchenButton),
+      showNavKitchen: Boolean(parsed.showNavKitchen),
+      showNavInventory: Boolean(parsed.showNavInventory),
+      showNavBookings: Boolean(parsed.showNavBookings),
+      showNavDashboard: Boolean(parsed.showNavDashboard),
+      showNavMasters: Boolean(parsed.showNavMasters),
       showItoIcon: explicitlyEnabled ? Boolean(parsed.showItoIcon) : false,
     };
   } catch {
@@ -144,6 +144,23 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
     const updated = { ...settings, [key]: visible };
     saveSettings(updated);
     window.dispatchEvent(new CustomEvent('q-cafe-settings-updated', { detail: updated }));
+  }
+
+  function handleSetAllFeatures(visible: boolean) {
+    const updated: CafeSettings = {
+      ...settings,
+      showOrderTabs: visible,
+      showKitchenButton: visible,
+      showNavKitchen: visible,
+      showNavInventory: visible,
+      showNavBookings: visible,
+      showNavDashboard: visible,
+      showNavMasters: visible,
+    };
+    setSettings(updated);
+    saveSettings(updated);
+    window.dispatchEvent(new CustomEvent('q-cafe-settings-updated', { detail: updated }));
+    setSavedNotice(true);
   }
 
   function handleToggleIto(visible: boolean) {
@@ -319,16 +336,35 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
 
               {activeTab === 'features' && (
                 <div className="space-y-6">
-                  <div>
-                    <h2 className="text-lg font-semibold tracking-tight text-foreground flex items-center gap-2">
-                      <span className="grid size-7 place-items-center rounded-lg bg-primary/10 text-primary">
-                        <Sliders size={16} />
-                      </span>
-                      Screen Features & Navigation Toggles
-                    </h2>
-                    <p className="text-sm text-muted-foreground mt-0.5">
-                      Enable or disable header actions, order tabs, and workspace navigation items across screens.
-                    </p>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h2 className="text-lg font-semibold tracking-tight text-foreground flex items-center gap-2">
+                        <span className="grid size-7 place-items-center rounded-lg bg-primary/10 text-primary">
+                          <Sliders size={16} />
+                        </span>
+                        Screen Features & Navigation Toggles
+                      </h2>
+                      <p className="text-sm text-muted-foreground mt-0.5">
+                        Enable or disable header actions, order tabs, and workspace navigation items across screens.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleSetAllFeatures(false)}
+                        className="rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer transition-colors shadow-2xs"
+                      >
+                        Hide All
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSetAllFeatures(true)}
+                        className="rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer transition-colors shadow-2xs"
+                      >
+                        Show All
+                      </button>
+                    </div>
                   </div>
 
                   {/* POS 1 Header Elements */}
@@ -340,14 +376,14 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                       <FeatureToggleCard
                         title="Tab Order (Multi-Order Tabs)"
                         description="Show or hide the order tabs ('Order 1', 'Order 2') and '+ New Order' button in the POS 1 top header."
-                        checked={settings.showOrderTabs ?? true}
+                        checked={Boolean(settings.showOrderTabs)}
                         onToggle={(v) => handleToggleFeature('showOrderTabs', v)}
                         badge="POS Header"
                       />
                       <FeatureToggleCard
                         title="Send to Kitchen Button"
                         description="Show or hide the 'Kitchen (F4)' order dispatch button in the POS 1 top header."
-                        checked={settings.showKitchenButton ?? true}
+                        checked={Boolean(settings.showKitchenButton)}
                         onToggle={(v) => handleToggleFeature('showKitchenButton', v)}
                         badge="POS Header"
                       />
@@ -363,35 +399,35 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                       <FeatureToggleCard
                         title="Kitchen Workspace"
                         description="Display the Kitchen live order preparation screen in the left navigation sidebar."
-                        checked={settings.showNavKitchen ?? true}
+                        checked={Boolean(settings.showNavKitchen)}
                         onToggle={(v) => handleToggleFeature('showNavKitchen', v)}
                         badge="Sidebar"
                       />
                       <FeatureToggleCard
                         title="Inventory Workspace"
                         description="Display the Stock and Inventory management workspace in the left navigation sidebar."
-                        checked={settings.showNavInventory ?? true}
+                        checked={Boolean(settings.showNavInventory)}
                         onToggle={(v) => handleToggleFeature('showNavInventory', v)}
                         badge="Sidebar"
                       />
                       <FeatureToggleCard
                         title="Bookings Workspace"
                         description="Display the Table reservations and guest bookings screen in the left navigation sidebar."
-                        checked={settings.showNavBookings ?? true}
+                        checked={Boolean(settings.showNavBookings)}
                         onToggle={(v) => handleToggleFeature('showNavBookings', v)}
                         badge="Sidebar"
                       />
                       <FeatureToggleCard
                         title="Dashboard Workspace"
                         description="Display the Service overview dashboard workspace in the left navigation sidebar."
-                        checked={settings.showNavDashboard ?? true}
+                        checked={Boolean(settings.showNavDashboard)}
                         onToggle={(v) => handleToggleFeature('showNavDashboard', v)}
                         badge="Sidebar"
                       />
                       <FeatureToggleCard
                         title="Masters Workspace"
                         description="Display the Menu item and table master configuration in the left navigation sidebar."
-                        checked={settings.showNavMasters ?? true}
+                        checked={Boolean(settings.showNavMasters)}
                         onToggle={(v) => handleToggleFeature('showNavMasters', v)}
                         badge="Sidebar"
                       />

@@ -24,12 +24,15 @@ type Props = {
 };
 
 export function formatChair(table: string, chair: number | string) {
+  const chairStr = String(chair ?? '').trim();
+  if (!chairStr || chairStr === '0') return table;
   const match = table.match(/\d+/);
-  if (match) {
-    const num = parseInt(match[0], 10);
-    return `${num}.${chair}`;
+  const prefix = match ? parseInt(match[0], 10) : 'P';
+  if (chairStr.includes(',')) {
+    const parts = chairStr.split(',').map((p) => p.trim()).filter(Boolean);
+    return parts.map((p) => `${prefix}.${p}`).join(', ');
   }
-  return `P.${chair}`;
+  return `${prefix}.${chairStr}`;
 }
 
 function parseQuantity(value: string) {
@@ -163,7 +166,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
 
   // Pickup table and chair selection from the touch Tables floor page
   useEffect(() => {
-    function applySelectedTable(tableNo: string, chairCount: number) {
+    function applySelectedTable(tableNo: string, chairCount: number | string) {
       setTabs((currentTabs) =>
         currentTabs.map((t) =>
           t.id === activeTabId
@@ -187,7 +190,13 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         sessionStorage.removeItem('q-cafe-selected-table');
         const parsed = JSON.parse(raw);
         if (parsed?.tableNo) {
-          applySelectedTable(parsed.tableNo, parsed.chairCount || 4);
+          const chairVal =
+            parsed.chair !== undefined && parsed.chair !== ''
+              ? parsed.chair
+              : parsed.chairCount
+              ? String(parsed.chairCount)
+              : '1';
+          applySelectedTable(parsed.tableNo, chairVal);
         }
       }
     } catch {
@@ -195,15 +204,64 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     }
 
     const handleTableSelected = (e: Event) => {
-      const detail = (e as CustomEvent<{ tableNo: string; chairCount: number }>).detail;
+      const detail = (
+        e as CustomEvent<{
+          tableNo: string;
+          chair?: string;
+          chairCount?: number;
+          chairs?: number[];
+        }>
+      ).detail;
       if (detail?.tableNo) {
-        applySelectedTable(detail.tableNo, detail.chairCount || 4);
+        const chairVal =
+          detail.chair !== undefined && detail.chair !== ''
+            ? detail.chair
+            : detail.chairCount
+            ? String(detail.chairCount)
+            : '1';
+        applySelectedTable(detail.tableNo, chairVal);
       }
     };
 
     window.addEventListener('q-cafe-table-selected', handleTableSelected);
     return () => window.removeEventListener('q-cafe-table-selected', handleTableSelected);
   }, [activeTabId]);
+
+  // Sync active POS orders to sessionStorage and dispatch event for Tables floor status
+  useEffect(() => {
+    try {
+      const activeTables = tabs
+        .filter((t) => t.lines.length > 0)
+        .map((t) => {
+          const chairOccupiedList = Array.from(
+            new Set(
+              t.lines.flatMap((l) => {
+                const cStr = String(l.chair ?? '');
+                if (cStr.includes(',')) {
+                  return cStr
+                    .split(',')
+                    .map((c) => parseInt(c.trim(), 10))
+                    .filter((n) => !isNaN(n));
+                }
+                const num = Number(cStr);
+                return num > 0 ? [num] : [];
+              })
+            )
+          );
+          return {
+            tableName: t.tableName,
+            chair: t.chair,
+            total: t.lines.reduce((s, l) => s + l.price * l.quantity, 0),
+            itemCount: t.lines.reduce((s, l) => s + l.quantity, 0),
+            chairOccupiedList,
+          };
+        });
+      sessionStorage.setItem('q-cafe-pos-active-tables', JSON.stringify(activeTables));
+      window.dispatchEvent(new CustomEvent('q-cafe-pos-tables-updated', { detail: activeTables }));
+    } catch {
+      // storage unavailable
+    }
+  }, [tabs]);
 
   useEffect(() => {
     const handleSettingsUpdated = (e: Event) => {
@@ -344,10 +402,10 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     handleApplyItem(item);
 
     // Add to cart directly
-    const targetChair = parseInt(chair, 10) || 1;
+    const targetChair = chair || '1';
     updateActiveTab((tab) => {
       const existingIndex = tab.lines.findIndex(
-        (l) => l.code.toUpperCase() === item.code.toUpperCase() && (l.chair ?? 1) === targetChair
+        (l) => l.code.toUpperCase() === item.code.toUpperCase() && String(l.chair ?? '1') === String(targetChair)
       );
 
       if (existingIndex >= 0) {
@@ -395,9 +453,9 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     const finalCode = cleanCode || matchedItem?.code || 'ITM-000';
     const finalName = cleanName || matchedItem?.name || 'Custom Item';
 
-    const targetChair = parseInt(chair, 10) || 1;
+    const targetChair = chair || '1';
     const existingIndex = lines.findIndex(
-      (l) => l.code.toUpperCase() === finalCode.toUpperCase() && (l.chair ?? 1) === targetChair
+      (l) => l.code.toUpperCase() === finalCode.toUpperCase() && String(l.chair ?? '1') === String(targetChair)
     );
 
     if (existingIndex >= 0) {
@@ -422,11 +480,13 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
       }));
     }
 
-    // Advance chair if multi-chair table
-    const currentChair = Number(chair) || 1;
-    const maxChairs = tableChairCount || 4;
-    const nextChair = currentChair >= maxChairs ? 1 : currentChair + 1;
-    updateActiveTab({ chair: String(nextChair) });
+    // Advance chair only if single numeric chair (do not break grouped chairs)
+    if (!chair.includes(',')) {
+      const currentChair = Number(chair) || 1;
+      const maxChairs = tableChairCount || 4;
+      const nextChair = currentChair >= maxChairs ? 1 : currentChair + 1;
+      updateActiveTab({ chair: String(nextChair) });
+    }
 
     // Reset entry inputs for rapid sequential billing
     setBottomCode('');
@@ -578,7 +638,10 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     }));
 
     const maxChairs = tableChairCount || 4;
-    const currentGuests = Math.min(Math.max(parseInt(activeTab.chair, 10) || 1, 1), Math.max(maxChairs, 1));
+    const guestCount = activeTab.chair.includes(',')
+      ? activeTab.chair.split(',').length
+      : parseInt(activeTab.chair, 10) || 1;
+    const currentGuests = Math.min(Math.max(guestCount, 1), Math.max(maxChairs, 1));
 
     // 1. Post POS bill to backend database
     const createdBill = (await mutate('/pos', {
@@ -826,8 +889,8 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         onFocusPayment={handleFocusPayment}
         showPaymentCollector={showPaymentCollector}
         onTogglePaymentCollector={handleTogglePaymentCollector}
-        showOrderTabs={cafeSettings.showOrderTabs ?? true}
-        showKitchenButton={cafeSettings.showKitchenButton ?? true}
+        showOrderTabs={Boolean(cafeSettings.showOrderTabs)}
+        showKitchenButton={Boolean(cafeSettings.showKitchenButton)}
       />
 
       {/* Main Content Area (Split: Left Catalog Column [Categories + Product Cards] + Right Billing Cart Panel) */}
@@ -976,3 +1039,4 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     </div>
   );
 }
+

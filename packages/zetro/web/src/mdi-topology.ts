@@ -10,6 +10,7 @@ const zetroTopology: InterfaceTopologySection[] = [
   { id: "z2.1.4", technicalName: "zetro.sideCar.projectDialog", name: "Create project dialog", scope: "Zetro", description: "Name and save a conversation project." },
   { id: "z2.2", technicalName: "zetro.sideCar.railToggle", name: "Side car rail toggle", scope: "Zetro", description: "Collapse or expand the companion panel." },
   { id: "z3", technicalName: "zetro.header.container", name: "Zetro header", scope: "Zetro", description: "Agent identity and workspace title." },
+  { id: "z3.1", technicalName: "zetro.header.conversationTabs", name: "Parallel conversation tabs", scope: "Zetro", description: "Switch among open chats while their agent responses continue in parallel." },
   { id: "z4", technicalName: "zetro.history.container", name: "Response history", scope: "Zetro", description: "Welcome state and prompt-response exchanges." },
   { id: "z4.1", technicalName: "zetro.history.welcomeAndExchanges", name: "Welcome and response exchanges", scope: "Zetro", description: "Initial welcome or loaded prompt-response pairs." },
   { id: "z5", technicalName: "zetro.composer.form", name: "Prompt composer", scope: "Zetro", description: "Write and submit a prompt." },
@@ -32,3 +33,11 @@ export function zetroPageTopology(_page: string): InterfaceTopologySection[] {
   ];
   return zetroTopology;
 }
+
+export const zetroProjectsTopology: InterfaceTopologySection[] = [
+  { id: "zp1", technicalName: "zetro.projects.workspace", name: "Projects workspace", scope: "Zetro", description: "Connected Zetro project workspaces." },
+  { id: "zp2", technicalName: "zetro.projects.sideCar", name: "Project side car", scope: "Zetro", description: "Quick project navigation and creation." },
+  { id: "zp3", technicalName: "zetro.projects.roster", name: "Project roster", scope: "Zetro", description: "Persisted projects with their linked conversation count." },
+  { id: "zp4", technicalName: "zetro.projects.detail", name: "Project detail", scope: "Zetro", description: "A selected project and its workspace tabs." },
+  { id: "zp5", technicalName: "zetro.projects.detailContent", name: "Project detail content", scope: "Zetro", description: "Derived conversation, task, review, and context records." },
+];

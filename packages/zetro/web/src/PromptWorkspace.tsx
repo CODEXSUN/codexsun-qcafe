@@ -4,7 +4,7 @@ import type { PromptAttachment } from "@codexsun/zetro-api/contracts";
 import { createPortal } from "react-dom";
 import { ConversationSideCar } from "./ConversationSideCar.js";
 import { DEFAULT_PROJECTS, formatShortTime, groupExchangesByDate, loadConversations, loadProjects, saveConversations, saveProjects, type Conversation, type Exchange, type Project } from "./conversations.js";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { ArrowUp, Archive, Bot, Boxes, Calendar, Check, CheckSquare, Copy, Cpu, Folder, FolderKanban, Lightbulb, Mail, MessageSquare, MoreHorizontal, Pencil, Pin, RotateCcw, Share2, SlidersHorizontal, Sparkles, ThumbsDown, ThumbsUp, Trash2 } from "lucide-react";
 import { Button } from "@codexsun/ui/components/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@codexsun/ui/components/ui/dialog";
@@ -21,6 +21,12 @@ import { WorkflowPanel, type WorkflowMode } from "./WorkflowPanel.js";
 import { archiveProjectChats, deleteConversation as deleteStoredConversation, deleteProject as deleteStoredProject, getWorkspace, saveConversation as saveStoredConversation, saveProject as saveStoredProject } from "./workspace-api.js";
 import { getZetroSettings } from "./settings-api.js";
 import { TaskHandoffControls, TaskHandoffResult } from "./TaskHandoffControls.js";
+import { MarkdownRenderer } from "./components/MarkdownRenderer.js";
+import { ModelProviderSelector } from "./components/ModelProviderSelector.js";
+import type { ProviderId } from "./model-provider-api.js";
+import { ConversationTabs } from "./ConversationTabs.js";
+import { useConversationValue } from "./useConversationValue.js";
+import { zetroNotifications } from "./notifications.js";
 
 export const ZETRO_MODELS = [
   { id: "codex-specialist", name: "Codex Specialist", badge: "Docker · Sandbox", desc: "Isolated specialist container with code execution tools." },
@@ -52,6 +58,14 @@ type QueuedPrompt = {
   message: string;
   attachments: PromptAttachment[];
 };
+
+const emptyAttachments = (): PromptAttachment[] => [];
+const emptyError = () => "";
+const emptyExchanges = (): Exchange[] => [];
+const emptyPendingTurn = (): PendingTurn | null => null;
+const emptyProjectId = (): string | undefined => undefined;
+const emptyPrompt = () => "";
+const emptyQueue = (): QueuedPrompt[] => [];
 
 function streamText(
   fullText: string,
@@ -91,7 +105,9 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
   const [conversations, setConversations] = useState<Conversation[]>(() => { try { return loadConversations(localStorage); } catch { return []; } });
   const [projects, setProjects] = useState<Project[]>(() => { try { return loadProjects(localStorage); } catch { return DEFAULT_PROJECTS; } });
   const [activeId, setActiveId] = useState<string>(() => crypto.randomUUID());
-  const [newConversationProjectId, setNewConversationProjectId] = useState<string | undefined>();
+  const [openTabIds, setOpenTabIds] = useState<string[]>(() => [activeId]);
+  const projectState = useConversationValue(activeId, emptyProjectId);
+  const newConversationProjectId = projectState.value;
   const [selectedModelId, setSelectedModelId] = useState(() => {
     try { return localStorage.getItem("zetro.selected-model.v1") ?? "codex-specialist"; } catch { return "codex-specialist"; }
   });
@@ -103,36 +119,73 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
     webTools: false,
   });
   const [connected, setConnected] = useState(true);
-  const [attachments, setAttachments] = useState<PromptAttachment[]>([]);
+  const attachmentState = useConversationValue(activeId, emptyAttachments);
+  const attachments = attachmentState.value;
+  const setAttachments = attachmentState.setCurrent;
   const [attachmentBusy, setAttachmentBusy] = useState(false);
-  const [prompt, setPrompt] = useState("");
+  const promptState = useConversationValue(activeId, emptyPrompt);
+  const prompt = promptState.value;
+  const setPrompt = promptState.setCurrent;
   const [showActivity, setShowActivity] = useState(false);
   const [motion, setMotion] = useState(true);
   const [workflowEnabled, setWorkflowEnabled] = useState(false);
   const [workflowMode, setWorkflowMode] = useState<WorkflowMode>("sequential");
   const [manualApprovals, setManualApprovals] = useState(true);
-  const [exchanges, setExchanges] = useState<Exchange[]>([]);
+  const exchangeState = useConversationValue(activeId, emptyExchanges);
+  const exchanges = exchangeState.value;
+  const setExchanges = exchangeState.setCurrent;
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [renameTargetId, setRenameTargetId] = useState<string | null>(null);
   const [newChatTitle, setNewChatTitle] = useState("");
   const workspaceHydrated = useRef(false);
   const workspace = useQuery({ queryKey: ["zetro-workspace"], queryFn: getWorkspace });
   const zetroSettings = useQuery({ queryKey: ["zetro-settings"], queryFn: getZetroSettings, retry: 5 });
-  const mutation = useMutation({ mutationFn: sendPrompt });
   const workflowMutation = useMutation({ mutationFn: createRun });
-  const [pendingTurn, setPendingTurn] = useState<PendingTurn | null>(null);
-  const [queuedPrompts, setQueuedPrompts] = useState<QueuedPrompt[]>([]);
-  const activeStreamCancel = useRef<(() => void) | null>(null);
-  const sending = mutation.isPending || workflowMutation.isPending || pendingTurn !== null;
-  const [error, setError] = useState("");
-  const request = useRef<AbortController | null>(null);
+  const pendingState = useConversationValue(activeId, emptyPendingTurn);
+  const pendingTurn = pendingState.value;
+  const queuedState = useConversationValue(activeId, emptyQueue);
+  const queuedPrompts = queuedState.value;
+  const setQueuedPrompts = queuedState.setCurrent;
+  const errorState = useConversationValue(activeId, emptyError);
+  const error = errorState.value;
+  const setError = errorState.setCurrent;
+  const requestControllers = useRef(new Map<string, AbortController>());
+  const streamCancels = useRef(new Map<string, () => void>());
+  const activeIdRef = useRef(activeId);
+  const conversationsRef = useRef(conversations);
+  const sending = pendingTurn !== null || workflowMutation.isPending;
   const bottom = useRef<HTMLDivElement>(null);
   const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const [activeProvider, setActiveProvider] = useState<ProviderId>(() => {
+    try {
+      const saved = localStorage.getItem("zetro.selectedProvider");
+      if (saved === "g" || saved === "o" || saved === "c") return saved;
+    } catch {}
+    return "g";
+  });
+  const [activeModel, setActiveModel] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem("zetro.selectedModel");
+      if (saved) return saved;
+    } catch {}
+    return "gemini-2.5-pro";
+  });
+
+  const handleSelectModelProvider = (provider: ProviderId, model: string) => {
+    setActiveProvider(provider);
+    setActiveModel(model);
+    try {
+      localStorage.setItem("zetro.selectedProvider", provider);
+      localStorage.setItem("zetro.selectedModel", model);
+    } catch {}
+  };
+  useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
+  useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
   useEffect(() => () => {
-    request.current?.abort();
-    activeStreamCancel.current?.();
+    requestControllers.current.forEach((controller) => controller.abort());
+    streamCancels.current.forEach((cancel) => cancel());
   }, []);
   useEffect(() => {
     if (!workspace.data || workspaceHydrated.current) return;
@@ -224,8 +277,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
       try { saveConversations(localStorage, next); } catch { /* ignore */ }
       void saveStoredConversation(saved);
     }
-    setActionNotice("Task started. Zetro will track its results here.");
-    setTimeout(() => setActionNotice(null), 2500);
+    zetroNotifications.success("Task started", { description: "Zetro will track its results in this chat." });
   }
 
   function shareWhatsApp(text: string) {
@@ -252,8 +304,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
       setTimeout(() => promptInputRef.current?.focus(), 0);
       notice = "Drafted module generation prompt!";
     }
-    setActionNotice(notice);
-    setTimeout(() => setActionNotice((prev) => (prev === notice ? null : prev)), 2500);
+    zetroNotifications.success(notice);
   }
 
   function handlePinConversation(id: string) {
@@ -262,8 +313,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
     try { saveConversations(localStorage, updated); } catch { /* ignore */ }
     const target = updated.find((item) => item.id === id);
     if (target) void saveStoredConversation(target);
-    setActionNotice(target?.pinned ? "Pinned chat to top!" : "Unpinned chat.");
-    setTimeout(() => setActionNotice(null), 2000);
+    zetroNotifications.success(target?.pinned ? "Chat pinned" : "Chat unpinned");
   }
 
   function handleRenameConversation(id: string, newTitle: string) {
@@ -274,8 +324,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
     try { saveConversations(localStorage, updated); } catch { /* ignore */ }
     const target = updated.find((item) => item.id === id);
     if (target) void saveStoredConversation(target);
-    setActionNotice("Chat renamed.");
-    setTimeout(() => setActionNotice(null), 2000);
+    zetroNotifications.success("Chat renamed");
   }
 
   function handleCreateProject(name: string, localFolder: string, kind: "project" | "addon" = "project") {
@@ -285,26 +334,31 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
     const updated = [...projects, newProj];
     setProjects(updated);
     try { saveProjects(localStorage, updated); } catch { /* ignore */ }
-    void saveStoredProject(newProj);
-    setActionNotice(`${kind === "addon" ? "Add-on" : "Project"} "${trimmed}" created.`);
-    setTimeout(() => setActionNotice(null), 2000);
+    void saveStoredProject(newProj).catch((cause: unknown) => setError(zetroNotifications.error(cause, "Unable to synchronize the new project.")));
+    zetroNotifications.success(`${kind === "addon" ? "Add-on" : "Project"} created`, { description: trimmed });
   }
 
   function handleEditProject(id: string, name: string, localFolder: string) {
     const target = projects.find((project) => project.id === id);
     if (!target || !name.trim()) return;
     const updatedProject = { ...target, name: name.trim(), localFolder };
-    setProjects(projects.map((project) => project.id === id ? updatedProject : project));
-    void saveStoredProject(updatedProject);
-    setActionNotice("Project updated.");
+    const updated = projects.map((project) => project.id === id ? updatedProject : project);
+    setProjects(updated);
+    try { saveProjects(localStorage, updated); } catch { /* Local cache is optional. */ }
+    void saveStoredProject(updatedProject)
+      .then(() => zetroNotifications.success("Project updated", { description: updatedProject.name }))
+      .catch((cause: unknown) => setError(zetroNotifications.error(cause, "Unable to save the project.")));
   }
 
   function handlePinProject(id: string) {
     const target = projects.find((project) => project.id === id);
     if (!target) return;
     const updatedProject = { ...target, pinned: !target.pinned };
-    setProjects(projects.map((project) => project.id === id ? updatedProject : project));
-    void saveStoredProject(updatedProject);
+    const updated = projects.map((project) => project.id === id ? updatedProject : project);
+    setProjects(updated);
+    try { saveProjects(localStorage, updated); } catch { /* Local cache is optional. */ }
+    zetroNotifications.success(updatedProject.pinned ? "Project pinned" : "Project unpinned", { description: updatedProject.name });
+    void saveStoredProject(updatedProject).catch((cause: unknown) => setError(zetroNotifications.error(cause, "Unable to synchronize the project.")));
   }
 
   async function handleArchiveProjectChats(id: string) {
@@ -313,8 +367,8 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
       setProjects(snapshot.projects);
       setConversations(snapshot.conversations);
       if (snapshot.conversations.find((item) => item.id === activeId)?.archived) handleNewChat();
-      setActionNotice("Project chats archived.");
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to archive project chats."); }
+      zetroNotifications.success("Project chats archived");
+    } catch (cause) { setError(zetroNotifications.error(cause, "Unable to archive project chats.")); }
   }
 
   async function handleRemoveProject(id: string) {
@@ -322,23 +376,47 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
       const snapshot = await deleteStoredProject(id);
       setProjects(snapshot.projects);
       setConversations(snapshot.conversations);
-      setActionNotice("Project removed. Its chats are now unassigned.");
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to remove project."); }
+      zetroNotifications.success("Project removed", { description: "Its chats are now unassigned." });
+    } catch (cause) { setError(zetroNotifications.error(cause, "Unable to remove project.")); }
+  }
+
+  function activateConversation(id: string, conversation?: Conversation) {
+    setOpenTabIds((current) => current.includes(id) ? current : [...current, id]);
+    activeIdRef.current = id;
+    setActiveId(id);
+    if (conversation) {
+      exchangeState.setFor(id, conversation.exchanges);
+      projectState.setFor(id, conversation.projectId);
+    }
+    setTimeout(() => promptInputRef.current?.focus(), 0);
   }
 
   function handleNewChat(projectId?: string) {
-    if (request.current) request.current.abort();
-    activeStreamCancel.current?.();
-    activeStreamCancel.current = null;
-    setPendingTurn(null);
-    setActiveId(crypto.randomUUID());
-    setNewConversationProjectId(projectId);
-    setExchanges([]);
-    setPrompt("");
-    setAttachments([]);
-    setQueuedPrompts([]);
-    setError("");
-    setTimeout(() => promptInputRef.current?.focus(), 0);
+    const id = crypto.randomUUID();
+    projectState.setFor(id, projectId);
+    activateConversation(id);
+  }
+
+  function handleCloseTab(id: string) {
+    const remaining = openTabIds.filter((tabId) => tabId !== id);
+    setOpenTabIds(remaining);
+    if (!pendingState.values[id]) {
+      attachmentState.remove(id);
+      errorState.remove(id);
+      exchangeState.remove(id);
+      projectState.remove(id);
+      promptState.remove(id);
+      queuedState.remove(id);
+    }
+    if (id !== activeId) return;
+    const nextId = remaining.at(-1);
+    if (nextId) {
+      activeIdRef.current = nextId;
+      setActiveId(nextId);
+      setTimeout(() => promptInputRef.current?.focus(), 0);
+      return;
+    }
+    handleNewChat();
   }
 
   function handleAssignProject(conversationId: string, projectId?: string) {
@@ -348,8 +426,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
     const target = updated.find((item) => item.id === conversationId);
     if (target) void saveStoredConversation(target);
     const proj = projects.find((p) => p.id === projectId);
-    setActionNotice(proj ? `Moved to "${proj.name}".` : "Moved to Conversations.");
-    setTimeout(() => setActionNotice(null), 2000);
+    zetroNotifications.success(proj ? `Moved to ${proj.name}` : "Moved to Conversations");
   }
 
   function handleArchiveConversation(id: string) {
@@ -358,33 +435,27 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
     try { saveConversations(localStorage, updated); } catch { /* ignore */ }
     const target = updated.find((item) => item.id === id);
     if (target) void saveStoredConversation(target);
-    setActionNotice(target?.archived ? "Archived chat." : "Unarchived chat.");
-    setTimeout(() => setActionNotice(null), 2000);
+    zetroNotifications.success(target?.archived ? "Chat archived" : "Chat restored");
   }
 
   function handleDeleteConversation(id: string) {
+    requestControllers.current.get(id)?.abort();
+    requestControllers.current.delete(id);
+    streamCancels.current.get(id)?.();
+    streamCancels.current.delete(id);
+    pendingState.setFor(id, null);
     const updated = conversations.filter((item) => item.id !== id);
     setConversations(updated);
     try { saveConversations(localStorage, updated); } catch { /* ignore */ }
     void deleteStoredConversation(id);
-    if (activeId === id) {
-      if (updated.length > 0) {
-        setActiveId(updated[0]!.id);
-        setExchanges(updated[0]!.exchanges);
-      } else {
-        setActiveId(crypto.randomUUID());
-        setExchanges([]);
-      }
-    }
-    setActionNotice("Chat deleted.");
-    setTimeout(() => setActionNotice(null), 2000);
+    handleCloseTab(id);
+    zetroNotifications.success("Chat deleted");
   }
 
   function handleCopyConversation(item: Conversation) {
     const text = `${item.title}\n\n` + item.exchanges.map((e) => `User: ${e.prompt}\nZetro: ${e.result}`).join("\n\n");
     void navigator.clipboard.writeText(text);
-    setActionNotice("Conversation copied to clipboard!");
-    setTimeout(() => setActionNotice(null), 2000);
+    zetroNotifications.success("Conversation copied");
   }
 
   function handleDeleteExchange(index: number) {
@@ -397,8 +468,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
       try { saveConversations(localStorage, next); } catch { /* ignore */ }
       void saveStoredConversation(next[0]!);
     }
-    setActionNotice("Message removed from history.");
-    setTimeout(() => setActionNotice(null), 2000);
+    zetroNotifications.success("Message removed from history");
   }
 
   async function send(event: FormEvent) {
@@ -406,8 +476,11 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
     if (attachmentBusy || (!prompt.trim() && !attachments.length)) return;
     const submitted = prompt.trim() || "Process attached files";
     const submittedAttachments = [...attachments];
+    const conversationId = activeId;
+    const conversationExchanges = [...exchanges];
+    const conversationProjectId = newConversationProjectId;
 
-    if (request.current || pendingTurn || workflowMutation.isPending) {
+    if (requestControllers.current.has(conversationId) || pendingTurn || workflowMutation.isPending) {
       setQueuedPrompts((current) => [...current, {
         id: `queued-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         message: submitted,
@@ -416,8 +489,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
       setPrompt("");
       setAttachments([]);
       setError("");
-      setActionNotice("Message queued for your next steer.");
-      setTimeout(() => setActionNotice(null), 2500);
+      zetroNotifications.info("Message queued", { description: "Review the current response before sending it." });
       return;
     }
 
@@ -429,10 +501,9 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
     if (workflowEnabled) {
       try {
         await workflowMutation.mutateAsync({ message: submitted, mode: workflowMode, manualApprovals, queue: true });
-        setActionNotice("Workflow added to the orchestration queue.");
-        setTimeout(() => setActionNotice(null), 2500);
+        zetroNotifications.success("Workflow added to the orchestration queue");
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : "Unable to start workflow.");
+        setError(zetroNotifications.error(cause, "Unable to start workflow."));
         setPrompt(submitted);
       } finally {
         setTimeout(() => promptInputRef.current?.focus(), 0);
@@ -443,32 +514,34 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
     const pendingId = `turn-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const now = new Date().toISOString();
 
+    const providerLabel = activeProvider === "g" ? "Gemini" : activeProvider === "o" ? "OpenCode" : "Codex";
+
     // Immediately show on history and display live processing actions
-    setPendingTurn({
+    pendingState.setFor(conversationId, {
       id: pendingId,
       prompt: submitted,
       timestamp: now,
       status: "thinking",
-      statusText: "Thinking",
+      statusText: `Asking ${providerLabel} (${activeModel})…`,
       activities: [
         { id: "act-1", label: "Receiving prompt", status: "completed" },
-        { id: "act-2", label: "Analyzing request", status: "running" },
+        { id: "act-2", label: `Dispatching to ${providerLabel} (${activeModel})`, status: "running" },
       ],
       streamedResult: "",
     });
 
     const controller = new AbortController();
-    request.current = controller;
+    requestControllers.current.set(conversationId, controller);
 
     const stageTimer1 = setTimeout(() => {
-      setPendingTurn((prev) => {
+      pendingState.setFor(conversationId, (prev) => {
         if (!prev || prev.status !== "thinking") return prev;
         return {
           ...prev,
-          statusText: "Consulting context & tools…",
+          statusText: `Consulting ${providerLabel} & tools…`,
           activities: [
             { id: "act-1", label: "Receiving prompt", status: "completed" },
-            { id: "act-2", label: "Analyzing request", status: "completed" },
+            { id: "act-2", label: `Dispatching to ${providerLabel} (${activeModel})`, status: "completed" },
             { id: "act-3", label: "Gathering context", status: "running" },
           ],
         };
@@ -476,14 +549,14 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
     }, 1800);
 
     const stageTimer2 = setTimeout(() => {
-      setPendingTurn((prev) => {
+      pendingState.setFor(conversationId, (prev) => {
         if (!prev || prev.status !== "thinking") return prev;
         return {
           ...prev,
-          statusText: "Synthesizing response…",
+          statusText: `Synthesizing ${providerLabel} response…`,
           activities: [
             { id: "act-1", label: "Receiving prompt", status: "completed" },
-            { id: "act-2", label: "Analyzing request", status: "completed" },
+            { id: "act-2", label: `Dispatching to ${providerLabel} (${activeModel})`, status: "completed" },
             { id: "act-3", label: "Gathering context", status: "completed" },
             { id: "act-4", label: "Synthesizing answer", status: "running" },
           ],
@@ -492,11 +565,14 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
     }, 3800);
 
     try {
-      const result = await mutation.mutateAsync({
+      const result = await sendPrompt({
         agentId: zetroSettings.data?.defaultAgentId ?? "zetro",
+        conversationId,
         message: submitted,
         signal: controller.signal,
         attachments: submittedAttachments,
+        provider: activeProvider,
+        model: activeModel,
       });
 
       clearTimeout(stageTimer1);
@@ -511,7 +587,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
           ];
 
       // Stream response live
-      setPendingTurn((prev) =>
+      pendingState.setFor(conversationId, (prev) =>
         prev
           ? {
               ...prev,
@@ -524,20 +600,21 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
       );
 
       await new Promise<void>((resolve) => {
-        activeStreamCancel.current = streamText(
+        const cancel = streamText(
           result.message,
           (partial) => {
-            setPendingTurn((prev) => (prev ? { ...prev, streamedResult: partial } : null));
+            pendingState.setFor(conversationId, (prev) => (prev ? { ...prev, streamedResult: partial } : null));
           },
           () => {
-            activeStreamCancel.current = null;
+            streamCancels.current.delete(conversationId);
             resolve();
           }
         );
+        streamCancels.current.set(conversationId, cancel);
       });
 
       const updated: Exchange[] = [
-        ...exchanges,
+        ...conversationExchanges,
         {
           id: result.runId || pendingId,
           prompt: submitted,
@@ -547,41 +624,43 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
           workCaseId: result.workCaseId,
         },
       ];
-      setExchanges(updated);
-      const prior = conversations.find((item) => item.id === activeId);
+      exchangeState.setFor(conversationId, updated);
+      const prior = conversationsRef.current.find((item) => item.id === conversationId);
       const conversation: Conversation = {
-        id: activeId,
+        id: conversationId,
         title: updated[0]!.prompt.slice(0, 100),
         updatedAt: now,
         exchanges: updated,
-        projectId: prior?.projectId ?? newConversationProjectId,
+        projectId: prior?.projectId ?? conversationProjectId,
         pinned: prior?.pinned,
         archived: prior?.archived,
       };
-      const next = [conversation, ...conversations.filter((item) => item.id !== activeId)];
+      const next = [conversation, ...conversationsRef.current.filter((item) => item.id !== conversationId)];
+      conversationsRef.current = next;
       setConversations(next);
       try {
         saveConversations(localStorage, next);
       } catch {
-        setError("Unable to save chat history in this browser.");
+        errorState.setFor(conversationId, "Unable to save chat history in this browser.");
       }
       void saveStoredConversation(conversation).catch(() =>
-        setError("Unable to save chat history in Zetro.")
+        errorState.setFor(conversationId, zetroNotifications.error(null, "Unable to save chat history in Zetro."))
       );
-      setPendingTurn(null);
+      pendingState.setFor(conversationId, null);
+      if (activeIdRef.current !== conversationId) zetroNotifications.success("Zetro response ready", { description: conversation.title });
     } catch (cause) {
       clearTimeout(stageTimer1);
       clearTimeout(stageTimer2);
-      activeStreamCancel.current?.();
-      activeStreamCancel.current = null;
-      setPendingTurn(null);
+      streamCancels.current.get(conversationId)?.();
+      streamCancels.current.delete(conversationId);
+      pendingState.setFor(conversationId, null);
       if (!controller.signal.aborted) {
-        setError(cause instanceof Error ? cause.message : "Unable to connect to Zetro.");
-        setPrompt(submitted);
+        errorState.setFor(conversationId, zetroNotifications.error(cause, "Unable to connect to Zetro."));
+        promptState.setFor(conversationId, submitted);
       }
     } finally {
-      request.current = null;
-      setTimeout(() => promptInputRef.current?.focus(), 0);
+      requestControllers.current.delete(conversationId);
+      if (activeIdRef.current === conversationId) setTimeout(() => promptInputRef.current?.focus(), 0);
     }
   }
 
@@ -592,7 +671,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
     setAttachments(queued.attachments);
     setQueuedPrompts((current) => current.filter((item) => item.id !== id));
     setError("");
-    setActionNotice("Queued message ready for your steer.");
+    zetroNotifications.info("Queued message moved to the composer");
     setTimeout(() => promptInputRef.current?.focus(), 0);
   }
 
@@ -600,27 +679,20 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
     setQueuedPrompts((current) => current.filter((item) => item.id !== id));
   }
 
+  const runningConversationIds = useMemo(
+    () => new Set(Object.entries(pendingState.values).filter(([, turn]) => turn !== null).map(([id]) => id)),
+    [pendingState.values]
+  );
+
   return <MdiTopologyRegion id="z1" topology={topology} className="flex h-full min-h-0 flex-col bg-background [&>.technical-label]:!left-auto [&>.technical-label]:!right-3">
     {sideCarTarget && createPortal(<ConversationSideCar
       topology={topology}
       conversations={conversations}
       projects={projects}
       activeId={activeId}
-      disabled={sending || attachmentBusy}
-      onSelect={(item) => {
-        if (request.current) request.current.abort();
-        activeStreamCancel.current?.();
-        activeStreamCancel.current = null;
-        setPendingTurn(null);
-        setActiveId(item.id);
-        setNewConversationProjectId(item.projectId);
-        setExchanges(item.exchanges);
-        setPrompt("");
-        setAttachments([]);
-        setQueuedPrompts([]);
-        setError("");
-        setTimeout(() => promptInputRef.current?.focus(), 0);
-      }}
+      runningIds={runningConversationIds}
+      disabled={attachmentBusy}
+      onSelect={(item) => activateConversation(item.id, item)}
       onNew={handleNewChat}
       onPin={handlePinConversation}
       onRename={handleRenameConversation}
@@ -750,6 +822,17 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
         </Popover>
       </div>
     </header>
+    <MdiTopologyRegion id="z3.1" topology={topology} className="shrink-0">
+      <ConversationTabs
+        activeId={activeId}
+        conversations={conversations}
+        openIds={openTabIds}
+        runningIds={runningConversationIds}
+        onClose={handleCloseTab}
+        onNew={() => handleNewChat()}
+        onSelect={(id) => activateConversation(id, conversations.find((item) => item.id === id))}
+      />
+    </MdiTopologyRegion>
     <MdiTopologyRegion id="z4" topology={topology} className="min-h-0 flex-1 overflow-y-auto px-6 py-8"><div aria-live="polite">
       <MdiTopologyRegion id="z4.1" topology={topology} className="mx-auto w-full md:w-4/5 max-w-5xl space-y-8">
         {exchanges.length || pendingTurn ? (
@@ -824,7 +907,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
                             <Bot className="size-3.5" />
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="whitespace-pre-wrap break-words text-sm leading-7">{exchange.result}</p>
+                            <MarkdownRenderer content={exchange.result} />
                             <div className="mt-1 flex items-center gap-1 text-muted-foreground opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                               {exchange.timestamp && <span className="mr-1 text-[10px] text-muted-foreground">{formatShortTime(exchange.timestamp)}</span>}
                               <Button type="button" variant="ghost" size="icon" className="size-7 cursor-pointer hover:text-foreground" title="Copy response" aria-label="Copy response" onClick={() => copyText(exchange.result, `${exchange.id}-result`)}>
@@ -876,6 +959,8 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
                               </Popover>
                               <TaskHandoffControls
                                 chatReview={exchanges.slice(0, index).map((item) => `You: ${item.prompt}\nZetro: ${item.result}`).join("\n\n")}
+                                conversationId={activeId}
+                                exchangeId={exchange.id}
                                 onTaskCreated={(taskId) => linkTask(exchange.id, taskId)}
                                 prompt={exchange.prompt}
                                 response={exchange.result}
@@ -968,10 +1053,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
                       </div>
                     ) : (
                       <div>
-                        <p className="whitespace-pre-wrap break-words text-sm leading-7">
-                          {pendingTurn.streamedResult}
-                          <span className="inline-block w-1.5 h-4 ml-1 bg-primary animate-pulse align-middle" />
-                        </p>
+                        <MarkdownRenderer content={pendingTurn.streamedResult} isStreaming />
                       </div>
                     )}
                     {showActivity && pendingTurn.activities?.length ? (
@@ -1009,7 +1091,6 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
         <div ref={bottom} />
       </MdiTopologyRegion>
     </div>
-    {actionNotice && <div role="status" className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 rounded-lg bg-foreground px-3 py-1.5 text-xs text-background shadow-lg transition-all animate-in fade-in slide-in-from-bottom-2">{actionNotice}</div>}
     </MdiTopologyRegion>
     <MdiTopologyRegion id="z5" topology={topology} className="shrink-0 px-3 pb-5 pt-3 sm:px-6">
       <form
@@ -1027,8 +1108,20 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
         </MdiTopologyRegion>}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
-            <AttachmentControls items={attachments} onChange={setAttachments} disabled={attachmentBusy} onBusy={setAttachmentBusy} onError={setError} />
-            <MdiTopologyRegion id="z5.2" topology={topology}><span role="status" className="text-xs text-muted-foreground">{sending ? "Zetro is responding · queue for your next steer" : queuedPrompts.length ? "Queued message waiting for your steer" : "Zetro · Docker"}</span></MdiTopologyRegion>
+            <AttachmentControls items={attachments} onChange={setAttachments} disabled={attachmentBusy} onBusy={setAttachmentBusy} onError={(message) => {
+              setError(message);
+              if (message) zetroNotifications.error(new Error(message), message);
+            }} />
+            <MdiTopologyRegion id="z5.2" topology={topology}>
+              <ModelProviderSelector
+                activeProvider={activeProvider}
+                activeModel={activeModel}
+                onSelect={handleSelectModelProvider}
+                sending={sending}
+                queuedCount={queuedPrompts.length}
+                statusText={pendingTurn?.statusText}
+              />
+            </MdiTopologyRegion>
           </div>
           <MdiTopologyRegion id="z5.3" topology={topology}><Button type="submit" aria-label={sending ? "Queue prompt for next steer" : "Send prompt"} title={sending ? "Queue prompt for next steer" : "Send prompt"} disabled={attachmentBusy || (!prompt.trim() && !attachments.length)} className="rounded-full cursor-pointer" size="icon"><ArrowUp className="size-4" /></Button></MdiTopologyRegion>
         </div>

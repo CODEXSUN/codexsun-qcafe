@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 import { execFileSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
@@ -13,8 +14,10 @@ mkdirSync(release, { recursive: true });
 const exeFile = `qcafe-${version}-x64-setup.exe`;
 const msiFile = `qcafe-${version}-x64.msi`;
 const zipFile = `qcafe-${version}-x64-setup.zip`;
+const updateFile = 'qcafe-update.json';
+const checksumsFile = 'qcafe-checksums.txt';
 
-for (const name of [exeFile, msiFile, zipFile]) rmSync(resolve(release, name), { force: true });
+for (const name of [exeFile, msiFile, zipFile, updateFile, checksumsFile]) rmSync(resolve(release, name), { force: true });
 copyArtifact(resolve(bundle, 'nsis'), '.exe', resolve(release, exeFile), version);
 copyArtifact(resolve(bundle, 'msi'), '.msi', resolve(release, msiFile), version);
 
@@ -34,6 +37,7 @@ try {
   }
 }
 
+writeUpdateFiles({ release, version, exeFile, msiFile, zipFile, updateFile, checksumsFile });
 console.log(`Q Cafe installers ready in ${release}`);
 
 function copyArtifact(directory, extension, destination, version) {
@@ -48,3 +52,24 @@ function copyArtifact(directory, extension, destination, version) {
   cpSync(source, destination);
   console.log(destination);
 }
+
+function writeUpdateFiles({ release, version, exeFile, msiFile, zipFile, updateFile, checksumsFile }) {
+  const files = [exeFile, msiFile, zipFile];
+  const checksums = files.map(name => ({ name, sha256: hash(resolve(release, name)) }));
+  const tag = `v-${version}`;
+  const base = `https://github.com/CODEXSUN/codexsun/releases/download/${tag}`;
+  const manifest = {
+    schemaVersion: 1,
+    version,
+    stable: true,
+    notes: `Q Cafe ${version} Windows update.`,
+    installer: { url: `${base}/${exeFile}`, sha256: checksums.find(file => file.name === exeFile).sha256 },
+    assets: checksums.map(file => ({ ...file, url: `${base}/${file.name}` })),
+  };
+  writeFileSync(resolve(release, updateFile), `${JSON.stringify(manifest, null, 2)}\n`);
+  writeFileSync(resolve(release, checksumsFile), checksums.map(file => `${file.sha256}  ${file.name}`).join("\n") + "\n");
+  console.log(resolve(release, updateFile));
+  console.log(resolve(release, checksumsFile));
+}
+
+function hash(file) { return createHash("sha256").update(readFileSync(file)).digest("hex"); }

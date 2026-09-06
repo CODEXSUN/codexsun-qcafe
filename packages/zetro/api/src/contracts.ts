@@ -7,6 +7,8 @@ export const messageInputSchema = z.object({
   conversationId: z.string().uuid().optional(),
   message: z.string().trim().min(1).max(20_000),
   attachments: z.array(attachmentSchema).max(3).refine((items) => items.reduce((size, item) => size + item.data.length, 0) <= 2_800_000, "Attachments exceed 2 MB.").optional(),
+  provider: z.string().optional(),
+  model: z.string().optional(),
 }).strict();
 export const dispatchInputSchema = messageInputSchema.extend({ agentId: agentIdSchema, workCaseId: z.string().uuid().optional() });
 export const agentProfileSchema = z.object({
@@ -26,8 +28,26 @@ export const turnSchema = z.object({
   })),
   usage: z.object({ inputTokens: z.number(), outputTokens: z.number(), cachedInputTokens: z.number() }).nullable(),
   workCaseId: z.string().uuid().optional(),
+  connection: z.object({
+    id: z.string(),
+    name: z.string(),
+    model: z.string(),
+  }).optional(),
 });
 export type AgentProfile = z.infer<typeof agentProfileSchema>;
 export type MessageInput = z.infer<typeof messageInputSchema>;
 export type AgentTurn = z.infer<typeof turnSchema>;
-export type AgentSummary = AgentProfile & { configured: boolean; runtimeStatus?: "healthy" | "offline" | "unconfigured"; mode?: "local-demo" | "provider" };
+export type AgentSummary = AgentProfile & {
+  configured: boolean;
+  runtimeStatus?: "healthy" | "offline" | "unconfigured";
+  mode?: "local-demo" | "provider";
+  providers?: Array<{
+    id: string;
+    name: string;
+    model: string;
+    configured: boolean;
+    busy?: boolean;
+    connectedAs?: string;
+    connectionMethod?: string;
+  }>;
+};

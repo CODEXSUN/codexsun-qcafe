@@ -1,16 +1,35 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BarChart3, CheckCircle2, ClipboardCheck, Eye, Loader2, MessagesSquare, Play, RefreshCw, Rocket, Send, ShieldCheck, Wrench } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@codexsun/ui/components/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@codexsun/ui/components/ui/dialog";
-import { approveAiTask, createAndStartAiTask, getAiTask, prepareTaskRelease } from "./ai-task-api.js";
+import { AI_TASK_NAVIGATE_EVENT, type AiTaskNavigateDetail } from "@codexsun/ai-task-contracts";
+import { approveAiTask, createAndStartAiTask, createZetroTaskSource, getAiTask, prepareTaskRelease } from "./ai-task-api.js";
+import { zetroNotifications } from "./notifications.js";
 
-export function TaskHandoffControls({ chatReview, prompt, response, taskId, workCaseId, onTaskCreated }: { chatReview: string; prompt: string; response: string; taskId?: string; workCaseId?: string; onTaskCreated: (id: string) => void }) {
+export function TaskHandoffControls({ chatReview, conversationId, exchangeId, prompt, response, taskId, workCaseId, onTaskCreated }: { chatReview: string; conversationId: string; exchangeId: string; prompt: string; response: string; taskId?: string; workCaseId?: string; onTaskCreated: (id: string) => void }) {
   const [open, setOpen] = useState(false);
   const [reviewMode, setReviewMode] = useState<"prompt" | "chat">("prompt");
   const [taskRequest, setTaskRequest] = useState(() => composeTaskRequest(prompt, response, chatReview));
   const task = useQuery({ queryKey: ["zetro-linked-task", taskId], queryFn: () => getAiTask(taskId!), enabled: Boolean(taskId), refetchInterval: (query) => ["running", "planned"].includes(query.state.data?.status ?? "") ? 1500 : false });
-  const send = useMutation({ mutationFn: createAndStartAiTask, onSuccess: (created) => { onTaskCreated(created.id); setOpen(false); } });
+  const send = useMutation({
+    mutationFn: createAndStartAiTask,
+    onSuccess: (created) => {
+      onTaskCreated(created.id);
+      setOpen(false);
+      zetroNotifications.success("Task sent and started", { description: created.title });
+    },
+    onError: (cause) => zetroNotifications.error(cause, "Unable to start the task."),
+  });
+
+  async function refreshTask() {
+    const result = await task.refetch();
+    if (result.error) {
+      zetroNotifications.error(result.error, "Unable to refresh task status.");
+      return;
+    }
+    zetroNotifications.info("Task status refreshed", { description: result.data?.status.replaceAll("_", " ") });
+  }
 
   function show(mode: "prompt" | "chat") {
     setReviewMode(mode);
@@ -22,7 +41,7 @@ export function TaskHandoffControls({ chatReview, prompt, response, taskId, work
     <Button type="button" variant="ghost" size="icon" className="size-7 cursor-pointer hover:text-foreground" aria-label="Review prompt" title="Review prompt" onClick={() => show("prompt")}><Eye className="size-3.5" /></Button>
     <Button type="button" variant="ghost" size="icon" className="size-7 cursor-pointer hover:text-foreground" aria-label="Review chat" title="Review chat" onClick={() => show("chat")}><MessagesSquare className="size-3.5" /></Button>
     <Button type="button" variant="ghost" size="icon" className="size-7 cursor-pointer hover:text-foreground" aria-label="Send to Task System" title="Send to Task System" disabled={send.isPending || Boolean(taskId)} onClick={() => show("prompt")}><Send className="size-3.5" /></Button>
-    {taskId && <Button type="button" variant="ghost" size="icon" className="size-7 cursor-pointer hover:text-foreground" aria-label="Check task status" title="Check task status" disabled={task.isFetching} onClick={() => void task.refetch()}>{task.isFetching ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}</Button>}
+    {taskId && <Button type="button" variant="ghost" size="icon" className="size-7 cursor-pointer hover:text-foreground" aria-label="Check task status" title="Check task status" disabled={task.isFetching} onClick={() => void refreshTask()}>{task.isFetching ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}</Button>}
 
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-2xl">
@@ -33,7 +52,7 @@ export function TaskHandoffControls({ chatReview, prompt, response, taskId, work
         </div>
         {reviewMode === "prompt" ? <textarea aria-label="Task request" className="min-h-64 w-full resize-y rounded-xl border border-input bg-background p-3 text-sm leading-6 outline-none focus-visible:ring-2 focus-visible:ring-ring" maxLength={8000} value={taskRequest} onChange={(event) => setTaskRequest(event.target.value)} /> : <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-xl border border-border bg-muted/30 p-3 text-xs leading-5">{chatReview || "No earlier chat context."}</pre>}
         {send.error && <p className="text-sm text-destructive" role="alert">{send.error.message}</p>}
-        <DialogFooter><Button type="button" variant="outline" className="cursor-pointer" onClick={() => setOpen(false)}>Cancel</Button><Button type="button" className="cursor-pointer gap-2" disabled={send.isPending || taskRequest.trim().length < 8} onClick={() => send.mutate({ requestText: taskRequest.trim(), workCaseId })}>{send.isPending ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}Send and start task</Button></DialogFooter>
+        <DialogFooter><Button type="button" variant="outline" className="cursor-pointer" onClick={() => setOpen(false)}>Cancel</Button><Button type="button" className="cursor-pointer gap-2" disabled={send.isPending || taskRequest.trim().length < 8} onClick={() => send.mutate({ requestText: taskRequest.trim(), workCaseId, source: createZetroTaskSource({ subject: prompt, conversationId, exchangeId }) })}>{send.isPending ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}Send and start task</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   </>;
@@ -41,10 +60,31 @@ export function TaskHandoffControls({ chatReview, prompt, response, taskId, work
 
 export function TaskHandoffResult({ taskId }: { taskId?: string }) {
   const task = useQuery({ queryKey: ["zetro-linked-task", taskId], queryFn: () => getAiTask(taskId!), enabled: Boolean(taskId), refetchInterval: (query) => ["running", "planned"].includes(query.state.data?.status ?? "") ? 1500 : false });
+  const [approvalOpen, setApprovalOpen] = useState(false);
+  const previousStatus = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const status = task.data?.status;
+    if (!status || previousStatus.current === status) return;
+    previousStatus.current = status;
+    if (status === "awaiting_review") {
+      setApprovalOpen(true);
+      zetroNotifications.warning("Task is waiting for approval", { description: task.data?.title });
+    } else if (status === "completed") {
+      zetroNotifications.success("Task completed", { description: task.data?.title });
+    } else if (status === "failed") {
+      zetroNotifications.error(new Error("Agent execution stopped."), task.data?.title ?? "Task failed.");
+    }
+  }, [task.data?.status, task.data?.title]);
   if (!taskId) return null;
   return <>
     {task.data && <TaskResult task={task.data} />}
     {task.error && <p className="mt-2 text-xs text-destructive" role="alert">{task.error.message}</p>}
+    <Dialog open={approvalOpen} onOpenChange={setApprovalOpen}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle>Task waiting for approval</DialogTitle><DialogDescription>{task.data?.title ?? "Agent work is ready."} Review the returned evidence before allowing completion.</DialogDescription></DialogHeader>
+        <DialogFooter><Button type="button" variant="outline" className="cursor-pointer" onClick={() => setApprovalOpen(false)}>Later</Button><Button type="button" className="cursor-pointer" onClick={() => { setApprovalOpen(false); openTaskSystem(taskId); }}>Review in Task System</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
   </>;
 }
 
@@ -53,8 +93,22 @@ function TaskResult({ task }: { task: Awaited<ReturnType<typeof getAiTask>> }) {
   const [releaseOpen, setReleaseOpen] = useState(false);
   const [projectKey, setProjectKey] = useState("codexsun-os");
   const [repository, setRepository] = useState("");
-  const approve = useMutation({ mutationFn: () => approveAiTask(task.id), onSuccess: () => void client.invalidateQueries({ queryKey: ["zetro-linked-task", task.id] }) });
-  const release = useMutation({ mutationFn: () => prepareTaskRelease({ taskId: task.id, projectKey: projectKey.trim(), repository }), onSuccess: () => setReleaseOpen(false) });
+  const approve = useMutation({
+    mutationFn: () => approveAiTask(task.id),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["zetro-linked-task", task.id] });
+      zetroNotifications.success("Task evidence approved");
+    },
+    onError: (cause) => zetroNotifications.error(cause, "Unable to approve task evidence."),
+  });
+  const release = useMutation({
+    mutationFn: () => prepareTaskRelease({ taskId: task.id, projectKey: projectKey.trim(), repository }),
+    onSuccess: (prepared) => {
+      setReleaseOpen(false);
+      zetroNotifications.success("Orship release prepared", { description: prepared.id });
+    },
+    onError: (cause) => zetroNotifications.error(cause, "Unable to prepare the Orship release."),
+  });
   const completed = task.workItems.filter((item) => item.status === "completed");
   const agents = [...new Set(task.workItems.map((item) => item.agentId))];
   const capabilities = [...new Set(task.workItems.map((item) => item.capability))];
@@ -83,4 +137,8 @@ function formatDuration(milliseconds: number) {
   if (milliseconds < 1000) return `${milliseconds} ms`;
   const seconds = Math.round(milliseconds / 1000);
   return seconds < 60 ? `${seconds} s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+}
+
+function openTaskSystem(taskId: string) {
+  window.dispatchEvent(new CustomEvent<AiTaskNavigateDetail>(AI_TASK_NAVIGATE_EVENT, { detail: { taskId } }));
 }

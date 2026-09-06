@@ -22,8 +22,8 @@ export function Pos1HeaderSection({
   onFocusPayment,
   showPaymentCollector,
   onTogglePaymentCollector,
-  showOrderTabs = true,
-  showKitchenButton = true,
+  showOrderTabs = false,
+  showKitchenButton = false,
 }: Pos1HeaderSectionProps) {
   return (
     <header
@@ -87,7 +87,7 @@ export function Pos1HeaderSection({
         </div>
 
         {/* Order Tabs (Immediately after search on left) */}
-        {showOrderTabs !== false && (
+        {Boolean(showOrderTabs) && (
           <div className="flex items-center gap-1.5 shrink-0">
             {tabs.map((tab) => {
               const isActive = tab.id === activeTabId;
@@ -210,7 +210,7 @@ export function Pos1HeaderSection({
         </div>
 
         {/* 1. Kitchen Button (with Kitchen label, Send icon, and F4 shortcut key) */}
-        {showKitchenButton !== false && (
+        {Boolean(showKitchenButton) && (
           <div className="relative group shrink-0">
             <button
               type="button"

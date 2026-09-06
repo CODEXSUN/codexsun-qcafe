@@ -454,17 +454,17 @@ export function Overview({ data, busy, mutate, topology, navigate }: OverviewPro
     >
       <TopologyMarker id="q13" topology={topology} />
 
-      {/* TOP UNIFIED MINIMAL HEADER BAR (~44px, Zero Redundancy) */}
-      <header className="shrink-0 flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-border bg-card px-3.5 py-2 shadow-2xs print:hidden">
+      {/* TOP UNIFIED MINIMAL HEADER BAR (~44px, Zero Redundancy, Single Row) */}
+      <header className="shrink-0 flex flex-nowrap items-center justify-between gap-2 rounded-xl border border-border bg-card px-3 py-1.5 shadow-2xs print:hidden overflow-x-auto no-scrollbar">
         {/* Left: Title + Date Filter Pills + Date Picker */}
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <div className="flex items-center gap-1.5 pr-1 border-r border-border">
+        <div className="flex items-center gap-2 shrink-0 flex-nowrap">
+          <div className="flex items-center gap-1.5 pr-2 border-r border-border shrink-0">
             <TrendingUp className="size-4 text-blue-600 dark:text-blue-400" />
-            <h2 className="text-sm font-bold tracking-tight text-foreground">Overview</h2>
+            <h2 className="text-sm font-bold tracking-tight text-foreground whitespace-nowrap">Overview</h2>
           </div>
 
           {/* Minimal Date Preset Pills */}
-          <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5">
+          <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5 shrink-0">
             {(
               [
                 { id: 'today', label: 'Today' },
@@ -478,7 +478,7 @@ export function Overview({ data, busy, mutate, topology, navigate }: OverviewPro
                 key={preset.id}
                 type="button"
                 onClick={() => setDateFilter(preset.id)}
-                className={`cursor-pointer rounded-md px-2.5 py-1 text-xs font-semibold transition-all ${
+                className={`cursor-pointer rounded-md px-2 py-0.5 text-xs font-semibold whitespace-nowrap transition-all ${
                   dateFilter === preset.id
                     ? 'bg-blue-600 text-white shadow-xs'
                     : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -490,7 +490,7 @@ export function Overview({ data, busy, mutate, topology, navigate }: OverviewPro
           </div>
 
           {/* Compact Date Picker */}
-          <div className="flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-xs shadow-2xs">
+          <div className="flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-0.5 text-xs shadow-2xs shrink-0">
             <Calendar size={12} className="text-muted-foreground shrink-0" />
             <input
               type="date"
@@ -506,13 +506,13 @@ export function Overview({ data, busy, mutate, topology, navigate }: OverviewPro
         </div>
 
         {/* Right: View Switcher Tabs + Filter Dropdown + Daily Settlement + New Order */}
-        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+        <div className="flex items-center gap-1.5 shrink-0 flex-nowrap">
           {/* View Toggle Segment: Invoices vs Daily Summary */}
-          <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5">
+          <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5 shrink-0">
             <button
               type="button"
               onClick={() => setViewMode('invoices')}
-              className={`flex items-center gap-1.5 cursor-pointer rounded-md px-2.5 py-1 text-xs font-semibold transition-all ${
+              className={`flex items-center gap-1.5 cursor-pointer rounded-md px-2 py-0.5 text-xs font-semibold whitespace-nowrap transition-all ${
                 viewMode === 'invoices'
                   ? 'bg-card text-foreground shadow-2xs border border-border/70'
                   : 'text-muted-foreground hover:text-foreground'
@@ -528,7 +528,7 @@ export function Overview({ data, busy, mutate, topology, navigate }: OverviewPro
             <button
               type="button"
               onClick={() => setViewMode('daily_summary')}
-              className={`flex items-center gap-1.5 cursor-pointer rounded-md px-2.5 py-1 text-xs font-semibold transition-all ${
+              className={`flex items-center gap-1.5 cursor-pointer rounded-md px-2 py-0.5 text-xs font-semibold whitespace-nowrap transition-all ${
                 viewMode === 'daily_summary'
                   ? 'bg-card text-foreground shadow-2xs border border-border/70'
                   : 'text-muted-foreground hover:text-foreground'
@@ -543,7 +543,7 @@ export function Overview({ data, busy, mutate, topology, navigate }: OverviewPro
           </div>
 
           {/* Filter Dropdown Toggle Button */}
-          <div className="relative">
+          <div className="relative shrink-0">
             <button
               type="button"
               onClick={() => setShowFilterDropdown((v) => !v)}
@@ -641,7 +641,7 @@ export function Overview({ data, busy, mutate, topology, navigate }: OverviewPro
           <Button
             type="button"
             onClick={() => handleOpenSettlement()}
-            className="cursor-pointer gap-1.5 bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs shadow-xs rounded-lg h-7 px-3"
+            className="cursor-pointer gap-1.5 bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs shadow-xs rounded-lg h-7 px-2.5 whitespace-nowrap shrink-0"
             title="Perform End of Day register settlement and print Z-Report"
           >
             <Scale size={13} />
@@ -653,7 +653,7 @@ export function Overview({ data, busy, mutate, topology, navigate }: OverviewPro
             type="button"
             variant="outline"
             onClick={() => navigate('POS')}
-            className="cursor-pointer gap-1.5 font-medium shadow-xs text-xs h-7 px-2.5"
+            className="cursor-pointer gap-1.5 font-medium shadow-xs text-xs h-7 px-2.5 whitespace-nowrap shrink-0"
             title="Open POS Billing Desk"
           >
             <Plus size={15} />

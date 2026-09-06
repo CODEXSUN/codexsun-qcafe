@@ -39,3 +39,16 @@
 .opencode-free-box .hint-text{color:#1f5538}
 .btn-free{background:#187346!important;border-color:#187346!important;color:#fff!important}
 .btn-free:hover{background:#115734!important}
+.live-status-pill-blue{color:#1a56db;border-color:#bfdbfe;background:#eff6ff}
+.google-auth-start-box{margin-bottom:20px;padding:18px 20px;border-radius:12px;background:#f8faff;border:1px solid #c7d8f5}
+.google-auth-start-box .hint-text{color:#2a3d60}
+.google-signin-btn{display:inline-flex;align-items:center;gap:8px;background:#1a73e8;border-color:#1a73e8;color:#fff;font-weight:700}
+.google-signin-btn:hover{background:#1558b0;border-color:#1558b0}
+.google-icon{display:inline-grid;place-items:center;width:20px;height:20px;background:#fff;color:#1a73e8;border-radius:50%;font-weight:900;font-size:12px}
+.google-auth-box{margin-bottom:20px;padding:18px 20px;border-radius:12px;background:#f0f5ff;border:1px solid #b9d1f8}
+.google-auth-steps{margin:12px 0 16px;padding-left:22px;color:#2c3e5d;font-size:13px;line-height:1.8}
+.google-sign-in-link{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#1a73e8;color:#fff;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;margin:4px 0}
+.google-sign-in-link:hover{background:#1558b0}
+.google-code-input-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.google-code-input{flex:1;min-width:240px;border:1px solid #bcc9da;border-radius:10px;background:#fff;padding:11px 13px;font-size:13px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.google-code-input:focus{border-color:#1a73e8;outline:3px solid rgb(26 115 232 / .16)}

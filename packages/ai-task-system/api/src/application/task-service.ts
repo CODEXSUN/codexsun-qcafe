@@ -20,8 +20,8 @@ export class TaskService {
       if (concurrent.request !== input.request) throw new Error("Request identifier already belongs to a different task.");
       return concurrent;
     }
-    const task = TaskAggregate.plan(input.request, plan, input.clientRequestId, input.workCaseId).snapshot();
-    this.save(task, "task.planned", { workItems: task.workItems.length });
+    const task = TaskAggregate.plan(input.request, plan, input.clientRequestId, input.workCaseId, input.source).snapshot();
+    this.save(task, "task.planned", { source: task.source, workItems: task.workItems.length });
     return task;
   }
   start(id: string) {

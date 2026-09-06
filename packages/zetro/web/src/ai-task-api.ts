@@ -1,5 +1,5 @@
 import { platformFetch } from "@codexsun/platform-host-contracts";
-import { aiTaskSchema, type AiTask } from "@codexsun/ai-task-contracts";
+import { aiTaskSchema, type AiTask, type TaskSource } from "@codexsun/ai-task-contracts";
 import { desktopZetroCoordinator, isDesktopZetro } from "./desktop-bridge.js";
 
 const base = import.meta.env.VITE_ZETRO_API_URL ?? "";
@@ -16,9 +16,23 @@ export async function listAiTasks(): Promise<AiTask[]> {
   return aiTaskSchema.array().parse(body);
 }
 
-export async function createAndStartAiTask({ requestText, workCaseId }: { requestText: string; workCaseId?: string }): Promise<AiTask> {
-  const planned = await request("/api/v1/ai-tasks", { method: "POST", body: { request: requestText, workCaseId } });
+export async function createAndStartAiTask({ requestText, workCaseId, source }: { requestText: string; workCaseId?: string; source?: TaskSource }): Promise<AiTask> {
+  const planned = await request("/api/v1/ai-tasks", { method: "POST", body: { request: requestText, workCaseId, source } });
   return request(`/api/v1/ai-tasks/${planned.id}/start`, { method: "POST" });
+}
+
+export function createZetroTaskSource(input: { subject: string; conversationId?: string; exchangeId?: string; sender?: string }): TaskSource {
+  const surface = isDesktopZetro() ? "desktop" : "web";
+  return {
+    applicationId: "app.zetro",
+    applicationName: "Zetro",
+    surface,
+    sender: input.sender ?? (surface === "desktop" ? "Zetro Desk" : "Zetro Web"),
+    subject: input.subject.replace(/\s+/g, " ").trim().slice(0, 240) || "Zetro task handoff",
+    conversationId: input.conversationId,
+    exchangeId: input.exchangeId,
+    returnTarget: input.conversationId ? `zetro:${input.conversationId}${input.exchangeId ? `:${input.exchangeId}` : ""}` : "zetro:review-library",
+  };
 }
 
 export async function approveAiTask(id: string): Promise<AiTask> {

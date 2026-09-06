@@ -1,6 +1,6 @@
 {
   "name": "@codexsun/ai-task-api",
-  "version": "0.1.33",
+  "version": "1.0.3",
   "private": true,
   "type": "module",
   "exports": {

@@ -8,9 +8,16 @@ import { pathToFileURL } from "node:url";
 const ROOT = resolve(import.meta.dirname, "..");
 
 export function bumpNextVersion(root, title, databaseUpdate) {
-  const files = findWorkspacePackageFiles(root);
   const currentVersion = readJson(resolve(root, "package.json")).version;
   const nextVersion = bumpPatch(currentVersion);
+  return setVersion(root, nextVersion, title, databaseUpdate);
+}
+
+export function setVersion(root, nextVersion, title, databaseUpdate) {
+  if (!/^\d+\.\d+\.\d+$/u.test(nextVersion)) throw new Error(`Unsupported version: ${nextVersion}`);
+  const files = findWorkspacePackageFiles(root);
+  const currentVersion = readJson(resolve(root, "package.json")).version;
+  if (currentVersion === nextVersion) throw new Error(`Version ${nextVersion} is already current.`);
   for (const file of files) updateJsonVersion(file, nextVersion);
   updatePackageLock(root, files, nextVersion);
   updateDesktopVersion(root, nextVersion);
@@ -81,13 +88,17 @@ function updatePackageLock(root, packageFiles, version) {
 }
 
 function updateDesktopVersion(root, version) {
-  const desktopRoot = resolve(root, "apps", "platform", "core", "desktop", "src-tauri");
+  updateTauriDesktop(resolve(root, "apps", "platform", "core", "desktop", "src-tauri"), "codexsun-desktop", version);
+  updateTauriDesktop(resolve(root, "apps", "q-cafe", "desktop", "src-tauri"), "q-cafe-desktop", version);
+}
+
+function updateTauriDesktop(desktopRoot, packageName, version) {
   const tauriConfig = join(desktopRoot, "tauri.conf.json");
   const cargoToml = join(desktopRoot, "Cargo.toml");
   const cargoLock = join(desktopRoot, "Cargo.lock");
   if (existsSync(tauriConfig)) updateJsonVersion(tauriConfig, version);
   if (existsSync(cargoToml)) updateFirstVersion(cargoToml, version);
-  if (existsSync(cargoLock)) updateCargoPackageVersion(cargoLock, "codexsun-desktop", version);
+  if (existsSync(cargoLock)) updateCargoPackageVersion(cargoLock, packageName, version);
 }
 
 function updateFirstVersion(file, version) {
@@ -157,10 +168,19 @@ function readTitle(args) {
   return index >= 0 && args[index + 1] ? args[index + 1] : "Version update";
 }
 
+function readRequestedVersion(args) {
+  const index = args.indexOf("--version");
+  return index >= 0 ? args[index + 1] : undefined;
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
-    const result = bumpNextVersion(ROOT, readTitle(process.argv.slice(2)), readFlag(process.argv.slice(2)));
-    console.log(`Bumped ${result.currentVersion} -> ${result.nextVersion}`);
+    const args = process.argv.slice(2);
+    const requestedVersion = readRequestedVersion(args);
+    const result = requestedVersion
+      ? setVersion(ROOT, requestedVersion, readTitle(args), readFlag(args))
+      : bumpNextVersion(ROOT, readTitle(args), readFlag(args));
+    console.log(`Updated ${result.currentVersion} -> ${result.nextVersion}`);
   } catch (error) {
     console.error(error.message);
     process.exit(1);

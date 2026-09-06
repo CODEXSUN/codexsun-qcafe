@@ -1,5 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { readdirSync, readFileSync } from 'node:fs';
+import { hashPin, verifyPin, validatePin } from './staff-auth.mjs';
 
 export class CafeStore {
   constructor(path) {
@@ -15,8 +16,40 @@ export class CafeStore {
     }
   }
   snapshot() {
-    return Object.fromEntries(['menu', 'restaurant_tables', 'pos', 'pos_items', 'receipts', 'receipt_transactions', 'orders', 'order_lines', 'inventory', 'bookings', 'activities'].map(table => [table, this.db.prepare(`SELECT * FROM ${table}`).all()]));
+    return Object.fromEntries(['menu', 'restaurant_tables', 'pos', 'pos_items', 'receipts', 'receipt_transactions', 'orders', 'order_lines', 'inventory', 'bookings', 'activities', 'staff_users'].map(table => [table, this.db.prepare(`SELECT * FROM ${table}`).all()]));
   }
+  hasStaffUsers() { return Boolean(this.db.prepare('SELECT id FROM staff_users LIMIT 1').get()); }
+  bootstrapOwner(pin) {
+    if (this.hasStaffUsers()) return;
+    validatePin(pin);
+    this.db.prepare("INSERT INTO staff_users(name,login,role,pin_hash) VALUES ('Q Cafe owner','owner','owner',?)").run(hashPin(pin));
+    this.authEvent(null, 'owner-bootstrap', 'Local owner created.');
+  }
+  signInStaff(login, pin) {
+    const staff = this.db.prepare('SELECT * FROM staff_users WHERE login=? COLLATE NOCASE').get(String(login ?? 'cashier').trim());
+    if (!staff || staff.status !== 'active') throw new Error('Incorrect username or PIN.');
+    if (staff.locked_until && Date.parse(staff.locked_until) > Date.now()) throw new Error('This user is temporarily locked. Ask a manager to reset the PIN.');
+    if (!verifyPin(pin, staff.pin_hash)) {
+      const failures = staff.failed_attempts + 1;
+      const lockedUntil = failures >= 5 ? new Date(Date.now() + 30_000).toISOString() : null;
+      this.db.prepare('UPDATE staff_users SET failed_attempts=?,locked_until=?,updated_at=datetime(\'now\') WHERE id=?').run(failures, lockedUntil, staff.id);
+      this.authEvent(staff.id, 'login-failed', 'Incorrect PIN.');
+      throw new Error(lockedUntil ? 'Too many attempts. Try again shortly.' : 'Incorrect username or PIN.');
+    }
+    this.db.prepare('UPDATE staff_users SET failed_attempts=0,locked_until=NULL,last_login_at=datetime(\'now\'),updated_at=datetime(\'now\') WHERE id=?').run(staff.id);
+    this.authEvent(staff.id, 'login', 'Cashier session opened.');
+    return { id: staff.id, login: staff.login, name: staff.name, role: staff.role };
+  }
+  setupOwner(input) {
+    if (this.hasStaffUsers()) throw new Error('Q Cafe owner setup is already complete.');
+    const login = shortLabel(input.login ?? 'owner', 60).toLowerCase();
+    const name = label(input.name ?? 'Q Cafe owner');
+    validatePin(input.pin);
+    const result = this.db.prepare("INSERT INTO staff_users(name,login,role,pin_hash,platform_identity_account_id) VALUES (?,?, 'owner', ?, ?)").run(name, login, hashPin(input.pin), optionalLabel(input.platform_identity_account_id, 120));
+    this.authEvent(result.lastInsertRowid, 'owner-setup', 'Owner PIN configured.');
+    return { id: Number(result.lastInsertRowid), login, name, role: 'owner' };
+  }
+  authEvent(staffUserId, eventType, detail) { this.db.prepare('INSERT INTO staff_auth_events(staff_user_id,event_type,detail) VALUES (?,?,?)').run(staffUserId, eventType, detail); }
   pendingSync() {
     const tables = ['menu', 'restaurant_tables', 'pos', 'pos_items', 'receipts', 'receipt_transactions', 'orders', 'order_lines', 'inventory', 'stock_movements', 'bookings', 'activities'];
     return Object.fromEntries(tables.map(table => [table, this.db.prepare(`SELECT * FROM ${table} WHERE sync_status='pending' ORDER BY sync_updated_at`).all()]));

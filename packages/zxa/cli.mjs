@@ -170,6 +170,53 @@ async function connectProvider(args, flags) {
     process.exit(1);
   }
 
+  // Handle Gemini Google Account (OAuth / Email Login - like Antigravity)
+  if (id === "g" && (flags.google || flags.oauth || flags["google-account"] || apiKey === "google")) {
+    console.log(`\n🔑 Initiating Google Account sign-in (Like Antigravity / Google Code Assist)...`);
+    const initRes = await zxaRequest(`/api/v1/zxa/connections/gemini/google-auth`, { method: "POST" });
+    const authUrl = initRes.geminiAuth?.url;
+    if (!authUrl) {
+      console.log(`Gemini is already connected or failed to start Google sign-in.`);
+      return;
+    }
+
+    console.log(`\n🌐 Opening Google Sign-in in your default browser...`);
+    openBrowser(authUrl);
+    console.log(`If the browser did not open automatically, visit this URL:`);
+    console.log(`\n${authUrl}\n`);
+    console.log(`1. Sign in with your Google email account.`);
+    console.log(`2. Click "Allow" to authorize Google Code Assist.`);
+    console.log(`3. Copy the authorization code shown by Google.\n`);
+
+    const rl = createInterface({ input, output });
+    const code = await rl.question("Paste Google authorization code: ");
+    rl.close();
+
+    if (!code || !code.trim()) {
+      console.error("❌ Sign-in cancelled: No authorization code provided.");
+      await zxaRequest(`/api/v1/zxa/connections/gemini/google-auth`, { method: "DELETE" }).catch(() => {});
+      process.exit(1);
+    }
+
+    console.log(`\n⏳ Exchanging authorization code and saving credentials...`);
+    try {
+      const confirmRes = await zxaRequest(`/api/v1/zxa/connections/gemini/google-auth/confirm`, {
+        method: "POST",
+        body: { code: code.trim() },
+      });
+      const updated = confirmRes.providers?.find((p) => p.id === "g");
+      console.log(`✅ Successfully connected Gemini via Google Account!`);
+      console.log(`   Account: ${updated?.connectedAs || "Google Account"}`);
+      console.log(`   Model:   ${updated?.model || "gemini-2.5-pro"}`);
+      console.log(`   Method:  ${updated?.connectionMethod || "Google Account (OAuth)"}`);
+      console.log(`\n💡 Run "npm run zxa:cli -- test gemini" to verify with a test prompt.\n`);
+      return;
+    } catch (err) {
+      console.error(`❌ Google sign-in failed: ${err.message}`);
+      process.exit(1);
+    }
+  }
+
   // Handle OpenCode Free Built-in LLM mode
   if (id === "o" && (flags.free || apiKey === "free" || (!apiKey && flags.model?.includes("free")))) {
     const defaultFreeModel = flags.model ? flags.model.trim() : "opencode/nemotron-3-ultra-free";
@@ -188,9 +235,23 @@ async function connectProvider(args, flags) {
   }
 
   if (!apiKey) {
-    const rl = createInterface({ input, output });
-    apiKey = await rl.question(`Enter API key for ${id === "g" ? "Gemini" : "OpenCode"}${id === "o" ? " (or type 'free')" : ""}: `);
-    rl.close();
+    if (id === "g") {
+      const rl = createInterface({ input, output });
+      console.log("\nChoose Gemini authentication method:");
+      console.log("  1) Google Account (OAuth / Email Login - like Antigravity) [Recommended]");
+      console.log("  2) Google AI Studio API Key");
+      const choice = (await rl.question("\nEnter choice (1 or 2, default 1): ")).trim();
+      if (!choice || choice === "1") {
+        rl.close();
+        return connectProvider(["gemini"], { ...flags, google: true });
+      }
+      apiKey = await rl.question("Enter Google AI Studio API key: ");
+      rl.close();
+    } else {
+      const rl = createInterface({ input, output });
+      apiKey = await rl.question(`Enter API key for OpenCode (or type 'free'): `);
+      rl.close();
+    }
   }
 
   if (id === "o" && apiKey?.trim().toLowerCase() === "free") {
@@ -446,7 +507,7 @@ Commands:
   status                               View ZXA health, providers, models, and usage metrics
   models [gemini|codex|opencode]       Fetch and list available / latest models
   open [gemini|codex|opencode]         Open the ZXA Connection Manager in your web browser
-  connect <gemini|opencode> [key]      Connect provider with API key or --free mode
+  connect <gemini|opencode> [key]      Connect provider (interactive, --google, or API key)
   set-model <gemini|codex|opencode> <model>
                                        Change active model for provider
   disconnect <gemini|codex|opencode>   Disconnect provider
@@ -457,6 +518,7 @@ Commands:
   doctor                               Run preflight diagnostic checks on ZXA setup
 
 Options:
+  --google, --oauth                    Sign in with Google Account directly (like Antigravity)
   --browser, --web                     Open connection manager in your browser
   --free                               Connect OpenCode using built-in free LLM (no API key needed)
   --base-url=<url>                     Specify custom base URL (e.g. for Ollama / vLLM)
@@ -466,15 +528,15 @@ Options:
 
 Examples:
   npm run zxa:cli -- status
-  npm run zxa:cli -- open opencode
-  npm run zxa:cli -- models opencode
+  npm run zxa:cli -- connect gemini --google
   npm run zxa:cli -- connect opencode --free
-  npm run zxa:cli -- connect gemini --browser
+  npm run zxa:cli -- open gemini
+  npm run zxa:cli -- models gemini
   npm run zxa:cli -- connect gemini AIzaSy... --latest
-  npm run zxa:cli -- set-model opencode opencode/nemotron-3-ultra-free
-  npm run zxa:cli -- test opencode "Hello from OpenCode!"
+  npm run zxa:cli -- set-model gemini gemini-2.5-pro
+  npm run zxa:cli -- test gemini "Hello from Gemini!"
   npm run zxa:cli -- test parallel "Compare latency across providers"
-  npm run zxa:cli -- chat opencode
+  npm run zxa:cli -- chat gemini
 `);
 }
 

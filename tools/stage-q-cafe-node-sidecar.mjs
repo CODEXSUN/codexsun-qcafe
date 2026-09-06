@@ -10,5 +10,9 @@ const destination = resolve(root, 'apps', 'q-cafe', 'desktop', 'src-tauri', 'res
 if (!existsSync(source)) throw new Error(`Q Cafe Node runtime was not found: ${source}`);
 
 mkdirSync(dirname(destination), { recursive: true });
-copyFileSync(source, destination);
-console.log(`Staged Q Cafe Node runtime from ${source}`);
+if (existsSync(destination) && process.env.QCAFE_REFRESH_NODE_SIDECAR !== '1') {
+  console.log(`Using existing Q Cafe Node runtime at ${destination}`);
+} else {
+  copyFileSync(source, destination);
+  console.log(`Staged Q Cafe Node runtime from ${source}`);
+}

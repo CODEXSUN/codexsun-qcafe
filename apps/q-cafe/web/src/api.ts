@@ -18,6 +18,16 @@ export async function signIn(pin: string): Promise<string> {
   if (!response.ok) throw new Error(value.error ?? 'Unable to sign in.');
   return value.access_token;
 }
+export async function signInWithCredentials(username: string, password: string): Promise<string> {
+  const response = await fetch(`${base}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password, pin: password }),
+  });
+  const value = await response.json();
+  if (!response.ok) throw new Error(value.error ?? 'Unable to sign in with username.');
+  return value.access_token;
+}
 export async function request<T>(token: string, path = '', body?: unknown): Promise<T> {
   const response = await fetch(`${base}${path}`, { method: body ? 'POST' : 'GET', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) });
   const value = await response.json();
@@ -27,4 +37,11 @@ export async function request<T>(token: string, path = '', body?: unknown): Prom
 
 function isDesktopRuntime() {
   return '__TAURI_INTERNALS__' in window || location.protocol === 'tauri:' || location.hostname === 'tauri.localhost';
+}
+
+export async function setupOwner(pin: string): Promise<string> {
+  const response = await fetch(`${base}/auth/setup`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: 'owner', name: 'Q Cafe owner', pin }) });
+  const payload = await response.json() as { access_token?: string; error?: string };
+  if (!response.ok || !payload.access_token) throw new Error(payload.error ?? 'Could not set owner PIN.');
+  return payload.access_token;
 }

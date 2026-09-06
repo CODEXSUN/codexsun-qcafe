@@ -14,10 +14,11 @@ it("persists projects and conversations and applies project lifecycle actions", 
   await mkdir(join(directory, "project-one"));
   const app = Fastify();
   registerWorkspaceRoutes(app, new WorkspaceStore(join(directory, "workspace.db"), { repositoryRoot: directory, githubUrl: "", enabledAgentIds: ["zetro"], defaultAgentId: "zetro" }), async () => [{ id: "zetro", name: "Zetro", duty: "Test", skills: [], configured: true }]);
-  const project = { id: "project-one", name: "Project One", pinned: true, localFolder: "project-one" };
+  const project = { id: "project-one", name: "Project One", projectNumber: "PRJ-0001", icon: "PO", color: "blue", gitRepositoryUrl: "https://github.com/codexsun/project-one.git", status: "planning", pinned: true, localFolder: "project-one" };
   const conversation = { id: "chat-one", title: "First chat", updatedAt: new Date().toISOString(), exchanges: [], projectId: project.id };
 
   expect((await app.inject({ method: "PUT", url: `/api/v1/zetro/workspace/projects/${project.id}`, payload: project })).statusCode).toBe(200);
+  expect((await app.inject({ method: "GET", url: "/api/v1/zetro/workspace" })).json().projects[0]).toMatchObject({ projectNumber: "PRJ-0001", icon: "PO", color: "blue", status: "planning" });
   expect((await app.inject({ method: "GET", url: "/api/v1/zetro/workspace/folders" })).json().folders).toEqual([".", "project-one"]);
   const createdFolder = await app.inject({ method: "POST", url: "/api/v1/zetro/workspace/folders", payload: { folder: "agents/image" } });
   expect(createdFolder.statusCode).toBe(201);

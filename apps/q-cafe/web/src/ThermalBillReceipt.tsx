@@ -9,7 +9,7 @@ type EntryLine = {
   name: string;
   quantity: number;
   price: number;
-  chair?: number;
+  chair?: number | string;
 };
 
 type OrderTab = {

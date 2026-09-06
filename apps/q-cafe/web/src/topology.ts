@@ -5,8 +5,9 @@ const item = (id: string, technicalName: string, name: string, scope: string, de
 export const qCafeTopology: InterfaceTopologySection[] = [
   item('q1', 'qCafe.authentication.loginForm', 'Cashier login', 'Authentication', 'Open Q Cafe with a four-digit cashier PIN.'),
   item('q1.1', 'qCafe.authentication.pinInput', 'Cashier PIN input', 'Authentication', 'Enter the cashier PIN.'),
-  item('q1.2', 'qCafe.authentication.submitButton', 'Open workspace button', 'Authentication', 'Validate the PIN and open the restaurant desk.'),
+  item('q1.2', 'qCafe.authentication.authStatus', 'Authentication status', 'Authentication', 'Display authentication status and opening progress.'),
   item('q1.3', 'qCafe.authentication.errorAlert', 'Login error', 'Authentication', 'Show an authentication failure.'),
+  item('q1.4', 'qCafe.authentication.usernameSwitch', 'Sign with username switch', 'Authentication', 'Switch to username authentication mode.'),
   item('q2', 'qCafe.commandBar.container', 'Command bar', 'Application chrome', 'Q Cafe identity and utility controls.'),
   item('q2.1', 'qCafe.commandBar.navigationToggle', 'Navigation toggle', 'Command bar', 'Collapse or expand restaurant navigation.'),
   item('q2.2', 'qCafe.commandBar.homeLink', 'Q Cafe home link', 'Command bar', 'Return to the service dashboard.'),
@@ -78,8 +79,8 @@ export const qCafeTopology: InterfaceTopologySection[] = [
   item('q13.2', 'qCafe.overview.dateWiseSummary', 'Date-wise Sales Summary', 'Overview', 'Aggregated summary table grouped by date.'),
   item('q13.3', 'qCafe.overview.billsTable', 'Bills & Receipts List', 'Overview', 'Comprehensive bill list with payment mode badges, status, and slip preview.'),
   item('q13.4', 'qCafe.overview.dailySettlement', 'Daily Settlement Dialog', 'Overview', 'End-of-day cashier register reconciliation with cash denomination count and Z-report slip print.'),
-  item('q14', 'qCafe.tables.floorDesk', 'Floor & Tables Desk', 'Tables', 'Floor management with visual chair selector, table occupancy statistics, and duration tickers.'),
-  item('q14.1', 'qCafe.tables.chairSelector', 'Visual Chair & Guest Selector', 'Tables', 'Touch presets and steppers to choose chair/guest count before seating.'),
-  item('q14.2', 'qCafe.tables.gridCards', 'Table Floor Grid', 'Tables', 'Touch-first table cards showing occupancy, active order total, elapsed duration badge, and rolling tickers.'),
+  item('q14', 'qCafe.tables.floorDesk', 'Floor & Tables Desk', 'Tables', 'Floor management with interactive table cards and real-time POS occupancy sync.'),
+  item('q14.1', 'qCafe.tables.chairSelector', 'Interactive Table Chairs', 'Tables', 'Touch chair buttons positioned around the table to select chair before hitting table.'),
+  item('q14.2', 'qCafe.tables.gridCards', 'Table Floor Grid', 'Tables', 'Touch-first table cards with trimmed status dot and interactive chair selection.'),
 ];
 

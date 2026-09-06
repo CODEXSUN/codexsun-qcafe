@@ -10,7 +10,7 @@ export type EntryLine = {
   name: string;
   quantity: number;
   price: number;
-  chair?: number;
+  chair?: number | string;
   image?: string;
 };
 

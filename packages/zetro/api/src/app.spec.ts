@@ -12,6 +12,12 @@ describe("standalone Zetro API", () => {
     try {
       expect((await app.inject("/health")).json()).toMatchObject({ service: "zetro" });
       expect((await app.inject("/api/v1/zetro/agents")).json()).toHaveLength(1);
+      const providersRes = await app.inject("/api/v1/zetro/providers");
+      expect(providersRes.statusCode).toBe(200);
+      expect(providersRes.json()).toHaveProperty("providers");
+      const modelsRes = await app.inject("/api/v1/zetro/models?provider=g");
+      expect(modelsRes.statusCode).toBe(200);
+      expect(modelsRes.json()).toMatchObject({ provider: "g" });
     } finally { await app.close(); }
-  });
+  }, 15000);
 });

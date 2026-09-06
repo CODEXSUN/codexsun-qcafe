@@ -1,7 +1,7 @@
 import { chatWorkspaceAddon, chatTopology } from "@codexsun/chat-web";
-import { aiTaskTopology, aiTaskWorkspaceAddon } from "@codexsun/ai-task-web";
-import { useCallback, useEffect, useState } from "react";
-import { zetroPageTopology, zetroWorkspaceAddon } from "@codexsun/zetro-web";
+import { AI_TASK_NAVIGATE_EVENT, aiTaskTopology, createAiTaskClient, createAiTaskWorkspaceAddon, type AiTaskNavigateDetail } from "@codexsun/ai-task-web";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { desktopZetroCoordinator, isDesktopZetro, zetroPageTopology, zetroProjectsTopology, zetroProjectsWorkspaceAddon, zetroWorkspaceAddon } from "@codexsun/zetro-web";
 import { InterfaceTopologyDrawer, TopologyInspectionControl, TopologyMarker } from "@codexsun/devkit-ito";
 import { useInterfaceTopologyOverlay } from "@codexsun/devkit-ito/use-interface-topology-overlay";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@codexsun/ui/components/ui/select";
@@ -28,9 +28,21 @@ export function App() {
   useEffect(() => { void platformFetch("/api/v1/core").then(response => { if (!response.ok) throw new Error("Application catalog unavailable"); return response.json(); }).then(snapshot => setApplications(snapshot.modules.filter((item: { kind: string; webUrl?: string }) => item.kind === "application" && item.webUrl && /^https?:\/\//.test(item.webUrl)))).catch(() => setApplications([])); }, []);
   const [page, setPage] = useState<MdiPage>(overviewPage);
   const [requestedPage, setRequestedPage] = useState<MdiPage>(overviewPage);
+  const aiTaskWorkspaceAddon = useMemo(() => createAiTaskWorkspaceAddon({
+    taskClient: isDesktopZetro() ? createAiTaskClient((path, options = {}) => desktopZetroCoordinator(path, options)) : undefined,
+  }), []);
+  useEffect(() => {
+    const openTask = (event: Event) => {
+      const taskId = (event as CustomEvent<AiTaskNavigateDetail>).detail?.taskId;
+      if (taskId) setRequestedPage({ view: "workspace", addonId: "ai-tasks", pageId: taskId });
+    };
+    window.addEventListener(AI_TASK_NAVIGATE_EVENT, openTask);
+    return () => window.removeEventListener(AI_TASK_NAVIGATE_EVENT, openTask);
+  }, []);
   const onPageChange = useCallback((next: MdiPage) => setPage(next), []);
   const sections = page.addonId === "platform" ? platformTopology
     : page.addonId === "zetro" ? zetroPageTopology(page.pageId ?? "chat")
+    : page.addonId === "zetro-projects" ? zetroProjectsTopology
     : page.addonId === "ai-tasks" ? aiTaskTopology
     : page.addonId === "orship" ? orshipTopology
     : page.addonId === "docs" ? docsTopology
@@ -38,11 +50,11 @@ export function App() {
     : page.addonId === "settings" ? settingsTopology
     : page.addonId === "chat" ? chatTopology : [...coreTopology.filter(section => !/^5\.[0-9]+$/.test(section.id)), ...applications.map((app, index) => ({ id: `5.${index + 1}`, technicalName: `overview.applicationLauncher.application${index + 1}`, name: app.name, scope: "Application launcher", description: `Open ${app.name} in a new browser tab.` }))];
   const controller = useInterfaceTopologyOverlay(sections);
-  const activePage = page.addonId === "platform" ? "platform" : page.addonId === "zetro" ? "zetro-agent" : page.addonId === "ai-tasks" ? "ai-tasks" : page.addonId === "orship" ? "orship" : page.addonId === "todos" ? "todos" : page.addonId === "docs" ? "docs" : page.addonId === "device-chat" ? "device-chat" : page.addonId === "settings" ? "settings" : page.addonId === "chat" ? "chat" : "home";
+  const activePage = page.addonId === "platform" ? "platform" : page.addonId === "zetro" ? "zetro-agent" : page.addonId === "zetro-projects" ? "zetro-projects" : page.addonId === "ai-tasks" ? "ai-tasks" : page.addonId === "orship" ? "orship" : page.addonId === "todos" ? "todos" : page.addonId === "docs" ? "docs" : page.addonId === "device-chat" ? "device-chat" : page.addonId === "settings" ? "settings" : page.addonId === "chat" ? "chat" : "home";
   const pageSelector = <div className="grid gap-2 border-b border-border p-4 text-sm">
     <span className="font-medium text-foreground">Page</span>
     <Select value={activePage} onValueChange={(value) => {
-      setRequestedPage(value === "home" ? { ...overviewPage } : { view: "workspace", addonId: value === "platform" ? "platform" : value === "chat" ? "chat" : value === "ai-tasks" ? "ai-tasks" : value === "orship" ? "orship" : value === "settings" ? "settings" : value === "docs" ? "docs" : value === "device-chat" ? "device-chat" : value === "todos" ? "todos" : "zetro", pageId: value === "zetro-agent" ? "agent" : value === "settings" ? "applications" : value === "docs" ? "architecture" : "" });
+      setRequestedPage(value === "home" ? { ...overviewPage } : { view: "workspace", addonId: value === "platform" ? "platform" : value === "chat" ? "chat" : value === "zetro-projects" ? "zetro-projects" : value === "ai-tasks" ? "ai-tasks" : value === "orship" ? "orship" : value === "settings" ? "settings" : value === "docs" ? "docs" : value === "device-chat" ? "device-chat" : value === "todos" ? "todos" : "zetro", pageId: value === "zetro-agent" ? "agent" : value === "zetro-projects" ? "projects" : value === "settings" ? "applications" : value === "docs" ? "architecture" : "" });
     }}>
       <SelectTrigger aria-label="Topology page" className="w-full cursor-pointer bg-background focus:ring-1 focus:ring-ring">
         <SelectValue placeholder="Select a page" />
@@ -52,6 +64,7 @@ export function App() {
         <SelectItem className="cursor-pointer" value="platform">Platform</SelectItem>
         <SelectItem className="cursor-pointer" value="chat">Chat</SelectItem>
         <SelectItem className="cursor-pointer" value="zetro-agent">Zetro agent</SelectItem>
+        <SelectItem className="cursor-pointer" value="zetro-projects">Zetro projects</SelectItem>
         <SelectItem className="cursor-pointer" value="ai-tasks">Task System</SelectItem>
         <SelectItem className="cursor-pointer" value="orship">Orship</SelectItem>
         <SelectItem className="cursor-pointer" value="todos">Today</SelectItem>
@@ -69,10 +82,10 @@ export function App() {
     rootAttributes: controller.rootAttributes,
   };
   function ownedId(id: string) {
-    const prefix = page.addonId === "chat" ? "c" : page.addonId === "zetro" ? "z" : page.addonId === "ai-tasks" ? "t" : page.addonId === "orship" ? "o" : page.addonId === "settings" ? "s" : page.addonId === "docs" ? "d" : page.addonId === "device-chat" ? "dc" : "";
+    const prefix = page.addonId === "chat" ? "c" : page.addonId === "zetro" ? "z" : page.addonId === "zetro-projects" ? "zp" : page.addonId === "ai-tasks" ? "t" : page.addonId === "orship" ? "o" : page.addonId === "settings" ? "s" : page.addonId === "docs" ? "d" : page.addonId === "device-chat" ? "dc" : "";
     if (!prefix) return id;
     return ({ "11": `${prefix}2`, "11.1": `${prefix}2.1`, "12": `${prefix}2.2` } as Record<string, string>)[id] ?? id;
   }
   const deskApplications = [{ id: "platform", name: "Platform", onOpen: () => setRequestedPage({ view: "workspace", addonId: "platform", pageId: "users" }) }, { id: "app.orship", name: "Orship", onOpen: () => setRequestedPage({ view: "workspace", addonId: "orship", pageId: "operations" }) }, ...applications];
-  return <MainMdi applications={deskApplications} identity={{ login: identity.profile?.login, workspaceLabel: `${clientSurfaceLabel()} · ${identity.signedIn ? "Cloud workspace" : "Local workspace"}`, onManageProfile: () => setRequestedPage({ view: "workspace", addonId: "settings", pageId: "identity" }), onSignOut: identity.signedIn ? identity.signOut : undefined }} addons={[overviewWorkspace, platformWorkspace, chatWorkspaceAddon, zetroWorkspaceAddon, aiTaskWorkspaceAddon, orshipWorkspaceAddon, todosWorkspaceAddon, createDeviceChatWorkspaceAddon({ credentialStore: desktopCredentialStore("dcs-device") }), createDocsWorkspaceAddon(), createSettingsWorkspace(applications)]} onPageChange={onPageChange} requestedPage={requestedPage} topology={topology} version={__CODEXSUN_VERSION__} />;
+  return <MainMdi applications={deskApplications} identity={{ login: identity.profile?.login, workspaceLabel: `${clientSurfaceLabel()} · ${identity.signedIn ? "Cloud workspace" : "Local workspace"}`, onManageProfile: () => setRequestedPage({ view: "workspace", addonId: "settings", pageId: "identity" }), onSignOut: identity.signedIn ? identity.signOut : undefined }} addons={[overviewWorkspace, platformWorkspace, chatWorkspaceAddon, zetroWorkspaceAddon, zetroProjectsWorkspaceAddon, aiTaskWorkspaceAddon, orshipWorkspaceAddon, todosWorkspaceAddon, createDeviceChatWorkspaceAddon({ credentialStore: desktopCredentialStore("dcs-device") }), createDocsWorkspaceAddon(), createSettingsWorkspace(applications)]} onPageChange={onPageChange} requestedPage={requestedPage} topology={topology} version={__CODEXSUN_VERSION__} />;
 }

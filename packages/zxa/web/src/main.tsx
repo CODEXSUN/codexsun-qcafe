@@ -4,7 +4,11 @@ import "./styles.css";
 
 type ProviderId = "c" | "g" | "o";
 type Provider = { id: ProviderId; name: string; model: string; configured: boolean; busy: boolean; capabilities: string[]; connectedAs?: string; connectionMethod?: string };
-type Connections = { providers: Provider[]; codex: { status: "idle" | "pending" | "connected" | "failed"; url?: string; code?: string; message?: string } };
+type Connections = {
+  providers: Provider[];
+  codex: { status: "idle" | "pending" | "connected" | "failed"; url?: string; code?: string; message?: string };
+  geminiAuth?: { status: "idle" | "pending" | "connected" | "failed"; url?: string; email?: string; message?: string };
+};
 type UsageMetric = { requests: number; completed: number; failed: number; lastDurationMs: number | null; lastUsage: { inputTokens: number; outputTokens: number; cachedInputTokens: number } | null; lastError: string | null };
 type Usage = { accountQuota: "unavailable"; accountQuotaNote: string; updatedAt: string | null; providers: Record<ProviderId, UsageMetric> };
 
@@ -32,8 +36,10 @@ const providerTabs: Array<{ id: ProviderId; label: string }> = [
 ];
 
 const DEFAULT_GEMINI_MODELS: ModelOption[] = [
-  { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", description: "Fastest & recommended default" },
-  { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", description: "State-of-the-art reasoning & coding" },
+  { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", description: "Flagship: State-of-the-art coding & multimodal reasoning (Google Code Assist)" },
+  { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", description: "Fastest & versatile multimodal reasoning" },
+  { id: "gemini-3.1-pro-preview", name: "Gemini 3.1 Pro (Preview)", description: "Advanced preview reasoning" },
+  { id: "gemini-3.5-flash", name: "Gemini 3.5 Flash", description: "Next-gen ultra fast performance" },
   { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", description: "High speed multimodal" },
   { id: "gemini-2.0-flash-lite", name: "Gemini 2.0 Flash-Lite", description: "Cost-optimized" },
   { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro", description: "2M token context" },
@@ -72,6 +78,8 @@ function App() {
   );
   const [customModel, setCustomModel] = useState("");
   const [copied, setCopied] = useState(false);
+  const [googleAuthCode, setGoogleAuthCode] = useState("");
+  const [showApiKeyForm, setShowApiKeyForm] = useState(false);
 
   // Models state
   const [availableModels, setAvailableModels] = useState<ModelOption[]>(
@@ -130,11 +138,13 @@ function App() {
       setModelChoice("opencode/nemotron-3-ultra-free");
       setAvailableModels(DEFAULT_OPENCODE_MODELS);
     } else if (activeProvider === "g") {
-      setModelChoice("gemini-2.5-flash");
+      setModelChoice("gemini-2.5-pro");
       setAvailableModels(DEFAULT_GEMINI_MODELS);
     }
     setKey("");
     setBaseUrl("");
+    setGoogleAuthCode("");
+    setShowApiKeyForm(false);
     setTestResult(null);
     void fetchModels(activeProvider);
   }, [activeProvider]);
@@ -179,6 +189,49 @@ function App() {
       window.setTimeout(() => setCopied(false), 1800);
     } catch {
       setError("Copy the displayed device code manually.");
+    }
+  }
+
+  async function startGeminiGoogleAuth() {
+    setBusy(true);
+    try {
+      setData(await request<Connections>("/api/v1/zxa/connections/gemini/google-auth", { method: "POST" }));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not start Google sign-in.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmGeminiGoogleAuth() {
+    if (!googleAuthCode.trim()) return;
+    setBusy(true);
+    try {
+      setData(
+        await request<Connections>("/api/v1/zxa/connections/gemini/google-auth/confirm", {
+          method: "POST",
+          body: { code: googleAuthCode.trim() },
+        })
+      );
+      setGoogleAuthCode("");
+      await load();
+      await fetchModels("g");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Google sign-in confirmation failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function cancelGeminiGoogleAuth() {
+    setBusy(true);
+    try {
+      setData(await request<Connections>("/api/v1/zxa/connections/gemini/google-auth", { method: "DELETE" }));
+      setGoogleAuthCode("");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not cancel Google sign-in.");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -351,6 +404,9 @@ function App() {
               <ProviderKeyPanel
                 provider={active}
                 busy={busy}
+                geminiAuth={data?.geminiAuth}
+                googleAuthCode={googleAuthCode}
+                showApiKeyForm={showApiKeyForm}
                 keyValue={key}
                 baseUrlValue={baseUrl}
                 modelChoice={modelChoice}
@@ -358,6 +414,11 @@ function App() {
                 availableModels={availableModels}
                 modelsLive={modelsLive}
                 fetchingModels={fetchingModels}
+                onGoogleAuthCodeChange={setGoogleAuthCode}
+                onShowApiKeyFormChange={setShowApiKeyForm}
+                onStartGoogleAuth={() => void startGeminiGoogleAuth()}
+                onConfirmGoogleAuth={() => void confirmGeminiGoogleAuth()}
+                onCancelGoogleAuth={() => void cancelGeminiGoogleAuth()}
                 onKeyChange={setKey}
                 onBaseUrlChange={setBaseUrl}
                 onModelChoiceChange={setModelChoice}
@@ -546,6 +607,9 @@ function CodexPanel({
 function ProviderKeyPanel({
   provider,
   busy,
+  geminiAuth,
+  googleAuthCode,
+  showApiKeyForm,
   keyValue,
   baseUrlValue,
   modelChoice,
@@ -553,6 +617,11 @@ function ProviderKeyPanel({
   availableModels,
   modelsLive,
   fetchingModels,
+  onGoogleAuthCodeChange,
+  onShowApiKeyFormChange,
+  onStartGoogleAuth,
+  onConfirmGoogleAuth,
+  onCancelGoogleAuth,
   onKeyChange,
   onBaseUrlChange,
   onModelChoiceChange,
@@ -565,6 +634,9 @@ function ProviderKeyPanel({
 }: {
   provider?: Provider;
   busy: boolean;
+  geminiAuth?: Connections["geminiAuth"];
+  googleAuthCode: string;
+  showApiKeyForm: boolean;
   keyValue: string;
   baseUrlValue: string;
   modelChoice: string;
@@ -572,6 +644,11 @@ function ProviderKeyPanel({
   availableModels: ModelOption[];
   modelsLive: boolean;
   fetchingModels: boolean;
+  onGoogleAuthCodeChange: (value: string) => void;
+  onShowApiKeyFormChange: (value: boolean) => void;
+  onStartGoogleAuth: () => void;
+  onConfirmGoogleAuth: () => void;
+  onCancelGoogleAuth: () => void;
   onKeyChange: (value: string) => void;
   onBaseUrlChange: (value: string) => void;
   onModelChoiceChange: (value: string) => void;
@@ -587,28 +664,114 @@ function ProviderKeyPanel({
 
   return (
     <div>
-      {/* Browser Quick Connect Guide for Gemini */}
-      {isGemini && (
-        <div className="browser-connect-hint">
-          <div className="hint-header">
-            <strong>🌐 Connect via Browser (Google AI Studio)</strong>
-            <span className="live-status-pill">{modelsLive ? "🟢 Live Google Models" : "Catalog Models"}</span>
-          </div>
-          <p className="hint-text">
-            Generate or copy your free Gemini API key in your browser, select the latest Gemini model, and connect:
-          </p>
-          <div className="hint-actions">
-            <a
-              href="https://aistudio.google.com/app/apikey"
-              target="_blank"
-              rel="noreferrer"
-              className="browser-open-btn"
-            >
-              <span>Get Gemini API Key in Google AI Studio</span>
-              <span className="arrow-icon">↗</span>
-            </a>
-          </div>
-        </div>
+      {/* Google Account OAuth Sign-In for Gemini (Like Antigravity) */}
+      {isGemini && !provider?.configured && (
+        <>
+          {geminiAuth?.status === "pending" ? (
+            <div className="google-auth-box">
+              <div className="hint-header">
+                <strong>🔑 Sign in with Google (Like Antigravity)</strong>
+                <span className="live-status-pill live-status-pill-blue">Google Cloud Code Assist</span>
+              </div>
+              <p className="hint-text">
+                Sign in with your Google email account directly without needing a Google AI Studio API key.
+              </p>
+              <ol className="google-auth-steps">
+                <li>
+                  <a
+                    href={geminiAuth.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="google-sign-in-link"
+                  >
+                    <span>1. Open Google Sign-in in your browser</span>
+                    <span className="arrow-icon">↗</span>
+                  </a>
+                </li>
+                <li>Sign in with your Google email account and approve access.</li>
+                <li>Google will display your authorization code on the screen. Copy and paste it below:</li>
+              </ol>
+              <div className="google-code-input-row">
+                <input
+                  type="text"
+                  placeholder="Paste authorization code here"
+                  value={googleAuthCode}
+                  onChange={(e) => onGoogleAuthCodeChange(e.target.value)}
+                  disabled={busy}
+                  className="google-code-input"
+                />
+                <button
+                  type="button"
+                  className="primary"
+                  disabled={busy || !googleAuthCode.trim()}
+                  onClick={onConfirmGoogleAuth}
+                >
+                  {busy ? "Confirming…" : "Confirm Sign-in"}
+                </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={busy}
+                  onClick={onCancelGoogleAuth}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="google-auth-start-box">
+              <div className="hint-header">
+                <strong>✨ Connect with Google Account (Recommended)</strong>
+                <span className="live-status-pill live-status-pill-blue">Direct Email Sign-in</span>
+              </div>
+              <p className="hint-text">
+                Sign in directly with your Google email account to access Gemini flagship models (gemini-2.5-pro, gemini-2.5-flash, gemini-3.1-pro) like Antigravity / Google Code Assist — no Google AI Studio API key required.
+              </p>
+              <div className="actions" style={{ marginTop: "14px" }}>
+                <button
+                  type="button"
+                  className="primary google-signin-btn"
+                  disabled={busy}
+                  onClick={onStartGoogleAuth}
+                >
+                  <span className="google-icon" aria-hidden="true">G</span>
+                  <span>Sign in with Google Account</span>
+                </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => onShowApiKeyFormChange(!showApiKeyForm)}
+                >
+                  {showApiKeyForm ? "Hide API Key Option" : "Or use Google AI Studio API Key"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Optional Google AI Studio Browser Quick Connect Guide when toggled */}
+          {showApiKeyForm && (
+            <div className="browser-connect-hint">
+              <div className="hint-header">
+                <strong>🌐 Google AI Studio API Key</strong>
+                <span className="live-status-pill">{modelsLive ? "🟢 Live Google Models" : "Catalog Models"}</span>
+              </div>
+              <p className="hint-text">
+                Generate or copy your free Gemini API key in Google AI Studio, select a model, and connect:
+              </p>
+              <div className="hint-actions">
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="browser-open-btn"
+                >
+                  <span>Get Gemini API Key in Google AI Studio</span>
+                  <span className="arrow-icon">↗</span>
+                </a>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Free Built-in LLMs quick connect for OpenCode */}
@@ -660,7 +823,10 @@ function ProviderKeyPanel({
       {provider?.configured ? (
         <div className="result">
           <Status connected />
-          <p>{provider.name} is connected ({provider.connectionMethod || "locally"}) with active model <strong>{provider.model}</strong>.</p>
+          <p>
+            {provider.name} is connected ({provider.connectionMethod || "locally"})
+            {provider.connectedAs ? ` as ${provider.connectedAs}` : ""} with active model <strong>{provider.model}</strong>.
+          </p>
 
           <div className="model-change-section">
             <div className="model-section-header">
@@ -671,7 +837,7 @@ function ProviderKeyPanel({
                 disabled={fetchingModels || busy}
                 onClick={onFetchModels}
               >
-                {fetchingModels ? "Fetching…" : isGemini ? "Fetch Latest from Google" : "Fetch Latest Models"}
+                {fetchingModels ? "Fetching…" : isGemini ? "Fetch Latest Models" : "Fetch Latest Models"}
               </button>
             </div>
 
@@ -722,119 +888,121 @@ function ProviderKeyPanel({
           </div>
         </div>
       ) : (
-        <form className="key-form" onSubmit={onSave}>
-          <p>
-            {isOpenCode
-              ? "Or connect OpenCode using an API key (Anthropic, OpenAI, OpenRouter, DeepSeek) or local Ollama URL. Stored only in the local ZXA volume."
-              : `Enter an API key for ${provider?.name ?? "this provider"}. Stored only in the local ZXA container volume.`}
-          </p>
+        (!isGemini || showApiKeyForm) && (
+          <form className="key-form" onSubmit={onSave}>
+            <p>
+              {isOpenCode
+                ? "Or connect OpenCode using an API key (Anthropic, OpenAI, OpenRouter, DeepSeek) or local Ollama URL. Stored only in the local ZXA volume."
+                : `Enter an API key for ${provider?.name ?? "this provider"}. Stored only in the local ZXA container volume.`}
+            </p>
 
-          <label htmlFor="provider-key">{provider?.name} API key</label>
-          <input
-            id="provider-key"
-            value={keyValue}
-            onChange={(event) => onKeyChange(event.target.value)}
-            type="password"
-            placeholder={`Paste ${provider?.name ?? ""} API key`}
-            autoComplete="off"
-          />
+            <label htmlFor="provider-key">{provider?.name} API key</label>
+            <input
+              id="provider-key"
+              value={keyValue}
+              onChange={(event) => onKeyChange(event.target.value)}
+              type="password"
+              placeholder={`Paste ${provider?.name ?? ""} API key`}
+              autoComplete="off"
+            />
 
-          {isOpenCode && (
-            <>
-              <label htmlFor="provider-base-url">Custom Base URL (optional, e.g. for local Ollama / vLLM)</label>
-              <input
-                id="provider-base-url"
-                value={baseUrlValue}
-                onChange={(event) => onBaseUrlChange(event.target.value)}
-                type="text"
-                placeholder="http://host.docker.internal:11434/v1"
-              />
-            </>
-          )}
-
-          {isGemini && (
-            <>
-              <div className="model-section-header">
-                <label htmlFor="provider-model-select">Select Gemini Model</label>
-                <button
-                  type="button"
-                  className="secondary small-btn"
-                  disabled={fetchingModels || !keyValue.trim()}
-                  onClick={onFetchModels}
-                  title={keyValue.trim() ? "Query Google API for latest models" : "Paste API key first"}
-                >
-                  {fetchingModels ? "Fetching…" : "Fetch Latest from Google"}
-                </button>
-              </div>
-
-              <select
-                id="provider-model-select"
-                value={modelChoice}
-                onChange={(e) => onModelChoiceChange(e.target.value)}
-                className="model-select"
-              >
-                {availableModels.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name || m.id} {m.description ? `— ${m.description}` : ""}
-                  </option>
-                ))}
-                <option value="custom">Custom model identifier…</option>
-              </select>
-
-              {modelChoice === "custom" && (
+            {isOpenCode && (
+              <>
+                <label htmlFor="provider-base-url">Custom Base URL (optional, e.g. for local Ollama / vLLM)</label>
                 <input
+                  id="provider-base-url"
+                  value={baseUrlValue}
+                  onChange={(event) => onBaseUrlChange(event.target.value)}
                   type="text"
-                  placeholder="Enter custom Gemini model (e.g. gemini-2.5-pro)"
-                  value={customModel}
-                  onChange={(e) => onCustomModelChange(e.target.value)}
+                  placeholder="http://host.docker.internal:11434/v1"
                 />
-              )}
-            </>
-          )}
+              </>
+            )}
 
-          {isOpenCode && (
-            <>
-              <div className="model-section-header">
-                <label htmlFor="provider-opencode-select">Select Model</label>
-                <button
-                  type="button"
-                  className="secondary small-btn"
-                  disabled={fetchingModels}
-                  onClick={onFetchModels}
+            {isGemini && (
+              <>
+                <div className="model-section-header">
+                  <label htmlFor="provider-model-select">Select Gemini Model</label>
+                  <button
+                    type="button"
+                    className="secondary small-btn"
+                    disabled={fetchingModels || !keyValue.trim()}
+                    onClick={onFetchModels}
+                    title={keyValue.trim() ? "Query Google API for latest models" : "Paste API key first"}
+                  >
+                    {fetchingModels ? "Fetching…" : "Fetch Latest from Google"}
+                  </button>
+                </div>
+
+                <select
+                  id="provider-model-select"
+                  value={modelChoice}
+                  onChange={(e) => onModelChoiceChange(e.target.value)}
+                  className="model-select"
                 >
-                  {fetchingModels ? "Fetching…" : "Detect Models"}
-                </button>
-              </div>
+                  {availableModels.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name || m.id} {m.description ? `— ${m.description}` : ""}
+                    </option>
+                  ))}
+                  <option value="custom">Custom model identifier…</option>
+                </select>
 
-              <select
-                id="provider-opencode-select"
-                value={modelChoice}
-                onChange={(e) => onModelChoiceChange(e.target.value)}
-                className="model-select"
-              >
-                {availableModels.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name || m.id} {m.description ? `— ${m.description}` : ""}
-                  </option>
-                ))}
-                <option value="custom">Custom model identifier…</option>
-              </select>
+                {modelChoice === "custom" && (
+                  <input
+                    type="text"
+                    placeholder="Enter custom Gemini model (e.g. gemini-2.5-pro)"
+                    value={customModel}
+                    onChange={(e) => onCustomModelChange(e.target.value)}
+                  />
+                )}
+              </>
+            )}
 
-              {modelChoice === "custom" && (
-                <input
-                  type="text"
-                  placeholder="Enter custom model (e.g. anthropic/claude-3-7-sonnet)"
-                  value={customModel}
-                  onChange={(e) => onCustomModelChange(e.target.value)}
-                />
-              )}
-            </>
-          )}
+            {isOpenCode && (
+              <>
+                <div className="model-section-header">
+                  <label htmlFor="provider-opencode-select">Select Model</label>
+                  <button
+                    type="button"
+                    className="secondary small-btn"
+                    disabled={fetchingModels}
+                    onClick={onFetchModels}
+                  >
+                    {fetchingModels ? "Fetching…" : "Detect Models"}
+                  </button>
+                </div>
 
-          <button className="primary" disabled={busy || (!keyValue.trim() && !baseUrlValue.trim())}>
-            Save & Connect {provider?.name ?? "Provider"}
-          </button>
-        </form>
+                <select
+                  id="provider-opencode-select"
+                  value={modelChoice}
+                  onChange={(e) => onModelChoiceChange(e.target.value)}
+                  className="model-select"
+                >
+                  {availableModels.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name || m.id} {m.description ? `— ${m.description}` : ""}
+                    </option>
+                  ))}
+                  <option value="custom">Custom model identifier…</option>
+                </select>
+
+                {modelChoice === "custom" && (
+                  <input
+                    type="text"
+                    placeholder="Enter custom model (e.g. anthropic/claude-3-7-sonnet)"
+                    value={customModel}
+                    onChange={(e) => onCustomModelChange(e.target.value)}
+                  />
+                )}
+              </>
+            )}
+
+            <button className="primary" disabled={busy || (!keyValue.trim() && !baseUrlValue.trim())}>
+              Save & Connect {provider?.name ?? "Provider"}
+            </button>
+          </form>
+        )
       )}
     </div>
   );

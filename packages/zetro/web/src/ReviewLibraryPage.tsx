@@ -4,9 +4,10 @@ import { BarChart3, Bot, CheckSquare, ClipboardList, FileSearch, Loader2, Messag
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@codexsun/ui/components/button";
 import { MdiTopologyRegion, type MdiTopologyAdapter } from "@codexsun/ui-desk";
-import { createAndStartAiTask, listAiTasks } from "./ai-task-api.js";
+import { createAndStartAiTask, createZetroTaskSource, listAiTasks } from "./ai-task-api.js";
 import { getWorkspace } from "./workspace-api.js";
 import { listKnowledgeProposals, reviewKnowledgeProposal, type KnowledgeProposal } from "./knowledge-api.js";
+import { zetroNotifications } from "./notifications.js";
 
 type LibraryKind = "prompt" | "result" | "task" | "improvement";
 type LibraryItem = { id: string; kind: LibraryKind; title: string; content: string; status?: string; updatedAt: string; proposalId?: string };
@@ -16,7 +17,6 @@ export function ReviewLibraryPage({ sideCarTarget, topology }: { sideCarTarget?:
   const client = useQueryClient();
   const [tab, setTab] = useState<(typeof tabs)[number]["id"]>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [notice, setNotice] = useState("");
   const workspace = useQuery({ queryKey: ["zetro-workspace"], queryFn: getWorkspace });
   const tasks = useQuery({ queryKey: ["ai-tasks"], queryFn: listAiTasks, refetchInterval: (query) => query.state.data?.some((task) => task.status === "running") ? 1500 : 5000 });
   const proposals = useQuery({ queryKey: ["zetro-knowledge-proposals"], queryFn: listKnowledgeProposals });
@@ -24,19 +24,38 @@ export function ReviewLibraryPage({ sideCarTarget, topology }: { sideCarTarget?:
   const visible = tab === "all" ? items : items.filter((item) => `${item.kind}s` === tab);
   const chosen = items.filter((item) => selected.has(item.id));
   const action = useMutation({
-    mutationFn: ({ mode }: { mode: "consolidate" | "reanalyze" | "skill" | "task" }) => createAndStartAiTask({ requestText: actionRequest(mode, chosen) }),
-    onSuccess: (task) => { setNotice(`Task ${task.status.replaceAll("_", " ")} · ${task.title}`); setSelected(new Set()); void client.invalidateQueries({ queryKey: ["ai-tasks"] }); },
+    mutationFn: ({ mode }: { mode: "consolidate" | "reanalyze" | "skill" | "task" }) => createAndStartAiTask({ requestText: actionRequest(mode, chosen), source: createZetroTaskSource({ subject: `${mode} ${chosen.length} review library item${chosen.length === 1 ? "" : "s"}`, sender: "Zetro Review Library" }) }),
+    onSuccess: (task) => {
+      zetroNotifications.success("Library action started", { description: `${task.status.replaceAll("_", " ")} · ${task.title}` });
+      setSelected(new Set());
+      void client.invalidateQueries({ queryKey: ["ai-tasks"] });
+    },
+    onError: (cause) => zetroNotifications.error(cause, "Unable to start the library action."),
   });
   const allVisibleSelected = visible.length > 0 && visible.every((item) => selected.has(item.id));
-  const review = useMutation({ mutationFn: reviewKnowledgeProposal, onSuccess: () => void client.invalidateQueries({ queryKey: ["zetro-knowledge-proposals"] }) });
+  const review = useMutation({
+    mutationFn: reviewKnowledgeProposal,
+    onSuccess: (_proposal, variables) => {
+      void client.invalidateQueries({ queryKey: ["zetro-knowledge-proposals"] });
+      zetroNotifications.success(`Proposal ${variables.status}`);
+    },
+    onError: (cause) => zetroNotifications.error(cause, "Unable to review the proposal."),
+  });
 
   function run(mode: "consolidate" | "reanalyze" | "skill" | "task") {
     if (chosen.length) action.mutate({ mode });
   }
 
+  async function refreshLibrary() {
+    const results = await Promise.all([workspace.refetch(), tasks.refetch(), proposals.refetch()]);
+    const failed = results.find((result) => result.error)?.error;
+    if (failed) zetroNotifications.error(failed, "Unable to refresh the review library.");
+    else zetroNotifications.info("Review library refreshed");
+  }
+
   return <MdiTopologyRegion id="zr1" topology={topology} className="flex h-full min-h-0 flex-col bg-background">
     {sideCarTarget && createPortal(<div className="flex h-full flex-col p-3"><p className="px-2 pb-3 text-xs font-semibold text-muted-foreground">ZETRO LIBRARY</p><a className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-accent" href="/?app=zetro&page=agent"><Bot className="size-4" />Agent chat</a><a aria-current="page" className="flex cursor-pointer items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium" href="/?app=zetro&page=review"><FileSearch className="size-4" />Review library</a><div className="mt-auto rounded-xl border border-border bg-muted/30 p-3 text-xs leading-5 text-muted-foreground">Skill changes are saved as reviewable proposals with evidence. Accepted refinements can be versioned and rolled back.</div></div>, sideCarTarget)}
-    <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border px-6 py-3"><div className="flex items-center gap-3"><span className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary"><FileSearch className="size-4" /></span><div><h1 className="text-sm font-semibold">Review Library</h1><p className="text-xs text-muted-foreground">Review, combine, and improve agent work.</p></div></div><Button variant="ghost" size="icon" className="cursor-pointer" aria-label="Refresh library" title="Refresh library" onClick={() => { void workspace.refetch(); void tasks.refetch(); }}><RefreshCw className="size-4" /></Button></header>
+    <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border px-6 py-3"><div className="flex items-center gap-3"><span className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary"><FileSearch className="size-4" /></span><div><h1 className="text-sm font-semibold">Review Library</h1><p className="text-xs text-muted-foreground">Review, combine, and improve agent work.</p></div></div><Button variant="ghost" size="icon" className="cursor-pointer" aria-label="Refresh library" title="Refresh library" onClick={() => void refreshLibrary()}><RefreshCw className="size-4" /></Button></header>
 
     <MdiTopologyRegion id="zr2" topology={topology} className="shrink-0 border-b border-border px-5 pt-3">
       <div className="flex gap-5" role="tablist" aria-label="Library content types">{tabs.map((item) => <button type="button" role="tab" aria-selected={tab === item.id} className={`cursor-pointer border-b-2 px-1 pb-2 text-sm transition-colors ${tab === item.id ? "border-primary font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`} key={item.id} onClick={() => setTab(item.id)}>{item.label}<span className="ml-1.5 text-xs">{item.id === "all" ? items.length : items.filter((entry) => `${entry.kind}s` === item.id).length}</span></button>)}</div>
@@ -60,7 +79,7 @@ export function ReviewLibraryPage({ sideCarTarget, topology }: { sideCarTarget?:
           <span className="text-right text-[11px] capitalize text-muted-foreground">{item.status ?? item.kind}<br />{new Date(item.updatedAt).toLocaleDateString()}{item.proposalId && !item.status?.startsWith("accepted") && !item.status?.startsWith("rejected") && <span className="mt-1 flex gap-1"><button type="button" className="cursor-pointer text-emerald-700 hover:underline" onClick={(event) => { event.preventDefault(); review.mutate({ id: item.proposalId!, status: "accepted" }); }}>Accept</button><button type="button" className="cursor-pointer text-destructive hover:underline" onClick={(event) => { event.preventDefault(); review.mutate({ id: item.proposalId!, status: "rejected" }); }}>Reject</button></span>}</span>
         </label>)}
       </div> : <div className="grid h-48 place-items-center text-sm text-muted-foreground">No {tab === "all" ? "library items" : tab} available.</div>}
-      {(notice || action.error) && <p className={`mx-auto mt-4 max-w-6xl rounded-lg border p-3 text-xs ${action.error ? "border-destructive/30 text-destructive" : "border-border text-muted-foreground"}`} role="status">{action.error?.message ?? notice}</p>}
+      {action.error && <p className="mx-auto mt-4 max-w-6xl rounded-lg border border-destructive/30 p-3 text-xs text-destructive" role="alert">{action.error.message}</p>}
     </MdiTopologyRegion>
   </MdiTopologyRegion>;
 }

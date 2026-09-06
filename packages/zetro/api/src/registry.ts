@@ -32,7 +32,12 @@ export class AgentRegistry {
         const response = await fetch(new URL("/health", endpoint.url), { signal: AbortSignal.timeout(2000), redirect: "error" });
         const body = await response.json();
         const healthy = response.ok && body.status === "ok" && body.agentId === agent.id && body.configured === true;
-        return { ...agent, runtimeStatus: healthy ? "healthy" as const : "offline" as const, mode: body.mode === "local-demo" ? "local-demo" as const : "provider" as const };
+        return {
+          ...agent,
+          runtimeStatus: healthy ? "healthy" as const : "offline" as const,
+          mode: body.mode === "local-demo" ? "local-demo" as const : "provider" as const,
+          providers: Array.isArray(body.providers) ? body.providers : undefined,
+        };
       } catch { return { ...agent, runtimeStatus: "offline" as const }; }
     }));
   }

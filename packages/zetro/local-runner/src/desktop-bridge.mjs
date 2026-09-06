@@ -23,7 +23,8 @@ const bridge = createServer((request, response) => void handle(request, response
 bridge.requestTimeout = 130_000;
 bridge.headersTimeout = 10_000;
 bridge.listen(4161, "127.0.0.1", () => console.log("Zetro Desk bridge ready on 127.0.0.1:4161"));
-for (const signal of ["SIGINT", "SIGTERM"]) process.once(signal, () => { tools.close(); bridge.close(); coordinator?.kill(signal); });
+for (const signal of ["SIGINT", "SIGTERM"]) process.once(signal, () => shutdown(signal));
+watchDesktopParent();
 
 async function handle(request, response) {
   if (request.url === "/health" && request.method === "GET") return send(response, 200, await health());
@@ -37,7 +38,7 @@ async function handle(request, response) {
 }
 
 function settings() {
-  return { repositoryRoot: state.repositoryRoot, githubUrl: state.githubUrl, enabledAgentIds: ["zxa"], defaultAgentId: "zxa" };
+  return { repositoryRoot: state.repositoryRoot, githubUrl: state.githubUrl, enabledAgentIds: state.enabledAgentIds, defaultAgentId: state.defaultAgentId };
 }
 
 async function saveSettings(request, response) {
@@ -46,6 +47,8 @@ async function saveSettings(request, response) {
   try {
     state.repositoryRoot = await workspace.setRoot(input.repositoryRoot);
     state.githubUrl = input.githubUrl.trim();
+    state.enabledAgentIds = Array.isArray(input.enabledAgentIds) && input.enabledAgentIds.length ? input.enabledAgentIds : ["zxa"];
+    state.defaultAgentId = state.enabledAgentIds.includes(input.defaultAgentId) ? input.defaultAgentId : state.enabledAgentIds[0];
     await saveState(stateFile, state);
     return send(response, 200, settings());
   } catch {
@@ -59,7 +62,15 @@ async function forwardPrompt(request, response) {
   try {
     const upstream = await fetch(`${state.zetroApiUrl}/api/v1/zetro/messages`, {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ agentId: "zxa", conversationId: input.conversationId, message: input.message, attachments: input.attachments }), signal: AbortSignal.timeout(125_000),
+      body: JSON.stringify({
+        agentId: "zxa",
+        conversationId: input.conversationId,
+        message: input.message,
+        attachments: input.attachments,
+        provider: input.provider,
+        model: input.model
+      }),
+      signal: AbortSignal.timeout(125_000),
     });
     const text = await upstream.text();
     response.writeHead(upstream.status, { "Content-Type": upstream.headers.get("content-type") || "application/json" });
@@ -71,7 +82,7 @@ async function forwardPrompt(request, response) {
 
 async function forwardCoordinator(request, response) {
   const input = await body(request);
-  if (!input || !["GET", "POST", "PUT"].includes(input.method) || !allowedCoordinatorPath(input.path, input.method)) return send(response, 400, { error: "Unsupported Zetro coordinator operation." });
+  if (!input || !["GET", "POST", "PUT", "DELETE"].includes(input.method) || !allowedCoordinatorPath(input.path, input.method)) return send(response, 400, { error: "Unsupported Zetro coordinator operation." });
   try {
     const upstream = await fetch(`${state.zetroApiUrl}${input.path}`, {
       method: input.method,
@@ -87,8 +98,13 @@ async function forwardCoordinator(request, response) {
   }
 }
 
-function allowedCoordinatorPath(path, method) {
-  if (typeof path !== "string" || path.includes("?") || path.includes("..")) return false;
+function allowedCoordinatorPath(rawPath, method) {
+  if (typeof rawPath !== "string" || rawPath.includes("..")) return false;
+  const path = rawPath.split("?")[0];
+  if (method === "GET" && (path === "/api/v1/zetro/workspace" || path === "/api/v1/zetro/workspace/folders" || path === "/api/v1/zetro/providers" || path === "/api/v1/zetro/models")) return true;
+  if (method === "POST" && (path === "/api/v1/zetro/workspace/folders" || /^\/api\/v1\/zetro\/workspace\/projects\/[^/]+\/archive-chats$/u.test(path))) return true;
+  if (method === "PUT" && (/^\/api\/v1\/zetro\/workspace\/projects\/[^/]+$/u.test(path) || /^\/api\/v1\/zetro\/workspace\/conversations\/[^/]+$/u.test(path) || /^\/api\/v1\/zetro\/providers\/[a-z]$/u.test(path))) return true;
+  if (method === "DELETE" && (/^\/api\/v1\/zetro\/workspace\/projects\/[^/]+$/u.test(path) || /^\/api\/v1\/zetro\/workspace\/conversations\/[^/]+$/u.test(path))) return true;
   if (method === "GET" && (/^\/api\/v1\/ai-tasks(?:\/[0-9a-f-]{36})?$/u.test(path) || path === "/api/v1/zetro/runs" || path === "/api/v1/zetro/knowledge/proposals")) return true;
   if (method === "POST" && (path === "/api/v1/ai-tasks" || /^\/api\/v1\/ai-tasks\/[0-9a-f-]{36}\/(?:start|approve|release)$/u.test(path) || path === "/api/v1/zetro/runs" || /^\/api\/v1\/zetro\/runs\/[0-9a-f-]{36}\/(?:approval|resume|cancel)$/u.test(path))) return true;
   return method === "PUT" && /^\/api\/v1\/zetro\/knowledge\/proposals\/[0-9a-f-]{36}\/review$/u.test(path);
@@ -132,13 +148,29 @@ function send(response, status, value) {
 }
 
 async function loadState(path, root) {
+  let saved;
   try {
-    const saved = JSON.parse(await readFile(path, "utf8"));
-    if (validState(saved)) return { ...saved, zetroApiUrl: saved.zetroApiUrl || process.env.ZETRO_DESK_API_URL || "http://127.0.0.1:4151" };
+    saved = JSON.parse(await readFile(path, "utf8"));
+    if (validState(saved)) return normalizeState(saved);
   } catch { /* First local launch creates the private state file. */ }
-  const state = { repositoryRoot: root, githubUrl: "", zetroApiUrl: process.env.ZETRO_DESK_API_URL || "http://127.0.0.1:4151", agentUrl: process.env.ZETRO_DESK_AGENT_URL || "http://127.0.0.1:4230", agentToken: process.env.ZXA_LOCAL_TOKEN || "local-zxa-only", toolsToken: process.env.ZETRO_TOOLS_TOKEN || randomBytes(32).toString("hex"), bridgeToken: randomBytes(32).toString("hex") };
+  const state = normalizeState({
+    repositoryRoot: typeof saved?.repositoryRoot === "string" ? saved.repositoryRoot : root,
+    githubUrl: typeof saved?.githubUrl === "string" ? saved.githubUrl : "",
+    enabledAgentIds: saved?.enabledAgentIds,
+    defaultAgentId: saved?.defaultAgentId,
+    zetroApiUrl: process.env.ZETRO_DESK_API_URL || "http://127.0.0.1:4151",
+    agentUrl: process.env.ZETRO_DESK_AGENT_URL || "http://127.0.0.1:4230",
+    agentToken: process.env.ZXA_LOCAL_TOKEN || "local-zxa-only",
+    toolsToken: process.env.ZETRO_TOOLS_TOKEN || randomBytes(32).toString("hex"),
+    bridgeToken: randomBytes(32).toString("hex"),
+  });
   await saveState(path, state);
   return state;
+}
+
+function normalizeState(value) {
+  const enabledAgentIds = Array.isArray(value.enabledAgentIds) && value.enabledAgentIds.length ? value.enabledAgentIds : ["zxa"];
+  return { ...value, enabledAgentIds, defaultAgentId: enabledAgentIds.includes(value.defaultAgentId) ? value.defaultAgentId : enabledAgentIds[0], zetroApiUrl: value.zetroApiUrl || process.env.ZETRO_DESK_API_URL || "http://127.0.0.1:4151" };
 }
 
 function validState(value) {
@@ -193,6 +225,22 @@ async function ensureZetroApi(state) {
 async function endpointReady(url) {
   try { return (await fetch(url, { signal: AbortSignal.timeout(500) })).ok; }
   catch { return false; }
+}
+
+function watchDesktopParent() {
+  const parentPid = Number.parseInt(process.env.CODEXSUN_DESKTOP_PARENT_PID || "", 10);
+  if (!Number.isInteger(parentPid) || parentPid <= 0) return;
+  const timer = setInterval(() => {
+    try { process.kill(parentPid, 0); }
+    catch { clearInterval(timer); shutdown("SIGTERM"); }
+  }, 2_000);
+  timer.unref();
+}
+
+function shutdown(signal) {
+  tools.close();
+  bridge.close();
+  coordinator?.kill(signal);
 }
 
 async function saveState(path, value) {

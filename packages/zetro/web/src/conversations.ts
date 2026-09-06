@@ -11,10 +11,15 @@ export type Exchange = {
 export type Project = {
   id: string;
   name: string;
+  projectNumber?: string;
+  icon?: string;
+  color?: "slate" | "violet" | "amber" | "blue" | "rose";
   description?: string;
+  gitRepositoryUrl?: string;
   createdAt?: string;
   pinned?: boolean;
   localFolder?: string;
+  status?: "new" | "planning" | "active" | "on_hold" | "completed";
   kind?: "project" | "addon";
 };
 

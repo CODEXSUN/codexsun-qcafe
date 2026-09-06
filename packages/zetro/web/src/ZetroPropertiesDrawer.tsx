@@ -7,6 +7,7 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { Switch } from "@codexsun/ui/components/ui/switch";
 import { getZetroAgents, getZetroSettings, saveZetroSettings, type ZetroSettings } from "./settings-api.js";
 import { ZETRO_AGENT_RUNTIMES } from "./agent-runtimes.js";
+import { zetroNotifications } from "./notifications.js";
 
 export function ZetroPropertiesDrawer({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const queryClient = useQueryClient();
@@ -20,7 +21,9 @@ export function ZetroPropertiesDrawer({ open, onOpenChange }: { open: boolean; o
       void queryClient.invalidateQueries({ queryKey: ["zetro-workspace-folders"] });
       window.dispatchEvent(new CustomEvent("zetro-settings-updated", { detail: value }));
       onOpenChange(false);
+      zetroNotifications.success("Zetro properties saved");
     },
+    onError: (cause) => zetroNotifications.error(cause, "Unable to save Zetro properties."),
   });
   useEffect(() => { if (settings.data) setDraft(settings.data); }, [settings.data]);
 
@@ -29,6 +32,18 @@ export function ZetroPropertiesDrawer({ open, onOpenChange }: { open: boolean; o
     const enabledAgentIds = enabled ? [...new Set([...draft.enabledAgentIds, id])] : draft.enabledAgentIds.filter((item) => item !== id);
     const defaultAgentId = enabledAgentIds.includes(draft.defaultAgentId) ? draft.defaultAgentId : enabledAgentIds[0] ?? draft.defaultAgentId;
     setDraft({ ...draft, enabledAgentIds, defaultAgentId });
+  }
+
+  async function refreshSettings() {
+    const result = await settings.refetch();
+    if (result.error) zetroNotifications.error(result.error, "Zetro Desk configuration is unavailable.");
+    else zetroNotifications.success("Zetro configuration loaded");
+  }
+
+  async function refreshAgents() {
+    const result = await agents.refetch();
+    if (result.error) zetroNotifications.error(result.error, "Connected agents could not be loaded.");
+    else zetroNotifications.info("Agent status refreshed");
   }
 
   return <Sheet open={open} onOpenChange={onOpenChange}>
@@ -40,7 +55,7 @@ export function ZetroPropertiesDrawer({ open, onOpenChange }: { open: boolean; o
       <div className="min-h-0 flex-1 space-y-7 overflow-y-auto px-6 py-5">
         {!draft && <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background p-3">
           <p className="text-sm text-muted-foreground">{settings.isError ? "Zetro Desk configuration is unavailable." : "Loading Zetro configuration…"}</p>
-          {settings.isError && <Button type="button" variant="outline" size="sm" className="shrink-0 cursor-pointer" onClick={() => void settings.refetch()}>Retry</Button>}
+          {settings.isError && <Button type="button" variant="outline" size="sm" className="shrink-0 cursor-pointer" onClick={() => void refreshSettings()}>Retry</Button>}
         </div>}
         {draft && <>
           <section className="space-y-3">
@@ -49,7 +64,7 @@ export function ZetroPropertiesDrawer({ open, onOpenChange }: { open: boolean; o
             <Field label="GitHub URL" help="Optional remote used for project context and future reviewed Git operations."><div className="relative"><GitBranch className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" type="url" value={draft.githubUrl} onChange={(event) => setDraft({ ...draft, githubUrl: event.target.value })} placeholder="https://github.com/owner/repository" /></div></Field>
           </section>
           <section className="space-y-3">
-            <div className="flex items-center justify-between"><div className="flex items-center gap-2"><Bot className="size-4" /><h3 className="text-sm font-semibold">Docker agents</h3></div><Button type="button" variant="ghost" size="icon" className="size-8 cursor-pointer" aria-label="Refresh agents" title="Refresh agents" onClick={() => void agents.refetch()}><RefreshCw className={`size-4 ${agents.isFetching ? "animate-spin" : ""}`} /></Button></div>
+            <div className="flex items-center justify-between"><div className="flex items-center gap-2"><Bot className="size-4" /><h3 className="text-sm font-semibold">Docker agents</h3></div><Button type="button" variant="ghost" size="icon" className="size-8 cursor-pointer" aria-label="Refresh agents" title="Refresh agents" onClick={() => void refreshAgents()}><RefreshCw className={`size-4 ${agents.isFetching ? "animate-spin" : ""}`} /></Button></div>
             <div className="space-y-2">
               {agents.data?.map((agent) => {
                 const enabled = draft.enabledAgentIds.includes(agent.id);

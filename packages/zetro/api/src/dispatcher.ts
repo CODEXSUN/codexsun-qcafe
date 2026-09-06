@@ -6,7 +6,7 @@ export class DispatchError extends Error {
 }
 
 export class ZetroDispatcher {
-  constructor(readonly registry: AgentRegistry, private readonly transport: typeof fetch = fetch) {}
+  constructor(readonly registry: AgentRegistry, readonly transport: typeof fetch = fetch) {}
 
   async send(agentId: string, input: MessageInput) {
     const agent = this.registry.endpoints.find((entry) => entry.id === agentId);

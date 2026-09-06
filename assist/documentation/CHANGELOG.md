@@ -2,13 +2,69 @@
 
 ## Version State
 
-Current version: 0.1.33
+Current version: 1.0.3
 
-Release tag: v-0.1.33
+Release tag: v-1.0.3
 
-Changelog label: v 0.1.33
+Changelog label: v 1.0.3
 
 ## Unreleased
+
+### Zetro Agent Running Indicators for Tabs, Sidecar Projects, and Chats
+
+#### Database Changes
+
+- Database update: No.
+
+#### App Codebase Changes
+
+- Added animated running indicators across active conversations in Zetro:
+  - `ConversationTabs`: Running conversation tabs now display an animated spinning `Loader2` primary indicator with accessibility labels instead of a static pulse dot.
+  - `ConversationSideCar`: Chat conversation items in the sidecar list now display a distinct floating 3-dot bouncing wave animation (`...`) when a response is being generated for that conversation.
+  - `ConversationSideCar`: Project cards, add-on cards, and section headers (Projects, Add-ons, Conversations) display spinning `Loader2` indicators when any conversation within them is actively processing a turn.
+- Updated `PromptWorkspace` to track and distribute active `runningIds` across both `ConversationTabs` and the sidecar portal.
+- Added comprehensive unit tests in `ConversationRunningIndicators.test.tsx` verifying running spinners and bouncing dots across tabs and sidecar elements.
+
+### Zetro Agent Prompt Input ZXA Model & Provider Selector
+
+#### Database Changes
+
+- Database update: No.
+
+#### App Codebase Changes
+
+- Replaced static `Zetro · Docker` prompt bar status pill with interactive `ModelProviderSelector` component in `@codexsun/zetro-web`.
+- Added dynamic status pill displaying active provider and model (e.g. `Gemini · gemini-2.5-pro`, `OpenCode · nemotron-3-ultra`, `Codex · default`) with connection health dot indicator and live progress indicators (`Asking Gemini (gemini-2.5-pro)…`) during active turns.
+- Built interactive Model & Provider Popover allowing selection across Gemini, OpenCode, and Codex, with full model choices (Gemini 2.5 Pro, Gemini 2.5 Flash, Gemini 3.1 Pro Preview, Nemotron 3 Ultra, etc.), quick 1-click connect actions (Free Built-in LLM, Gemini/OpenAI API keys), and persistence to `localStorage`.
+- Added provider and model forwarding through `sendPrompt`, `desktop-bridge.mjs`, Zetro API routes (`/api/v1/zetro/providers`, `/api/v1/zetro/models`, `/api/v1/zetro/providers/:provider`), and ZXA container runtime server (`execute`, `runGemini`, `runOpenCode`, `runCodex`).
+- Added comprehensive unit test coverage in `@codexsun/zetro-web` and `@codexsun/zetro-api`.
+
+### Zetro Agent Visual Markdown Rendering for Desktop and Web
+
+#### Database Changes
+
+- Database update: No.
+
+#### App Codebase Changes
+
+- Added `MarkdownRenderer` component to `@codexsun/zetro-web` supporting rich visual HTML formatting: headings (H1-H6), styled responsive data tables, code blocks with language badge and copy-to-clipboard action, inline code, blockquotes, ordered/unordered lists, horizontal rules, links, bold, italics, and strikethrough.
+- Integrated `MarkdownRenderer` into `PromptWorkspace` across both completed conversation history exchanges and live streaming turns with an animated cursor.
+- Exported `MarkdownRenderer` from the `@codexsun/zetro-web` public contract for consumption across Desktop (Tauri) and Web shells.
+- Added automated unit tests verifying block and inline markdown parsing, markdown table structures, and live streaming cursor handling.
+
+### ZXA Google Account OAuth & Flagship Model Connection
+
+#### Database Changes
+
+- Database update: No.
+
+#### App Codebase Changes
+
+- Added native Google Account OAuth 2.0 PKCE authentication flow to ZXA runtime, matching Antigravity and Google Cloud Code Assist login without requiring a Google AI Studio API key.
+- Implemented `/api/v1/zxa/connections/gemini/google-auth` endpoints in ZXA container server to initiate PKCE sessions with official Google Code Assist credentials, exchange authorization codes, fetch user profile email, and store credentials to `/state/gemini/.gemini/` (`oauth_creds.json`, `google_accounts.json`, `settings.json`).
+- Updated `gemini` CLI invocation to run headless with `NO_BROWSER=true` and `oauth-personal` authentication mode, unlocking Google Code Assist flagship models (`gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-3.1-pro-preview`).
+- Added interactive Google Sign-in flow and status indicators to ZXA Web UI with automatic authorization code prompt and toggleable Google AI Studio API key fallback.
+- Added `--google` / `--oauth` sign-in support to ZXA CLI (`npm run zxa:cli -- connect gemini --google`).
 
 ### DevKit application and reusable ITO add-on
 
@@ -41,6 +97,91 @@ Changelog label: v 0.1.33
 - Added ITO entries for the workspace canvas, navigation, navigation rail, and workspace surface.
 - Cleared workspace canvas child blocks and reserved the full canvas for the next MDI feature.
 - Bound the shared AppSidebar and SidebarInset composition inside the workspace canvas.
+
+## v-1.0.3
+
+### [v 1.0.3] 2026-09-06 8:34 p.m. - Connect Zetro task handoffs to the desktop Task System
+
+#### Database Changes
+
+- Database update: No.
+
+#### App Codebase Changes
+
+- Bumped the workspace version to 1.0.3.
+- Connected the desktop Task System workspace to the same local coordinator and SQLite task store that Zetro Desk uses.
+- Added typed task source details for the sender, subject, application, surface, conversation, exchange, and return target.
+- Added source details and current task progress to the active and completed task lists.
+- Added task approval dialogs that open the matching Task System record when a step needs manual review.
+- Added completion and failure notifications for task handoffs from Zetro conversations and the Review Library.
+- Added an injectable Task System client so desktop uses the local bridge while cloud uses the platform API.
+- Added contract, API, web adapter, and Zetro task handoff tests.
+- Verified the workspace checks, desktop web build, Rust check, and Windows package build before this version update.
+
+## v-1.0.2
+
+### [v 1.0.2] 2026-09-06 8:33 p.m. - Q Cafe local identity and verified Windows update flow
+
+#### Database Changes
+
+- Database update: Yes.
+
+#### App Codebase Changes
+
+- Bumped the workspace version to 1.0.2.
+
+## v-1.0.1
+
+### [v 1.0.1] 2026-09-06 7:06 p.m. - Build Q Cafe 1.0.1 desktop release
+
+#### Database Changes
+
+- Database update: No.
+
+#### App Codebase Changes
+
+- Bumped the workspace version to 1.0.1.
+- Set all npm workspaces and deployment fallbacks to release 1.0.1.
+- Set CODEXSUN Desktop and Q Cafe Desktop Tauri and Cargo packages to release 1.0.1.
+- Added exact release-version support to the shared version helper.
+- Built Q Cafe with its React application and local Node API packaged in the Windows application.
+- Produced the Q Cafe MSI, NSIS, and combined Windows release files.
+
+## v-0.1.35
+
+### [v 0.1.35] 2026-09-06 7:03 p.m. - Build Q Cafe with synchronized desktop releases
+
+#### Database Changes
+
+- Database update: No.
+
+#### App Codebase Changes
+
+- Bumped the workspace version to 0.1.35.
+- Synchronized the Q Cafe package, Tauri configuration, Cargo package, and Cargo lock versions.
+- Extended the version helper to update both CODEXSUN Desktop and Q Cafe Desktop.
+- Extended the version check to reject mismatched Tauri and Cargo desktop versions.
+- Prepared the Q Cafe web application, local API sidecar, and synchronized Windows packaging pipeline.
+
+## v-0.1.34
+
+### [v 0.1.34] 2026-09-06 6:57 p.m. - Persist Zetro Desk projects and local runtime
+
+#### Database Changes
+
+- Database update: No.
+
+#### App Codebase Changes
+
+- Bumped the workspace version to 0.1.34.
+- Added a dedicated Zetro Projects workspace with overview, conversations, tasks, reviews, and context tabs.
+- Added project numbers, icons, colors, repository URLs, local folders, and lifecycle status to the project contract.
+- Added the native Windows folder picker for project folders inside the configured repository root.
+- Made Zetro Desk start and stop its local bridge, coordinator, and repository tools with the desktop application.
+- Routed desktop workspace reads and changes through the authenticated local bridge and SQLite store.
+- Saved project edits in the local browser cache and removed the project update notice from the prompt composer.
+- Preserved the selected repository, GitHub URL, enabled agents, default agent, project name, folder, and pinned state after restart.
+- Added restart persistence and local project metadata checks.
 
 ## v-0.1.33
 

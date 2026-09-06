@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Archive, Boxes, Check, ChevronDown, Copy, FileSearch, Folder, FolderKanban, FolderOpen, FolderPlus, MessageSquare, MoreHorizontal, Pencil, Pin, Plus, Search, Trash2, X } from "lucide-react";
+import { Archive, Boxes, Check, ChevronDown, Copy, FileSearch, Folder, FolderKanban, FolderOpen, FolderPlus, Loader2, MessageSquare, MoreHorizontal, Pencil, Pin, Plus, Search, Trash2, X } from "lucide-react";
 import { Button } from "@codexsun/ui/components/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@codexsun/ui/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@codexsun/ui/components/ui/alert-dialog";
@@ -9,12 +9,15 @@ import { MdiTopologyRegion, type MdiTopologyAdapter } from "@codexsun/ui-desk";
 import { useQuery } from "@tanstack/react-query";
 import { type Conversation, type Project } from "./conversations.js";
 import { createWorkspaceFolder, getWorkspaceFolders } from "./workspace-api.js";
+import { isDesktopZetro, pickDesktopProjectFolder } from "./desktop-bridge.js";
+import { zetroNotifications } from "./notifications.js";
 
 export function ConversationSideCar({
   conversations,
   projects = [],
   activeId,
-  disabled,
+  runningIds,
+  disabled = false,
   onSelect,
   onNew,
   topology,
@@ -33,7 +36,8 @@ export function ConversationSideCar({
   conversations: Conversation[];
   projects?: Project[];
   activeId: string;
-  disabled: boolean;
+  runningIds?: ReadonlySet<string>;
+  disabled?: boolean;
   onSelect: (item: Conversation) => void;
   onNew: (projectId?: string) => void;
   topology?: MdiTopologyAdapter;
@@ -63,11 +67,13 @@ export function ConversationSideCar({
   const [folderActionBusy, setFolderActionBusy] = useState(false);
   const [folderActionError, setFolderActionError] = useState("");
   const [exploringProjectId, setExploringProjectId] = useState<string | null>(null);
+  const desktop = isDesktopZetro();
   const folders = useQuery({
     queryKey: ["zetro-workspace-folders"],
     queryFn: getWorkspaceFolders,
     retry: 5,
     retryDelay: (attempt) => Math.min(1_000 * 2 ** attempt, 5_000),
+    enabled: !desktop,
   });
   useEffect(() => {
     const refresh = () => void folders.refetch();
@@ -76,7 +82,7 @@ export function ConversationSideCar({
   }, [folders.refetch]);
   const matching = conversations
     .filter((item) => `${item.title} ${item.exchanges.map((entry) => entry.prompt).join(" ")}`.toLowerCase().includes(search.toLowerCase()))
-    .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
+    .sort((a, b) => (a.updatedAt ?? "").localeCompare(b.updatedAt ?? ""));
 
   function saveProject(name: string, folder: string) {
     if (editingProjectId) onEditProject?.(editingProjectId, name, folder);
@@ -97,9 +103,19 @@ export function ConversationSideCar({
       setFolderConfirmationOpen(false);
       saveProject(pendingProjectName, created.folder);
     } catch (cause) {
-      setFolderActionError(cause instanceof Error ? cause.message : "The folder could not be created.");
+      setFolderActionError(zetroNotifications.error(cause, "The folder could not be created."));
     } finally {
       setFolderActionBusy(false);
+    }
+  }
+
+  async function chooseDesktopProjectFolder() {
+    setFolderActionError("");
+    try {
+      const selected = await pickDesktopProjectFolder();
+      if (selected) setProjectFolder(selected.folder);
+    } catch (cause) {
+      setFolderActionError(zetroNotifications.error(cause, "The Windows folder picker could not be opened."));
     }
   }
 
@@ -170,6 +186,17 @@ export function ConversationSideCar({
             {item.pinned && <Pin className="size-3 shrink-0 fill-primary text-primary" />}
             {item.archived && <Archive className="size-3 shrink-0 text-muted-foreground" />}
             <span className="truncate">{item.title}</span>
+            {runningIds?.has(item.id) && (
+              <span
+                className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 shrink-0"
+                title="Responding…"
+                aria-label="Agent responding"
+              >
+                <span className="size-1 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
+                <span className="size-1 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
+                <span className="size-1 rounded-full bg-primary animate-bounce" />
+              </span>
+            )}
           </span>
         </button>
 
@@ -290,6 +317,31 @@ export function ConversationSideCar({
   const projectGroups = projects.filter((project) => project.kind !== "addon");
   const addonGroups = projects.filter((project) => project.kind === "addon");
 
+  const isProjectRunning = (projId: string) =>
+    Boolean(runningIds && conversations.some((c) => c.projectId === projId && runningIds.has(c.id)));
+
+  const hasUnassignedRunning = Boolean(
+    runningIds && conversations.some((c) => !c.projectId && runningIds.has(c.id))
+  );
+  const hasAnyProjectRunning = Boolean(
+    runningIds &&
+      conversations.some(
+        (c) =>
+          c.projectId &&
+          runningIds.has(c.id) &&
+          projects.some((p) => p.id === c.projectId && p.kind !== "addon")
+      )
+  );
+  const hasAnyAddonRunning = Boolean(
+    runningIds &&
+      conversations.some(
+        (c) =>
+          c.projectId &&
+          runningIds.has(c.id) &&
+          projects.some((p) => p.id === c.projectId && p.kind === "addon")
+      )
+  );
+
   return (
     <MdiTopologyRegion id="z2.1" topology={topology} className="flex h-full min-h-0 flex-col">
       <MdiTopologyRegion id="z2.1.1" topology={topology} className="shrink-0 -mx-3 -mt-3 border-b border-border">
@@ -335,6 +387,11 @@ export function ConversationSideCar({
               <span className="flex items-center gap-1.5">
                 <FolderKanban className="size-3.5 text-primary" />
                 Projects
+                {hasAnyProjectRunning && (
+                  <span title="Tasks running in projects" className="inline-flex items-center">
+                    <Loader2 className="size-3 shrink-0 animate-spin text-primary" aria-label="Tasks running in projects" />
+                  </span>
+                )}
               </span>
               <div className="flex items-center gap-1">
                 <Button
@@ -369,6 +426,11 @@ export function ConversationSideCar({
                         {proj.pinned && <Pin className="size-3 fill-current text-primary" />}
                         <span className="truncate">{proj.name}</span>
                         <span className="text-[10px] text-muted-foreground shrink-0">({projChats.length})</span>
+                        {isProjectRunning(proj.id) && (
+                          <span title="Running tasks in project" className="inline-flex items-center">
+                            <Loader2 className="size-3 shrink-0 animate-spin text-primary" aria-label="Running tasks in project" />
+                          </span>
+                        )}
                       </span>
                       <span className="flex items-center gap-0.5" onClick={(event) => event.stopPropagation()}>
                         <Button type="button" variant="ghost" size="icon" className="size-6 cursor-pointer" aria-label={`New chat in ${proj.name}`} title="New chat" onClick={() => onNew(proj.id)}><Plus className="size-3.5" /></Button>
@@ -401,7 +463,15 @@ export function ConversationSideCar({
 
         <details open className="group mb-3">
           <summary className="flex cursor-pointer list-none items-center justify-between rounded px-2 py-2 text-xs font-medium text-muted-foreground hover:bg-accent [&::-webkit-details-marker]:hidden">
-            <span className="flex items-center gap-1.5"><Boxes className="size-3.5 text-primary" />Add-ons</span>
+            <span className="flex items-center gap-1.5">
+              <Boxes className="size-3.5 text-primary" />
+              Add-ons
+              {hasAnyAddonRunning && (
+                <span title="Tasks running in add-ons" className="inline-flex items-center">
+                  <Loader2 className="size-3 shrink-0 animate-spin text-primary" aria-label="Tasks running in add-ons" />
+                </span>
+              )}
+            </span>
             <div className="flex items-center gap-1">
               <Button type="button" variant="ghost" size="icon" className="size-5 cursor-pointer p-0 text-muted-foreground hover:text-foreground" title="New Add-on" aria-label="New Add-on" onClick={(event) => { event.stopPropagation(); setEditingProjectId(null); setEditingKind("addon"); setProjectName(""); setProjectFolder("."); setProjectDialogOpen(true); }}><Plus className="size-3" /></Button>
               <ChevronDown className="size-3 transition-transform group-open:rotate-180" />
@@ -412,7 +482,17 @@ export function ConversationSideCar({
               const addonChats = matching.filter((item) => !item.pinned && !item.archived && item.projectId === addon.id);
               return <details key={addon.id} open className="group/addon overflow-hidden rounded-lg border border-border/40 bg-card/20">
                 <summary className="flex cursor-pointer list-none items-center justify-between px-2.5 py-1.5 text-xs font-medium text-foreground/90 hover:bg-accent/60 [&::-webkit-details-marker]:hidden">
-                  <span className="flex min-w-0 items-center gap-1.5"><Boxes className="size-3 shrink-0 text-primary" />{addon.pinned && <Pin className="size-3 shrink-0 fill-current text-primary" />}<span className="truncate">{addon.name}</span><span className="shrink-0 text-[10px] text-muted-foreground">({addonChats.length})</span></span>
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <Boxes className="size-3 shrink-0 text-primary" />
+                    {addon.pinned && <Pin className="size-3 shrink-0 fill-current text-primary" />}
+                    <span className="truncate">{addon.name}</span>
+                    <span className="shrink-0 text-[10px] text-muted-foreground">({addonChats.length})</span>
+                    {isProjectRunning(addon.id) && (
+                      <span title="Running tasks in add-on" className="inline-flex items-center">
+                        <Loader2 className="size-3 shrink-0 animate-spin text-primary" aria-label="Running tasks in add-on" />
+                      </span>
+                    )}
+                  </span>
                   <span className="flex items-center gap-0.5" onClick={(event) => event.stopPropagation()}>
                     <Button type="button" variant="ghost" size="icon" className="size-6 cursor-pointer" aria-label={`New chat in ${addon.name}`} title="New chat" onClick={() => onNew(addon.id)}><Plus className="size-3.5" /></Button>
                     <Popover><PopoverTrigger asChild><Button type="button" variant="ghost" size="icon" className="size-6 cursor-pointer" aria-label={`${addon.name} options`} title="Add-on options"><MoreHorizontal className="size-3.5" /></Button></PopoverTrigger><PopoverContent align="end" className="w-48 p-1">
@@ -441,6 +521,11 @@ export function ConversationSideCar({
               <span className="rounded-full bg-background/80 px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground border border-border/30">
                 {unassignedItems.length}
               </span>
+              {hasUnassignedRunning && (
+                <span title="Running tasks in conversations" className="inline-flex items-center">
+                  <Loader2 className="size-3 shrink-0 animate-spin text-primary" aria-label="Running tasks in conversations" />
+                </span>
+              )}
             </span>
             <ChevronDown className="size-3 text-muted-foreground transition-transform group-open:rotate-180" />
           </summary>
@@ -498,7 +583,7 @@ export function ConversationSideCar({
               if (!trimmed || validationError) { setFolderActionError(validationError); return; }
               setProjectFolder(folder);
               setFolderActionError("");
-              if ((folders.data?.folders ?? []).includes(folder)) saveProject(trimmed, folder);
+              if (desktop || (folders.data?.folders ?? []).includes(folder)) saveProject(trimmed, folder);
               else { setPendingProjectName(trimmed); setFolderConfirmationOpen(true); }
             }}
             className="space-y-4 pt-2"
@@ -531,7 +616,9 @@ export function ConversationSideCar({
                     value={projectFolder}
                   />
                 </div>
-                <Popover open={folderBrowserOpen} onOpenChange={setFolderBrowserOpen}>
+                {desktop ? <Button aria-label="Choose a project folder in Windows" className="h-full w-10 shrink-0 rounded-l-none border-0 border-l border-input" size="icon" type="button" variant="ghost" onClick={() => void chooseDesktopProjectFolder()}>
+                  <FolderOpen className="size-4" />
+                </Button> : <Popover open={folderBrowserOpen} onOpenChange={setFolderBrowserOpen}>
                   <PopoverTrigger asChild>
                     <Button aria-label="Browse local folders" className="h-full w-10 shrink-0 rounded-l-none border-0 border-l border-input" disabled={folders.isLoading || Boolean(folders.error)} size="icon" type="button" variant="ghost">
                       <FolderOpen className="size-4" />
@@ -560,11 +647,11 @@ export function ConversationSideCar({
                       })}
                     </div>
                   </PopoverContent>
-                </Popover>
+                </Popover>}
               </div>
-              <p className="truncate text-[11px] text-muted-foreground" title={folders.data?.root}>{folders.isLoading ? "Finding local folders…" : `${folders.data?.root}${projectFolder === "." ? "" : ` / ${projectFolder}`}`}</p>
+              <p className="truncate text-[11px] text-muted-foreground" title={desktop ? projectFolder : folders.data?.root}>{desktop ? "Choose an existing folder. Windows opens at the repository apps folder." : folders.isLoading ? "Finding local folders…" : `${folders.data?.root}${projectFolder === "." ? "" : ` / ${projectFolder}`}`}</p>
               {folderActionError && <p className="text-xs text-destructive" role="alert">{folderActionError}</p>}
-              {folders.error && (
+              {!desktop && folders.error && (
                 <div className="flex items-center justify-between gap-2 text-xs text-destructive">
                   <span>Unable to load local folders.</span>
                   <Button type="button" variant="ghost" size="sm" className="h-7 cursor-pointer px-2" onClick={() => void folders.refetch()}>
@@ -585,7 +672,7 @@ export function ConversationSideCar({
               <Button
                 type="submit"
                 size="sm"
-                disabled={!projectName.trim() || !projectFolder.trim() || folders.isLoading || Boolean(folders.error)}
+                disabled={!projectName.trim() || !projectFolder.trim() || (!desktop && (folders.isLoading || Boolean(folders.error)))}
               >
                 Save
               </Button>

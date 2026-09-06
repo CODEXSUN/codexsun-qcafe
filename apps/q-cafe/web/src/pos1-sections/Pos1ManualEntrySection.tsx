@@ -176,7 +176,8 @@ export function Pos1ManualEntrySection({
     }
     if (e.key === 'Enter') {
       e.preventDefault();
-      focusAndSelect(rateInput);
+      onAddToOrder();
+      requestAnimationFrame(() => focusAndSelect(codeInput));
     }
   }
 
@@ -317,6 +318,7 @@ export function Pos1ManualEntrySection({
           <div className="flex h-10 items-center justify-between rounded-xl border border-border bg-background px-1.5 gap-1 focus-within:border-primary focus-within:ring-1 focus-within:ring-primary">
             <button
               type="button"
+              tabIndex={-1}
               onClick={() => {
                 const cur = Math.max(1, (parseInt(quantity, 10) || 1) - 1);
                 onChangeQuantity(String(cur));
@@ -339,6 +341,7 @@ export function Pos1ManualEntrySection({
             />
             <button
               type="button"
+              tabIndex={-1}
               onClick={() => {
                 const cur = (parseInt(quantity, 10) || 1) + 1;
                 onChangeQuantity(String(cur));
@@ -364,6 +367,7 @@ export function Pos1ManualEntrySection({
               inputMode="decimal"
               aria-label="Item Rate"
               value={rate}
+              tabIndex={-1}
               onChange={(e) => onChangeRate(e.target.value)}
               onFocus={(e) => e.currentTarget.select()}
               onKeyDown={handleRateKey}

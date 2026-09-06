@@ -6,6 +6,7 @@ import type { MdiWorkspaceAddon } from "@codexsun/ui-desk";
 import type { CloudReleaseState, ReleaseOperation, ReleaseOperationEvent } from "@codexsun/orship-contracts";
 import type { InterfaceTopologySection } from "@codexsun/devkit-ito";
 import { ReleaseHistoryWorkspace } from "./history/ReleaseHistoryWorkspace.js";
+import { QcafeReleaseTasks } from "./tasks/QcafeReleaseTasks.js";
 
 const apiBase = location.hostname === "127.0.0.1" || location.hostname === "tauri.localhost" || location.protocol === "tauri:"
   ? "http://127.0.0.1:4190"
@@ -15,8 +16,8 @@ export const orshipWorkspaceAddon: MdiWorkspaceAddon = {
   id: "orship",
   label: "Orship",
   icon: Rocket,
-  navigation: { id: "orship", hideSearch: true, groups: [{ id: "orship", title: "Release operations", items: [{ id: "operations", title: "Operations" }, { id: "history", title: "History" }] }] },
-  renderPage: (pageId, topology) => pageId === "history" ? <ReleaseHistoryWorkspace apiBase={apiBase} topology={topology} /> : <OrshipWorkspace topology={topology} />,
+  navigation: { id: "orship", hideSearch: true, groups: [{ id: "orship", title: "Release operations", items: [{ id: "operations", title: "Operations" }, { id: "tasks", title: "Tasks" }, { id: "history", title: "History" }] }] },
+  renderPage: (pageId, topology) => pageId === "history" ? <ReleaseHistoryWorkspace apiBase={apiBase} topology={topology} /> : pageId === "tasks" || pageId.startsWith("task-") ? <QcafeReleaseTasks taskId={pageId.startsWith("task-") ? pageId.replace("task-", "") : undefined} onSelect={navigateTask} topology={topology} /> : <OrshipWorkspace topology={topology} />,
 };
 
 export const orshipTopology: InterfaceTopologySection[] = [
@@ -24,7 +25,19 @@ export const orshipTopology: InterfaceTopologySection[] = [
   { id: "o2", technicalName: "orship.history.list", name: "History list", scope: "Operation history", description: "Searchable and filterable completed release operations." },
   { id: "o3", technicalName: "orship.history.details", name: "History details", scope: "Operation history", description: "Release evidence, source information, outcome, and timeline." },
   { id: "o4", technicalName: "orship.history.review", name: "Review decision", scope: "Operation history", description: "Durable review status, notes, and follow-up decision." },
+  { id: "o5", technicalName: "orship.tasks.workspace", name: "Release tasks", scope: "Orship", description: "Q Cafe release task list." },
+  { id: "o6", technicalName: "orship.tasks.list", name: "Task list", scope: "Release tasks", description: "Available Q Cafe release tasks." },
+  { id: "o7", technicalName: "orship.tasks.action", name: "Task action", scope: "Release tasks", description: "Selected task instructions." },
+  { id: "o8", technicalName: "orship.tasks.command", name: "Action command", scope: "Task action", description: "Copyable release command." },
 ];
+
+function navigateTask(taskId?: string) {
+  const url = new URL(window.location.href);
+  url.searchParams.set("app", "orship");
+  url.searchParams.set("page", taskId ? `task-${taskId}` : "tasks");
+  window.history.pushState(null, "", url);
+  window.dispatchEvent(new PopStateEvent("popstate"));
+}
 
 function OrshipWorkspace({ topology }: { topology?: import("@codexsun/ui-desk").MdiTopologyAdapter }) {
   const [operations, setOperations] = useState<ReleaseOperation[]>([]);

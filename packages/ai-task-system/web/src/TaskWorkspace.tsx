@@ -21,22 +21,25 @@ import {
 import { Avatar, AvatarFallback } from "@codexsun/ui/components/avatar";
 import { Button } from "@codexsun/ui/components/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@codexsun/ui/components/ui/popover";
+import { toast } from "@codexsun/ui/components/ui/sonner";
 import { MdiTopologyRegion, type MdiTopologyAdapter } from "@codexsun/ui-desk";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AiTask } from "@codexsun/ai-task-contracts";
-import { approveTask, createTask, listTasks, startTask } from "./api.js";
+import { platformAiTaskClient, type AiTaskClient } from "./api.js";
 import { TaskSideCar } from "./TaskSideCar.js";
 
 export function TaskWorkspace({
   pageId,
   sideCarTarget,
   topology,
+  client = platformAiTaskClient,
 }: {
   pageId: string;
   sideCarTarget?: HTMLElement | null;
   topology?: MdiTopologyAdapter;
+  client?: AiTaskClient;
 }) {
-  const client = useQueryClient();
+  const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(pageId || null);
   const [request, setRequest] = useState("");
   const [query, setQuery] = useState("");
@@ -45,24 +48,26 @@ export function TaskWorkspace({
 
   const tasks = useQuery({
     queryKey: ["ai-tasks"],
-    queryFn: listTasks,
+    queryFn: client.list,
     refetchInterval: (q) => (q.state.data?.some((t) => t.status === "running") ? 1200 : 5000),
   });
 
-  const refresh = () => client.invalidateQueries({ queryKey: ["ai-tasks"] });
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ["ai-tasks"] });
 
   const create = useMutation({
-    mutationFn: createTask,
+    mutationFn: (request: string) => client.create({ request }),
     onSuccess: (task) => {
       setRequest("");
       setSelectedId(task.id);
       updateUrl(task.id);
       void refresh();
+      toast.success("Task planned", { description: task.title });
     },
+    onError: (cause) => toast.error(cause instanceof Error ? cause.message : "Unable to plan the task."),
   });
 
-  const start = useMutation({ mutationFn: startTask, onSuccess: refresh });
-  const approve = useMutation({ mutationFn: approveTask, onSuccess: refresh });
+  const start = useMutation({ mutationFn: client.start, onSuccess: (task) => { void refresh(); toast.success("Task started", { description: task.title }); }, onError: (cause) => toast.error(cause instanceof Error ? cause.message : "Unable to start the task.") });
+  const approve = useMutation({ mutationFn: client.approve, onSuccess: (task) => { void refresh(); toast.success("Task completed", { description: task.title }); }, onError: (cause) => toast.error(cause instanceof Error ? cause.message : "Unable to approve the task.") });
 
   useEffect(() => {
     setSelectedId(pageId || null);
@@ -134,6 +139,7 @@ export function TaskWorkspace({
         className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6"
       >
         <div className="mx-auto w-full md:w-[75%] space-y-4">
+          {tasks.error && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive" role="alert"><span>{tasks.error.message}</span><Button type="button" variant="outline" size="sm" className="cursor-pointer" onClick={() => void tasks.refetch()}>Retry</Button></div>}
           {selected ? (
             <TaskTranscript
               busy={start.isPending || approve.isPending}
@@ -341,6 +347,16 @@ function TaskHeader({
                   <span className="text-muted-foreground">Created</span>
                   <span className="text-foreground">{new Date(task.createdAt).toLocaleString()}</span>
                 </div>
+                {task.source && <>
+                  <div className="flex justify-between gap-3 py-1 border-b border-border/50">
+                    <span className="text-muted-foreground">Sent by</span>
+                    <span className="text-right text-foreground">{task.source.sender} · {task.source.surface}</span>
+                  </div>
+                  <div className="py-1 border-b border-border/50">
+                    <span className="text-muted-foreground block mb-1">Subject</span>
+                    <p className="text-foreground font-normal leading-relaxed">{task.source.subject}</p>
+                  </div>
+                </>}
                 <div className="py-1">
                   <span className="text-muted-foreground block mb-1">Objective</span>
                   <p className="text-foreground font-normal leading-relaxed">{task.objective}</p>
@@ -391,11 +407,12 @@ function TaskTranscript({
       {/* Bubble 1: Outgoing User Request */}
       <div className="flex flex-col items-end ml-auto max-w-[75%] w-fit py-1.5">
         <div className="flex items-center gap-1.5 mb-2 px-1.5 text-[11px] text-muted-foreground">
-          <span className="font-medium">You</span>
+          <span className="font-medium">{task.source?.sender ?? "You"}</span>
           <span>·</span>
           <span>{formatConversationTime(task.createdAt)}</span>
         </div>
         <article className="rounded-2xl rounded-tr-xs border border-border/60 bg-card text-foreground px-6 py-4 sm:px-7 sm:py-5 shadow-2xs">
+          {task.source && <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-border/50 pb-3 text-[11px] text-muted-foreground"><span>{task.source.applicationName}</span><span>·</span><span className="capitalize">{task.source.surface}</span><span>·</span><span className="font-medium text-foreground">{task.source.subject}</span></div>}
           <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{task.request}</p>
         </article>
         <div className="mt-2 flex items-center justify-end gap-1.5 px-1.5 text-[10px] text-muted-foreground">

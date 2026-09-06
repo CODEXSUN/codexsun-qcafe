@@ -17,6 +17,9 @@ const lock = readJson(resolve(ROOT, "package-lock.json"));
 if (lock.version !== rootVersion) failures.push(`package-lock.json uses ${lock.version}.`);
 if (lock.packages?.[""]?.version !== rootVersion) failures.push("The package-lock root version differs.");
 
+checkTauriDesktop("apps/platform/core/desktop/src-tauri", "codexsun-desktop");
+checkTauriDesktop("apps/q-cafe/desktop/src-tauri", "q-cafe-desktop");
+
 const changelog = readFileSync(resolve(ROOT, "assist", "documentation", "CHANGELOG.md"), "utf8");
 for (const expected of [
   `Current version: ${rootVersion}`,
@@ -36,4 +39,16 @@ console.log(`Version check passed for ${rootVersion}.`);
 
 function readJson(file) {
   return JSON.parse(readFileSync(file, "utf8"));
+}
+
+function checkTauriDesktop(path, packageName) {
+  const root = resolve(ROOT, path);
+  const tauriVersion = readJson(resolve(root, "tauri.conf.json")).version;
+  if (tauriVersion !== rootVersion) failures.push(`${path}/tauri.conf.json uses ${tauriVersion}.`);
+  const cargoToml = readFileSync(resolve(root, "Cargo.toml"), "utf8");
+  const cargoTomlVersion = /^version = "([^"]+)"$/mu.exec(cargoToml)?.[1];
+  if (cargoTomlVersion !== rootVersion) failures.push(`${path}/Cargo.toml uses ${cargoTomlVersion ?? "no version"}.`);
+  const cargoLock = readFileSync(resolve(root, "Cargo.lock"), "utf8");
+  const cargoLockVersion = new RegExp(`name = "${packageName}"\\r?\\nversion = "([^"]+)"`, "u").exec(cargoLock)?.[1];
+  if (cargoLockVersion !== rootVersion) failures.push(`${path}/Cargo.lock uses ${cargoLockVersion ?? "no version"}.`);
 }

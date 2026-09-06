@@ -27,8 +27,8 @@ export function TaskSideCar({
 
   const visibleTasks = tasks
     .filter((task) => (filter === "completed" ? task.status === "completed" : task.status !== "completed"))
-    .filter((task) => `${task.title} ${task.objective} ${task.status}`.toLowerCase().includes(query.toLowerCase()))
-    .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
+    .filter((task) => `${task.title} ${task.objective} ${task.status} ${task.source?.sender ?? ""} ${task.source?.subject ?? ""}`.toLowerCase().includes(query.toLowerCase()))
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
   return (
     <aside
@@ -166,6 +166,7 @@ function TaskListItem({
             {formatTaskTime(task.updatedAt)}
           </time>
         </span>
+        {task.source && <span className="mt-0.5 block truncate text-xs text-foreground/75" title={task.source.subject}>{task.source.subject}</span>}
         <span className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground truncate">
           {isCompleted ? (
             <CheckCheck className="size-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -179,7 +180,7 @@ function TaskListItem({
             <Clock className="size-3.5 text-muted-foreground shrink-0" />
           )}
           <span className="truncate">
-            {completedSteps}/{task.workItems.length} steps · {task.status.replace("_", " ")}
+            {task.source?.sender ? `${task.source.sender} · ` : ""}{completedSteps}/{task.workItems.length} steps · {task.status.replace("_", " ")}
           </span>
         </span>
       </span>

@@ -1,19 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Armchair,
-  Clock,
   Coffee,
-  CookingPot,
-  Minus,
-  Plus,
-  Receipt,
   RotateCcw,
-  Sparkles,
-  Users,
   Utensils,
 } from 'lucide-react';
 import type { InterfaceTopologyController } from '@codexsun/devkit-ito';
-import { money, type Snapshot } from './api';
+import type { Snapshot } from './api';
 import { ItoRegion } from './ItoRegion';
 import { getMergedTables, type TableMasterConfig } from './mastersStore';
 
@@ -24,13 +17,41 @@ type Props = {
   onSelectTable?: (tableNo: string, chairCount: number) => void;
 };
 
-// Chair preset options for touch selector
-const CHAIR_PRESETS = [1, 2, 3, 4, 5, 6, 8, 10];
-
 export function Tables({ data, navigate, topology, onSelectTable }: Props) {
-  const [selectedChairs, setSelectedChairs] = useState<number>(4);
+  // Map of tableNo -> selected chair number (default 1)
+  const [selectedChairMap, setSelectedChairMap] = useState<Record<string, number>>({});
   const [filter, setFilter] = useState<'all' | 'available' | 'occupied' | 'parcel'>('all');
-  const [now, setNow] = useState<number>(() => Date.now());
+  const [, setNow] = useState<number>(() => Date.now());
+
+  // Active POS tabs synced from sessionStorage or custom event
+  const [posActiveTabs, setPosActiveTabs] = useState<
+    Array<{
+      tableName: string;
+      chair: string;
+      total: number;
+      itemCount: number;
+      chairOccupiedList: number[];
+    }>
+  >(() => {
+    try {
+      const raw = sessionStorage.getItem('q-cafe-pos-active-tables');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Listen for POS order updates
+  useEffect(() => {
+    const handlePosSync = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (Array.isArray(detail)) {
+        setPosActiveTabs(detail);
+      }
+    };
+    window.addEventListener('q-cafe-pos-tables-updated', handlePosSync);
+    return () => window.removeEventListener('q-cafe-pos-tables-updated', handlePosSync);
+  }, []);
 
   // Live timer for rolling duration tickers (updates every 15 seconds)
   useEffect(() => {
@@ -52,112 +73,51 @@ export function Tables({ data, navigate, topology, onSelectTable }: Props) {
     return data.pos.filter((b) => b.status === 'open' || b.status === 'part-paid');
   }, [data.pos]);
 
-  // Derive occupancy, statistics, and duration for each table
+  // Derive occupancy for each table
   const tableStats = useMemo(() => {
     const stats: Record<
       string,
       {
         isOccupied: boolean;
-        orderTotal: number;
-        guestCount: number;
-        durationMinutes: number;
-        durationLabel: string;
-        orderId?: number;
-        billNo?: string;
-        itemCount: number;
-        itemNames: string[];
-        statusLabel: string;
+        isBilled: boolean;
+        occupiedChairs: number[];
       }
     > = {};
 
     for (const table of tables) {
+      const posTab = posActiveTabs.find(
+        (p) => p.tableName.toLowerCase() === table.tableNo.toLowerCase()
+      );
       const activeOrder = activeOrders.find(
         (o) => o.table_name.toLowerCase() === table.tableNo.toLowerCase()
       );
       const openBill = openBills.find(
         (b) => b.table_no.toLowerCase() === table.tableNo.toLowerCase()
       );
+      const dbTable = data.restaurant_tables.find(
+        (t) => t.table_no.toLowerCase() === table.tableNo.toLowerCase()
+      );
 
-      const isOccupied = Boolean(activeOrder || openBill);
-
-      if (!isOccupied) {
-        stats[table.tableNo] = {
-          isOccupied: false,
-          orderTotal: 0,
-          guestCount: 0,
-          durationMinutes: 0,
-          durationLabel: 'Available',
-          itemCount: 0,
-          itemNames: [],
-          statusLabel: 'Available',
-        };
-        continue;
-      }
-
-      // Calculate elapsed time from created_at
-      const createdStr = activeOrder?.created_at ?? openBill?.created_at;
-      let durationMinutes = 0;
-      let durationLabel = 'Just seated';
-
-      if (createdStr) {
-        const createdTime = new Date(createdStr.replace(' ', 'T') + 'Z').getTime();
-        if (!isNaN(createdTime) && createdTime > 0) {
-          const diffMs = Math.max(0, now - createdTime);
-          durationMinutes = Math.floor(diffMs / 60000);
-
-          if (durationMinutes < 1) {
-            durationLabel = 'Just seated';
-          } else if (durationMinutes < 60) {
-            durationLabel = `${durationMinutes}m`;
-          } else {
-            const hrs = Math.floor(durationMinutes / 60);
-            const mins = durationMinutes % 60;
-            durationLabel = `${hrs}h ${mins}m`;
-          }
-        }
-      }
-
-      // Calculate items and total
-      const orderTotal = openBill?.grand_total ?? activeOrder?.total ?? 0;
-      const guestCount = openBill?.guest_count ?? (table.chairCount || 4);
-
-      // Find order lines if available
-      const lines = activeOrder
-        ? data.order_lines.filter((l) => l.order_id === activeOrder.id)
-        : [];
-      const itemCount = lines.reduce((s, l) => s + l.quantity, 0) || (openBill ? 2 : 1);
-      const itemNames = lines.map((l) => l.name);
-
-      const statusLabel = openBill
-        ? 'Billed · Open'
-        : activeOrder
-        ? `Kitchen · ${activeOrder.status}`
-        : 'Occupied';
+      const isBilled = Boolean(openBill);
+      const isOccupied = Boolean(
+        posTab || activeOrder || openBill || dbTable?.status === 'occupied'
+      );
+      const occupiedChairs = posTab?.chairOccupiedList ?? [];
 
       stats[table.tableNo] = {
-        isOccupied: true,
-        orderTotal,
-        guestCount,
-        durationMinutes,
-        durationLabel,
-        orderId: activeOrder?.id,
-        billNo: openBill?.bill_no,
-        itemCount,
-        itemNames,
-        statusLabel,
+        isOccupied,
+        isBilled,
+        occupiedChairs,
       };
     }
 
     return stats;
-  }, [tables, activeOrders, openBills, data.order_lines, now]);
+  }, [tables, posActiveTabs, activeOrders, openBills, data.restaurant_tables]);
 
   // Metrics summary
   const totalTables = tables.length;
   const occupiedCount = Object.values(tableStats).filter((s) => s.isOccupied).length;
   const availableCount = totalTables - occupiedCount;
-  const totalGuestsSeated = Object.values(tableStats)
-    .filter((s) => s.isOccupied)
-    .reduce((sum, s) => sum + s.guestCount, 0);
 
   // Filtered tables
   const filteredTables = useMemo(() => {
@@ -170,18 +130,25 @@ export function Tables({ data, navigate, topology, onSelectTable }: Props) {
     });
   }, [tables, filter, tableStats]);
 
-  // Handle table click: seat party and route to POS
-  function handleTableClick(table: TableMasterConfig) {
-    const tableNo = table.tableNo;
-    const chairs = selectedChairs;
+  // Select a chair for a table
+  function handleChairSelect(tableNo: string, chairNum: number) {
+    setSelectedChairMap((prev) => ({
+      ...prev,
+      [tableNo]: chairNum,
+    }));
+  }
 
-    // Save selection to session storage for POS pickup
+  // Hit the table to navigate to POS with the selected chair
+  function handleTableHit(table: TableMasterConfig, chairOverride?: number) {
+    const tableNo = table.tableNo;
+    const chair = chairOverride ?? selectedChairMap[tableNo] ?? 1;
+
     try {
       sessionStorage.setItem(
         'q-cafe-selected-table',
         JSON.stringify({
           tableNo,
-          chairCount: chairs,
+          chairCount: chair,
           timestamp: Date.now(),
         })
       );
@@ -189,57 +156,47 @@ export function Tables({ data, navigate, topology, onSelectTable }: Props) {
       // Storage unavailable
     }
 
-    // Fire custom event so active POS tabs immediately switch
     window.dispatchEvent(
       new CustomEvent('q-cafe-table-selected', {
-        detail: { tableNo, chairCount: chairs },
+        detail: { tableNo, chairCount: chair },
       })
     );
 
     if (onSelectTable) {
-      onSelectTable(tableNo, chairs);
+      onSelectTable(tableNo, chair);
     }
 
-    // Navigate to visual POS billing desk
     navigate('POS');
   }
 
   return (
     <ItoRegion id="q14" topology={topology} className="flex flex-col h-full space-y-4 overflow-y-auto">
       {/* 1. Header Bar with Overview KPI Badges */}
+      {/* 1. Simplified Header Bar with Counts */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3 shrink-0">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
-              <Armchair size={20} />
-            </span>
-            <div>
-              <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
-                Floor & Guest Tables
-                <span className="rounded-full bg-primary/15 px-2.5 py-0.5 text-xs font-semibold text-primary">
-                  Touch Desk
-                </span>
-              </h1>
-              <p className="text-xs text-muted-foreground">
-                Select party chairs first, then tap any table to open POS or review active bills.
-              </p>
-            </div>
+        <div className="flex items-center gap-2">
+          <span className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
+            <Armchair size={20} />
+          </span>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
+              Floor & Guest Tables
+            </h1>
+            <p className="text-xs text-muted-foreground">
+              Select chair on table, then hit table to start billing in POS.
+            </p>
           </div>
         </div>
 
-        {/* Live KPI Badges */}
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Live Counters */}
+        <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-            <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="size-2 rounded-full bg-emerald-500" />
             {availableCount} Available
           </span>
           <span className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400">
             <span className="size-2 rounded-full bg-amber-500" />
             {occupiedCount} Occupied
-          </span>
-          <span className="inline-flex items-center gap-1.5 rounded-xl border border-purple-500/30 bg-purple-500/10 px-3 py-1.5 text-xs font-semibold text-purple-700 dark:text-purple-400">
-            <Users size={12} />
-            {totalGuestsSeated} Seated
           </span>
           <button
             type="button"
@@ -252,99 +209,7 @@ export function Tables({ data, navigate, topology, onSelectTable }: Props) {
         </div>
       </div>
 
-      {/* 2. Visual Chair Selector (The primary requested touch feature) */}
-      <ItoRegion
-        id="q14.1"
-        topology={topology}
-        className="rounded-2xl border border-primary/25 bg-gradient-to-r from-primary/5 via-accent/30 to-background p-3.5 shadow-xs shrink-0"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-2.5">
-          <div className="flex items-center gap-2">
-            <span className="flex size-6 items-center justify-center rounded-full bg-primary text-primary-foreground font-bold text-xs shadow-xs">
-              1
-            </span>
-            <span className="text-sm font-bold tracking-tight text-foreground">
-              Choose Chairs / Party Size:
-            </span>
-            <span className="text-xs text-muted-foreground hidden sm:inline">
-              (Tap chair count to set guest size before assigning table)
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground font-medium">Active Party:</span>
-            <span className="inline-flex items-center gap-1 rounded-lg bg-primary px-2.5 py-0.5 text-xs font-bold text-primary-foreground shadow-xs">
-              <Users size={12} />
-              {selectedChairs} {selectedChairs === 1 ? 'Guest / Chair' : 'Guests / Chairs'}
-            </span>
-          </div>
-        </div>
-
-        {/* Tactile Chair Buttons Bar */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Stepper Down */}
-          <button
-            type="button"
-            onClick={() => setSelectedChairs((c) => Math.max(1, c - 1))}
-            className="flex size-10 items-center justify-center rounded-xl border border-border bg-card text-foreground hover:bg-accent active:scale-90 cursor-pointer transition-all shadow-xs"
-            aria-label="Decrease chairs"
-            title="Decrease chairs"
-          >
-            <Minus size={16} />
-          </button>
-
-          {/* Presets */}
-          {CHAIR_PRESETS.map((preset) => {
-            const isSelected = selectedChairs === preset;
-            return (
-              <button
-                key={preset}
-                type="button"
-                onClick={() => setSelectedChairs(preset)}
-                className={`relative flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold cursor-pointer select-none touch-manipulation transition-all duration-150 ${
-                  isSelected
-                    ? 'bg-primary text-primary-foreground shadow-md scale-105 ring-2 ring-primary/40 -translate-y-0.5'
-                    : 'border border-border bg-card text-foreground hover:border-primary/50 hover:bg-accent active:scale-95'
-                }`}
-              >
-                {/* Visual mini-chairs representation */}
-                <span className="flex items-center -space-x-1">
-                  {Array.from({ length: Math.min(preset, 4) }, (_, i) => (
-                    <Armchair
-                      key={i}
-                      size={12}
-                      className={isSelected ? 'text-primary-foreground' : 'text-primary/70'}
-                    />
-                  ))}
-                  {preset > 4 && <span className="text-[10px] font-black pl-0.5">+</span>}
-                </span>
-                <span>
-                  {preset} {preset === 1 ? 'Chair' : 'Chairs'}
-                </span>
-              </button>
-            );
-          })}
-
-          {/* Stepper Up */}
-          <button
-            type="button"
-            onClick={() => setSelectedChairs((c) => Math.min(24, c + 1))}
-            className="flex size-10 items-center justify-center rounded-xl border border-border bg-card text-foreground hover:bg-accent active:scale-90 cursor-pointer transition-all shadow-xs"
-            aria-label="Increase chairs"
-            title="Increase chairs"
-          >
-            <Plus size={16} />
-          </button>
-
-          {/* Helper Hint */}
-          <span className="ml-auto text-xs text-muted-foreground font-medium hidden lg:inline flex items-center gap-1.5">
-            <Sparkles size={13} className="text-amber-500" />
-            Next step: Tap any table card below to open POS directly!
-          </span>
-        </div>
-      </ItoRegion>
-
-      {/* 3. Filter Chips & Legend */}
+      {/* 2. Filter Chips & Legend */}
       <div className="flex flex-wrap items-center justify-between gap-2 shrink-0">
         <div className="flex items-center gap-1.5">
           {(
@@ -370,196 +235,200 @@ export function Tables({ data, navigate, topology, onSelectTable }: Props) {
           ))}
         </div>
 
-        <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-          <span className="inline-flex items-center gap-1">
-            <span className="size-2.5 rounded-full border border-emerald-500 bg-emerald-500/20" />
+        {/* Legend: Dots only */}
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="size-2.5 rounded-full bg-emerald-500 shadow-xs" />
             Available
           </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="size-2.5 rounded-full border border-amber-500 bg-amber-500/20" />
+          <span className="inline-flex items-center gap-1.5">
+            <span className="size-2.5 rounded-full bg-amber-500 shadow-xs" />
             Occupied
           </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="size-2.5 rounded-full border border-blue-500 bg-blue-500/20" />
+          <span className="inline-flex items-center gap-1.5">
+            <span className="size-2.5 rounded-full bg-blue-500 shadow-xs" />
             Billed
           </span>
         </div>
       </div>
 
-      {/* 4. Floor Table Grid with Touch Feel Cards */}
+      {/* 3. Floor Table Grid with Interactive Chairs Around Table */}
       <ItoRegion
         id="q14.2"
         topology={topology}
-        className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-6 gap-3.5 pb-6 flex-1 min-h-0"
+        className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-6 gap-4 pb-6 flex-1 min-h-0"
       >
         {filteredTables.map((table) => {
           const stats = tableStats[table.tableNo] ?? {
             isOccupied: false,
-            orderTotal: 0,
-            guestCount: 0,
-            durationMinutes: 0,
-            durationLabel: 'Available',
-            itemCount: 0,
-            itemNames: [],
-            statusLabel: 'Available',
+            isBilled: false,
+            occupiedChairs: [],
           };
           const isOccupied = stats.isOccupied;
+          const isBilled = stats.isBilled;
           const isParcel = table.type === 'parcel' || table.tableNo.toLowerCase() === 'parcel';
           const capacity = table.chairCount || 4;
-          const fitsParty = capacity >= selectedChairs;
+          const selectedChair = selectedChairMap[table.tableNo] ?? 1;
+
+          // Split chairs around the table: top row and bottom row
+          const topCount = Math.ceil(capacity / 2);
+          const topChairs = Array.from({ length: topCount }, (_, i) => i + 1);
+          const bottomChairs = Array.from({ length: capacity - topCount }, (_, i) => topCount + 1 + i);
 
           return (
             <article
               key={table.tableNo}
-              onClick={() => handleTableClick(table)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  handleTableClick(table);
-                }
-              }}
-              className={`group relative flex flex-col justify-between rounded-2xl border p-4 cursor-pointer select-none touch-manipulation transition-all duration-200 hover:-translate-y-1 hover:shadow-lg active:scale-[0.96] active:translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+              className={`group relative flex flex-col justify-between rounded-2xl border p-3.5 bg-card select-none touch-manipulation transition-all duration-200 hover:shadow-lg ${
                 isOccupied
-                  ? 'border-amber-500/50 bg-gradient-to-b from-amber-50/70 to-card dark:from-amber-950/25 dark:to-card shadow-xs'
-                  : 'border-border bg-card hover:border-primary/60 hover:bg-accent/40 shadow-xs'
+                  ? 'border-amber-500/50 bg-gradient-to-b from-amber-50/50 to-card dark:from-amber-950/20 dark:to-card shadow-xs'
+                  : 'border-border hover:border-primary/50 shadow-xs'
               }`}
             >
-              {/* Card Header: Table No, Capacity Badge, and Live Status/Duration */}
-              <div className="space-y-2">
-                <div className="flex items-start justify-between gap-1.5">
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xl font-extrabold tracking-tight text-foreground group-hover:text-primary transition-colors">
-                        {table.tableNo}
-                      </span>
-                      {isParcel && (
-                        <span className="rounded-md bg-purple-500/15 px-1.5 py-0.5 text-[10px] font-bold text-purple-700 dark:text-purple-300">
-                          Parcel
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-[11px] text-muted-foreground flex items-center gap-1 font-medium">
-                      <Armchair size={11} />
-                      {capacity} {capacity === 1 ? 'Seat' : 'Seats'}
-                    </span>
-                  </div>
+              {/* Card Header: Table No on left, Trimmed status to ONLY green/amber/blue dot on right */}
+              <div className="flex items-center justify-between pb-2">
+                <span className="text-lg font-extrabold tracking-tight text-foreground">
+                  {table.tableNo}
+                </span>
 
-                  {/* Top-Right Badge: Live Duration Rolling Ticker or Available */}
+                {/* Only green dot for available, amber dot for occupied, blue dot for billed */}
+                <div className="flex items-center">
                   {isOccupied ? (
-                    <div className="flex flex-col items-end gap-1">
-                      {/* Live Rolling Pulse Ticker */}
-                      <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-300 shadow-2xs">
-                        <span className="relative flex size-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                          <span className="relative inline-flex rounded-full size-2 bg-amber-500" />
-                        </span>
-                        <Clock size={10} />
-                        <span className="tabular-nums">{stats.durationLabel}</span>
-                      </span>
-
-                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                        {stats.statusLabel}
-                      </span>
-                    </div>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
-                      <span className="size-1.5 rounded-full bg-emerald-500" />
-                      Available
+                    <span
+                      title="Occupied"
+                      className="relative flex size-2.5"
+                    >
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full size-2.5 bg-amber-500 shadow-xs" />
                     </span>
+                  ) : isBilled ? (
+                    <span
+                      title="Billed"
+                      className="size-2.5 rounded-full bg-blue-500 shadow-xs inline-block"
+                    />
+                  ) : (
+                    <span
+                      title="Available"
+                      className="size-2.5 rounded-full bg-emerald-500 shadow-xs inline-block"
+                    />
                   )}
-                </div>
-
-                {/* Visual Table Diagram with Chair Silhouettes */}
-                <div className="my-2.5 flex items-center justify-center py-2">
-                  <div
-                    className={`relative flex items-center justify-center border-2 transition-transform duration-200 group-hover:scale-105 ${
-                      table.shape === 'round' || isParcel
-                        ? 'size-16 rounded-full'
-                        : table.chairCount > 4 || table.shape === 'rectangle'
-                        ? 'h-14 w-22 rounded-xl'
-                        : 'size-14 rounded-xl'
-                    } ${
-                      isOccupied
-                        ? 'border-amber-500/60 bg-amber-100/60 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200'
-                        : fitsParty
-                        ? 'border-primary/50 bg-primary/5 text-primary'
-                        : 'border-muted-foreground/30 bg-muted/30 text-muted-foreground'
-                    }`}
-                  >
-                    {isParcel ? (
-                      <Coffee size={22} />
-                    ) : isOccupied ? (
-                      <Utensils size={20} />
-                    ) : (
-                      <Armchair size={20} />
-                    )}
-
-                    {/* Chair dots around table perimeter */}
-                    <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                      {Array.from({ length: Math.min(capacity, 8) }).map((_, idx) => {
-                        const total = Math.min(capacity, 8);
-                        const angle = (idx / total) * 2 * Math.PI - Math.PI / 2;
-                        const radius = table.chairCount > 4 ? 34 : 26;
-                        const x = Math.cos(angle) * radius;
-                        const y = Math.sin(angle) * radius;
-                        const isChairActive = idx < selectedChairs;
-
-                        return (
-                          <span
-                            key={idx}
-                            style={{
-                              transform: `translate(${x}px, ${y}px)`,
-                            }}
-                            className={`absolute size-2 rounded-full border transition-colors ${
-                              isOccupied
-                                ? 'bg-amber-500 border-amber-600'
-                                : isChairActive
-                                ? 'bg-primary border-primary ring-1 ring-primary/40'
-                                : 'bg-muted-foreground/20 border-border'
-                            }`}
-                          />
-                        );
-                      })}
-                    </div>
-                  </div>
                 </div>
               </div>
 
-              {/* Card Footer: Statistics or Action Prompt */}
-              <div className="pt-2 border-t border-border/60">
-                {isOccupied ? (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-foreground">
-                        {money(stats.orderTotal)}
-                      </span>
-                      <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
-                        <Users size={10} />
-                        {stats.guestCount} Guests
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                      <span className="truncate max-w-[110px]">
-                        {stats.itemNames.length
-                          ? stats.itemNames.slice(0, 2).join(', ')
-                          : `${stats.itemCount} item(s)`}
-                      </span>
-                      <span className="font-semibold text-primary group-hover:underline">
-                        Open POS →
-                      </span>
-                    </div>
+              {/* Center: Interactive Chairs Around Table Pattern */}
+              <div className="flex flex-col items-center justify-center flex-1 py-1">
+                {isParcel ? (
+                  /* Parcel / Takeaway Display */
+                  <div className="w-full flex flex-col items-center gap-2 py-3">
+                    <button
+                      type="button"
+                      onClick={() => handleTableHit(table, 1)}
+                      title="Parcel / Takeaway counter · Hit to open POS"
+                      className="w-full py-6 rounded-2xl border-2 border-purple-500/40 bg-purple-500/5 hover:bg-purple-500/10 flex flex-col items-center justify-center gap-2 text-purple-700 dark:text-purple-300 cursor-pointer select-none touch-manipulation transition-all duration-150 active:scale-95 shadow-xs"
+                    >
+                      <Coffee size={26} />
+                      <span className="text-xs font-bold">Takeaway</span>
+                    </button>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground font-medium">
-                      {fitsParty ? `Fits ${selectedChairs}p` : 'Smaller table'}
-                    </span>
-                    <span className="font-bold text-primary flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
-                      + Seat & Bill →
-                    </span>
+                  /* Dine-in Table with Chairs Around It */
+                  <div className="w-full flex flex-col items-center gap-1.5">
+                    {/* Top Row of Chairs (2 chairs for 4p, 3 for 6p) */}
+                    <div className="flex items-center justify-center gap-2 w-full">
+                      {topChairs.map((chairNum) => {
+                        const isSelected = selectedChair === chairNum;
+                        const isOccupiedChair = stats.occupiedChairs.includes(chairNum);
+                        return (
+                          <button
+                            key={chairNum}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleChairSelect(table.tableNo, chairNum);
+                            }}
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              handleChairSelect(table.tableNo, chairNum);
+                              handleTableHit(table, chairNum);
+                            }}
+                            title={`Chair ${chairNum} (Tap to select, then hit table to open POS)`}
+                            className={`flex items-center justify-center gap-1 min-w-9 h-8 px-2 rounded-xl border text-xs font-bold cursor-pointer select-none touch-manipulation transition-all duration-150 active:scale-90 ${
+                              isSelected
+                                ? 'bg-primary text-primary-foreground border-primary ring-2 ring-primary/40 shadow-sm scale-105'
+                                : isOccupiedChair
+                                ? 'bg-amber-500/20 text-amber-800 dark:text-amber-200 border-amber-500/50 hover:bg-amber-500/30'
+                                : 'bg-muted/40 text-muted-foreground border-border hover:border-primary/50 hover:text-foreground hover:bg-accent'
+                            }`}
+                          >
+                            <Armchair
+                              size={13}
+                              className={isSelected ? 'text-primary-foreground' : 'text-current'}
+                            />
+                            <span>{chairNum}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Table Surface Center (Hit Table to open POS with selected chair) */}
+                    <button
+                      type="button"
+                      onClick={() => handleTableHit(table, selectedChair)}
+                      title={`Table ${table.tableNo} · Hit to open POS with Chair ${selectedChair}`}
+                      className={`w-full py-5 px-3 rounded-2xl border-2 flex flex-col items-center justify-center gap-1.5 cursor-pointer select-none touch-manipulation transition-all duration-150 hover:shadow-md active:scale-95 ${
+                        isOccupied
+                          ? 'border-amber-500/60 bg-gradient-to-b from-amber-50 to-amber-100/40 dark:from-amber-950/40 dark:to-card text-amber-900 dark:text-amber-100 shadow-xs'
+                          : 'border-border hover:border-primary/60 bg-gradient-to-b from-card to-accent/25 hover:bg-primary/5 text-foreground shadow-xs'
+                      }`}
+                    >
+                      <Utensils
+                        size={22}
+                        className={
+                          isOccupied
+                            ? 'text-amber-600 dark:text-amber-400'
+                            : 'text-muted-foreground/80 group-hover:text-primary transition-colors'
+                        }
+                      />
+                      <span className="text-xs font-bold tracking-tight text-foreground/80">
+                        {table.tableNo}
+                      </span>
+                    </button>
+
+                    {/* Bottom Row of Chairs (2 chairs for 4p, 3 for 6p) */}
+                    <div className="flex items-center justify-center gap-2 w-full">
+                      {bottomChairs.map((chairNum) => {
+                        const isSelected = selectedChair === chairNum;
+                        const isOccupiedChair = stats.occupiedChairs.includes(chairNum);
+                        return (
+                          <button
+                            key={chairNum}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleChairSelect(table.tableNo, chairNum);
+                            }}
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              handleChairSelect(table.tableNo, chairNum);
+                              handleTableHit(table, chairNum);
+                            }}
+                            title={`Chair ${chairNum} (Tap to select, then hit table to open POS)`}
+                            className={`flex items-center justify-center gap-1 min-w-9 h-8 px-2 rounded-xl border text-xs font-bold cursor-pointer select-none touch-manipulation transition-all duration-150 active:scale-90 ${
+                              isSelected
+                                ? 'bg-primary text-primary-foreground border-primary ring-2 ring-primary/40 shadow-sm scale-105'
+                                : isOccupiedChair
+                                ? 'bg-amber-500/20 text-amber-800 dark:text-amber-200 border-amber-500/50 hover:bg-amber-500/30'
+                                : 'bg-muted/40 text-muted-foreground border-border hover:border-primary/50 hover:text-foreground hover:bg-accent'
+                            }`}
+                          >
+                            <Armchair
+                              size={13}
+                              className={isSelected ? 'text-primary-foreground' : 'text-current'}
+                            />
+                            <span>{chairNum}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
