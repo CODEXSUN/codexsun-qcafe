@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
 const version = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8")).version;
-const tag = `v-${version}`;
+const tag = `qcafe-${version}`;
 const release = resolve(root, "apps", "q-cafe", "desktop", "release");
 const assets = [
   `qcafe-${version}-x64-setup.exe`,

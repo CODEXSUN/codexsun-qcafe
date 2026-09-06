@@ -253,7 +253,10 @@ fn start_api(app: &AppHandle) -> Result<Child, String> {
         }
     }
 
-    let api_log = storage.data_directory.join("runtime").join("q-cafe-api.log");
+    let api_log_directory = storage.data_directory.join("runtime");
+    fs::create_dir_all(&api_log_directory)
+        .map_err(|error| format!("Q Cafe API log folder could not be created: {error}"))?;
+    let api_log = api_log_directory.join("q-cafe-api.log");
     let log = fs::OpenOptions::new()
         .create(true)
         .append(true)

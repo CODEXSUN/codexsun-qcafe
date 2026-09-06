@@ -2,13 +2,27 @@
 
 ## Version State
 
-Current version: 1.0.4
+Current version: 1.0.5
 
-Release tag: v-1.0.4
+Release tag: v-1.0.5
 
-Changelog label: v 1.0.4
+Changelog label: v 1.0.5
 
 ## Unreleased
+
+### ZXA Gemini OAuth Credentials and Individual Account Handling
+
+#### Database Changes
+
+- Database update: No.
+
+#### App Codebase Changes
+
+- Configured official Google Code Assist OAuth client credentials (`client_id` and `client_secret`) in ZXA Docker container and compose configuration, resolving the Google OAuth 400 `Missing required parameter: client_id` error on browser sign-in.
+- Added comprehensive handling and friendly user guidance for Google's `IneligibleTierError` (where Google Code Assist OAuth now requires an enterprise workspace or Google Cloud project ID):
+  - Added optional Google Cloud Project ID (`GOOGLE_CLOUD_PROJECT`) support in `runGemini` and `saveProvider`.
+  - Added 1-click fallback in ZXA Web UI to switch immediately to a free Google AI Studio API key (which works with personal `@gmail.com` accounts and supports Gemini 2.5 Pro, 2.5 Flash, 2.0 Flash, etc.).
+  - Ensured switching to API key cleanly cleans up cached OAuth session files in `/state/gemini/.gemini/`.
 
 ### Zetro Agent Running Indicators for Tabs, Sidecar Projects, and Chats
 
@@ -97,6 +111,18 @@ Changelog label: v 1.0.4
 - Added ITO entries for the workspace canvas, navigation, navigation rail, and workspace surface.
 - Cleared workspace canvas child blocks and reserved the full canvas for the next MDI feature.
 - Bound the shared AppSidebar and SidebarInset composition inside the workspace canvas.
+
+## v-1.0.5
+
+### [v 1.0.5] 2026-09-06 9:16 p.m. - Align Q Cafe release tags with desktop updates
+
+#### Database Changes
+
+- Database update: No.
+
+#### App Codebase Changes
+
+- Bumped the workspace version to 1.0.5.
 
 ## v-1.0.4
 

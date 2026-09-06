@@ -56,7 +56,7 @@ function copyArtifact(directory, extension, destination, version) {
 function writeUpdateFiles({ release, version, exeFile, msiFile, zipFile, updateFile, checksumsFile }) {
   const files = [exeFile, msiFile, zipFile];
   const checksums = files.map(name => ({ name, sha256: hash(resolve(release, name)) }));
-  const tag = `v-${version}`;
+  const tag = `qcafe-${version}`;
   const base = `https://github.com/CODEXSUN/codexsun/releases/download/${tag}`;
   const manifest = {
     schemaVersion: 1,

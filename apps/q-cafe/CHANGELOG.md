@@ -1,5 +1,12 @@
 # Q Cafe changelog
 
+## 1.0.5 - 2026-09-06
+
+### Windows startup and release tags
+
+- Creates the Q Cafe runtime log folder before starting the local API, preventing a first launch from closing when the folder is absent.
+- Aligns Q Cafe update manifests and release tooling with the `qcafe-<version>` GitHub release tag.
+
 ## 1.0.4 - 2026-09-06
 
 ### Windows startup repair
