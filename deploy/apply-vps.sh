@@ -61,7 +61,7 @@ fi
 
 # Runtime state is ignored by the source archive. Merge only owned source paths;
 # do not delete any existing path during a deployment.
-for path in apps packages tools assist deploy package.json package-lock.json tsconfig.base.json .dockerignore; do
+for path in apps packages tools assist package.json package-lock.json tsconfig.base.json .dockerignore; do
   [[ -e "$STAGE_DIR/$path" ]] || continue
   mkdir -p "$(dirname "$APP_ROOT/$path")"
   if [[ -d "$STAGE_DIR/$path" ]]; then
@@ -71,6 +71,9 @@ for path in apps packages tools assist deploy package.json package-lock.json tsc
     cp -a "$STAGE_DIR/$path" "$APP_ROOT/$path"
   fi
 done
+
+# The active deployment runner must not overwrite itself mid-execution.
+tar --exclude=apply-vps.sh -C "$STAGE_DIR/deploy" -cf - . | tar -C "$APP_ROOT/deploy" -xf -
 
 mkdir -p "$APP_ROOT/deploy/config" "$APP_ROOT/deploy/state" "$APP_ROOT/deploy/portal"
 if [[ -n "$PORTAL_ARCHIVE" ]]; then
@@ -93,3 +96,4 @@ docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-deps web
 docker compose -f "$COMPOSE_FILE" ps
 if [[ -n "$PORTAL_BACKUP" ]]; then mv "$PORTAL_BACKUP" "$RUN_DIR/portal.previous"; fi
 echo "Deployment complete. Log: $LOG_FILE"
+install -m 0755 "$STAGE_DIR/deploy/apply-vps.sh" "$APP_ROOT/deploy/apply-vps.sh"

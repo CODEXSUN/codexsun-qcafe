@@ -2,11 +2,11 @@
 
 ## Version State
 
-Current version: 0.1.21
+Current version: 0.1.22
 
-Release tag: v-0.1.21
+Release tag: v-0.1.22
 
-Changelog label: v 0.1.21
+Changelog label: v 0.1.22
 
 ## Unreleased
 
@@ -41,6 +41,19 @@ Changelog label: v 0.1.21
 - Added ITO entries for the workspace canvas, navigation, navigation rail, and workspace surface.
 - Cleared workspace canvas child blocks and reserved the full canvas for the next MDI feature.
 - Bound the shared AppSidebar and SidebarInset composition inside the workspace canvas.
+
+## v-0.1.22
+
+### [v 0.1.22] 2026-09-06 10:09 a.m. - Atomic cloud deployment runner updates
+
+#### Database Changes
+
+- Database update: No.
+
+#### App Codebase Changes
+
+- Bumped the workspace version to 0.1.22.
+- Made deployment-runner updates atomic so an active VPS release cannot overwrite its own script.
 
 ## v-0.1.21
 
