@@ -2,11 +2,11 @@
 
 ## Version State
 
-Current version: 0.1.23
+Current version: 0.1.24
 
-Release tag: v-0.1.23
+Release tag: v-0.1.24
 
-Changelog label: v 0.1.23
+Changelog label: v 0.1.24
 
 ## Unreleased
 
@@ -41,6 +41,18 @@ Changelog label: v 0.1.23
 - Added ITO entries for the workspace canvas, navigation, navigation rail, and workspace surface.
 - Cleared workspace canvas child blocks and reserved the full canvas for the next MDI feature.
 - Bound the shared AppSidebar and SidebarInset composition inside the workspace canvas.
+
+## v-0.1.24
+
+### [v 0.1.24] 2026-09-06 10:51 a.m. - Reliable cloud release-state updates
+
+#### Database Changes
+
+- Database update: No.
+
+#### App Codebase Changes
+
+- Bumped the workspace version to 0.1.24.
 
 ## v-0.1.23
 

@@ -10,6 +10,6 @@ param(
 $ErrorActionPreference = "Stop"
 $sshOptions = @("-i", $KeyPath, "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "UserKnownHostsFile=$KnownHostsPath")
 do {
-  & ssh @sshOptions $VpsHost 'cat /home/codexsun-os/deploy/state/release.json; docker compose -f /home/codexsun-os/deploy/compose.json ps --format "{{.Service}} {{.Image}} {{.Status}}"'
+  & ssh @sshOptions $VpsHost 'cat /home/codexsun-os/deploy/state/release.json; docker compose -f /home/codexsun-os/deploy/compose.json ps'
   if ($Watch) { Start-Sleep -Seconds $IntervalSeconds }
 } while ($Watch)

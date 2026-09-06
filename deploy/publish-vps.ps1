@@ -9,6 +9,7 @@ $ErrorActionPreference = "Stop"
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $archive = Join-Path $root ".local/codexsun-cloud-source.tgz"
 $portalArchive = Join-Path $root ".local/codexsun-portal.tgz"
+$runner = Join-Path $root "deploy/apply-vps.sh"
 $sshOptions = @("-i", $KeyPath, "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "UserKnownHostsFile=$KnownHostsPath")
 
 Push-Location $root
@@ -21,7 +22,8 @@ try {
   node deploy/package-source.mjs
   & scp @sshOptions $archive "$VpsHost`:/tmp/codexsun-cloud-source.tgz"
   & scp @sshOptions $portalArchive "$VpsHost`:/tmp/codexsun-portal.tgz"
-  & ssh @sshOptions $VpsHost "bash /home/codexsun-os/deploy/apply-vps.sh /tmp/codexsun-cloud-source.tgz /tmp/codexsun-portal.tgz"
+  & scp @sshOptions $runner "$VpsHost`:/tmp/codexsun-apply-vps.sh"
+  & ssh @sshOptions $VpsHost "bash /tmp/codexsun-apply-vps.sh /tmp/codexsun-cloud-source.tgz /tmp/codexsun-portal.tgz"
 } finally {
   Pop-Location
 }
