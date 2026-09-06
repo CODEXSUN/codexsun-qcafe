@@ -36,5 +36,11 @@ function releaseTitle() {
   return changelog.match(/^##\s+[^\n]+\n+\n###\s+([^\n]+)/m)?.[1] ?? "Windows update";
 }
 function releaseNotes() { return `## Q Cafe ${version}\n\n${releaseTitle()}\n\nIncludes the verified Windows installer, MSI, checksums, and update manifest.`; }
-function run(command, args) { execFileSync(command, args, { cwd: root, stdio: "inherit" }); }
+function run(command, args) {
+  execFileSync(command, args, {
+    cwd: root,
+    stdio: "inherit",
+    shell: process.platform === "win32" && command.endsWith(".cmd"),
+  });
+}
 function output(command, args) { return execFileSync(command, args, { cwd: root, encoding: "utf8" }).trim(); }
