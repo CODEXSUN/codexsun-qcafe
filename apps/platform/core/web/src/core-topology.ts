@@ -35,6 +35,7 @@ export const coreTopology: InterfaceTopologySection[] = [
   { id: "9.1", technicalName: "overview.contextDock.propertiesButton", name: "Properties", scope: "Context dock", description: "Inspect Properties in Context dock." },
   { id: "9.2", technicalName: "overview.contextDock.historyButton", name: "Activity history", scope: "Context dock", description: "Inspect Activity history in Context dock." },
   { id: "9.3", technicalName: "overview.contextDock.notificationsButton", name: "Notifications", scope: "Context dock", description: "Inspect Notifications in Context dock." },
+  { id: "9.4", technicalName: "overview.contextDock.versionLabel", name: "Release version", scope: "Context dock", description: "Shows the CODEXSUN OS release version currently installed on this client." },
   { id: "10", technicalName: "overview.contextDock.topologyButton", name: "Topology inspection button", scope: "Context dock", description: "Shows or hides interface labels and opens topology inspection." },
   { id: "11", technicalName: "overview.sideCar.panel", name: "Overview side car", scope: "Workspace canvas", description: "Generic application-owned companion content hosted beside the active workspace." },
   { id: "11.1", technicalName: "overview.sideCar.content", name: "Side car content", scope: "Overview sidebar", description: "Platform navigation inside the companion panel." },

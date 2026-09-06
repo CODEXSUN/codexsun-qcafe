@@ -20,6 +20,8 @@ import { platformTopology } from "./platform-topology.js";
 import { todosWorkspaceAddon } from "@codexsun/todos-web";
 import { orshipWorkspaceAddon } from "@codexsun/orship-web";
 
+declare const __CODEXSUN_VERSION__: string;
+
 export function App() {
   const identity = useIdentitySession();
   const [applications, setApplications] = useState<{ id: string; name: string; webUrl?: string }[]>([]);
@@ -71,5 +73,5 @@ export function App() {
     return ({ "11": `${prefix}2`, "11.1": `${prefix}2.1`, "12": `${prefix}2.2` } as Record<string, string>)[id] ?? id;
   }
   const deskApplications = [{ id: "platform", name: "Platform", onOpen: () => setRequestedPage({ view: "workspace", addonId: "platform", pageId: "users" }) }, { id: "app.orship", name: "Orship", onOpen: () => setRequestedPage({ view: "workspace", addonId: "orship", pageId: "operations" }) }, ...applications];
-  return <MainMdi applications={deskApplications} identity={{ login: identity.profile?.login, workspaceLabel: `${clientSurfaceLabel()} · ${identity.signedIn ? "Cloud workspace" : "Local workspace"}`, onManageProfile: () => setRequestedPage({ view: "workspace", addonId: "settings", pageId: "identity" }), onSignOut: identity.signedIn ? identity.signOut : undefined }} addons={[overviewWorkspace, platformWorkspace, chatWorkspaceAddon, zetroWorkspaceAddon, aiTaskWorkspaceAddon, orshipWorkspaceAddon, todosWorkspaceAddon, createDeviceChatWorkspaceAddon({ credentialStore: desktopCredentialStore("dcs-device") }), createDocsWorkspaceAddon(), createSettingsWorkspace(applications)]} onPageChange={onPageChange} requestedPage={requestedPage} topology={topology} />;
+  return <MainMdi applications={deskApplications} identity={{ login: identity.profile?.login, workspaceLabel: `${clientSurfaceLabel()} · ${identity.signedIn ? "Cloud workspace" : "Local workspace"}`, onManageProfile: () => setRequestedPage({ view: "workspace", addonId: "settings", pageId: "identity" }), onSignOut: identity.signedIn ? identity.signOut : undefined }} addons={[overviewWorkspace, platformWorkspace, chatWorkspaceAddon, zetroWorkspaceAddon, aiTaskWorkspaceAddon, orshipWorkspaceAddon, todosWorkspaceAddon, createDeviceChatWorkspaceAddon({ credentialStore: desktopCredentialStore("dcs-device") }), createDocsWorkspaceAddon(), createSettingsWorkspace(applications)]} onPageChange={onPageChange} requestedPage={requestedPage} topology={topology} version={__CODEXSUN_VERSION__} />;
 }

@@ -1,10 +1,16 @@
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { defineConfig } from "vite";
 import { createViteDevelopmentServer } from "../../../../tools/vite-development.mjs";
 
+const releaseVersion = JSON.parse(readFileSync(path.resolve(import.meta.dirname, "../../../../package.json"), "utf8")).version;
+
 export default defineConfig({
+  define: {
+    __CODEXSUN_VERSION__: JSON.stringify(releaseVersion),
+  },
   plugins: [react(), tailwindcss()],
   publicDir: path.resolve(import.meta.dirname, "../../../../packages/ui/desk/public"),
   build: {

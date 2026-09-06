@@ -17,7 +17,7 @@ export type MdiWorkspaceAddon = { id: string; label: string; icon: LucideIcon; n
 
 export type MdiPage = { view: WorkspaceNavigationView; addonId?: string; pageId?: string };
 
-export function MainMdi({ applications, identity, topology, addons = [], requestedPage, onPageChange }: { applications?: DeskApplication[]; identity?: MdiUserIdentity; topology?: MdiTopologyAdapter; addons?: MdiWorkspaceAddon[]; requestedPage?: MdiPage; onPageChange?: (page: MdiPage) => void }) {
+export function MainMdi({ applications, identity, topology, addons = [], requestedPage, onPageChange, version }: { applications?: DeskApplication[]; identity?: MdiUserIdentity; topology?: MdiTopologyAdapter; addons?: MdiWorkspaceAddon[]; requestedPage?: MdiPage; onPageChange?: (page: MdiPage) => void; version?: string }) {
   const [sideCarTarget, setSideCarTarget] = useState<HTMLDivElement | null>(null);
   const fallback = requestedPage ?? { view: "workspace" as const, pageId: getDefaultWorkspaceItem("workspace") };
   const [page, setPage] = useState<MdiPage>(() => readPageUrl(new URL(window.location.href), fallback, addons.map((item) => item.id)));
@@ -66,7 +66,7 @@ export function MainMdi({ applications, identity, topology, addons = [], request
         />
       </div>
     </section>
-    <RightIconDock propertiesOpen={propertiesOpen} onPropertiesClick={addon?.renderProperties ? () => setPropertiesOpen((open) => !open) : undefined} topology={topology} />
+    <RightIconDock propertiesOpen={propertiesOpen} onPropertiesClick={addon?.renderProperties ? () => setPropertiesOpen((open) => !open) : undefined} topology={topology} version={version} />
     {addon?.renderProperties?.(propertiesOpen, setPropertiesOpen)}
     {topology?.drawer}
   </main>;
