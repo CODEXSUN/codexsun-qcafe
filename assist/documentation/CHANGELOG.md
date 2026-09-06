@@ -2,11 +2,11 @@
 
 ## Version State
 
-Current version: 0.1.22
+Current version: 0.1.23
 
-Release tag: v-0.1.22
+Release tag: v-0.1.23
 
-Changelog label: v 0.1.22
+Changelog label: v 0.1.23
 
 ## Unreleased
 
@@ -41,6 +41,24 @@ Changelog label: v 0.1.22
 - Added ITO entries for the workspace canvas, navigation, navigation rail, and workspace surface.
 - Cleared workspace canvas child blocks and reserved the full canvas for the next MDI feature.
 - Bound the shared AppSidebar and SidebarInset composition inside the workspace canvas.
+
+## v-0.1.23
+
+### [v 0.1.23] 2026-09-06 10:38 a.m. - Local Docs fallback and release automation
+
+#### Database Changes
+
+- Database update: No.
+
+#### App Codebase Changes
+
+- Bumped the workspace version to 0.1.23.
+- Added a local Markdown fallback for Docs when no development database is configured.
+- Fixed development supervisor cleanup after a child service fails to start.
+- Added a repeatable daily release routine, a DCS release notifier, and a VPS release-state watcher.
+- Recorded cloud deployment phases so the web, desktop, and mobile clients can later show release progress.
+- Kept the desktop native version and Docker image fallback version in sync during future version bumps.
+- Added the release task-system document and operating flow for routine cloud updates.
 
 ## v-0.1.22
 

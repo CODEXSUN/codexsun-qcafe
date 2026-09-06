@@ -13,6 +13,8 @@ export function bumpNextVersion(root, title, databaseUpdate) {
   const nextVersion = bumpPatch(currentVersion);
   for (const file of files) updateJsonVersion(file, nextVersion);
   updatePackageLock(root, files, nextVersion);
+  updateDesktopVersion(root, nextVersion);
+  updateComposeFallback(root, nextVersion);
   updateChangelog(root, nextVersion, title, databaseUpdate);
   return { currentVersion, nextVersion };
 }
@@ -76,6 +78,34 @@ function updatePackageLock(root, packageFiles, version) {
     if (path === "" || paths.has(path)) value.version = version;
   }
   writeFileSync(file, `${JSON.stringify(lock, null, 2)}\n`);
+}
+
+function updateDesktopVersion(root, version) {
+  const desktopRoot = resolve(root, "apps", "platform", "core", "desktop", "src-tauri");
+  const tauriConfig = join(desktopRoot, "tauri.conf.json");
+  const cargoToml = join(desktopRoot, "Cargo.toml");
+  const cargoLock = join(desktopRoot, "Cargo.lock");
+  if (existsSync(tauriConfig)) updateJsonVersion(tauriConfig, version);
+  if (existsSync(cargoToml)) updateFirstVersion(cargoToml, version);
+  if (existsSync(cargoLock)) updateCargoPackageVersion(cargoLock, "codexsun-desktop", version);
+}
+
+function updateFirstVersion(file, version) {
+  const content = readFileSync(file, "utf8");
+  writeFileSync(file, content.replace(/^version = ".*"$/mu, `version = "${version}"`));
+}
+
+function updateCargoPackageVersion(file, packageName, version) {
+  const content = readFileSync(file, "utf8");
+  const expression = new RegExp(`(name = "${packageName}"\\r?\\nversion = ")[^"]+`, "u");
+  writeFileSync(file, content.replace(expression, `$1${version}`));
+}
+
+function updateComposeFallback(root, version) {
+  const file = resolve(root, "deploy", "compose.json");
+  if (!existsSync(file)) return;
+  const content = readFileSync(file, "utf8");
+  writeFileSync(file, content.replace(/(CODEXSUN_VERSION:-)\d+\.\d+\.\d+(\})/gu, `$1${version}$2`));
 }
 
 function updateChangelog(root, version, title, databaseUpdate) {

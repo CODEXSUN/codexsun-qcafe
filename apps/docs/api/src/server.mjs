@@ -10,18 +10,18 @@ const host = process.env.DOCS_API_HOST || "127.0.0.1";
 const port = Number(process.env.DOCS_API_PORT || 4185);
 
 export function createDocsApi({ authorize = authorizeWriter, content = contentDirectory, databaseUrl = process.env.DOCS_DATABASE_URL || process.env.DATABASE_URL, repository } = {}) {
-  const documents = repository || new MariaDbDocuments(databaseUrl);
+  const documents = repository || (databaseUrl ? new MariaDbDocuments(databaseUrl) : new LocalDocuments());
   const server = createServer(async (request, response) => {
     try {
       const url = new URL(request.url || "/", "http://localhost");
       if (request.method === "OPTIONS") return send(response, 204);
-      if (url.pathname === "/health") return send(response, 200, { status: "ok", storage: "mariadb" });
+      if (url.pathname === "/health") return send(response, 200, { status: "ok", storage: documents.storage });
       await documents.start(content);
       if (url.pathname === "/api/v1/docs" && request.method === "GET") return send(response, 200, { documents: await documents.list(url.searchParams.get("q") || "") });
-      if (url.pathname === "/api/v1/docs" && request.method === "POST") return writeDocument(request, response, documents, authorize);
+      if (url.pathname === "/api/v1/docs" && request.method === "POST") return await writeDocument(request, response, documents, authorize);
       const match = /^\/api\/v1\/docs\/([a-z0-9-]+)$/.exec(url.pathname);
       if (match && request.method === "GET") return send(response, 200, { document: await documents.get(match[1]) });
-      if (match && request.method === "PUT") return writeDocument(request, response, documents, authorize, match[1]);
+      if (match && request.method === "PUT") return await writeDocument(request, response, documents, authorize, match[1]);
       return send(response, 404, { error: "Not found" });
     } catch (error) { return send(response, error instanceof HttpError ? error.status : 500, { error: error instanceof Error ? error.message : "Documentation service is unavailable." }); }
   });
@@ -29,6 +29,7 @@ export function createDocsApi({ authorize = authorizeWriter, content = contentDi
 }
 
 class MariaDbDocuments {
+  storage = "mariadb";
   #pool; #ready = false;
   constructor(databaseUrl) { if (!databaseUrl) throw new Error("DOCS_DATABASE_URL or DATABASE_URL is required for Docs."); this.#pool = mysql.createPool(databaseUrl); }
   async start(content) {
@@ -43,6 +44,32 @@ class MariaDbDocuments {
   async upsert(page, actor) { const now = new Date(); await this.#pool.query("INSERT INTO docs_pages (slug, title, summary, page_group, body, created_at, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE title = VALUES(title), summary = VALUES(summary), page_group = VALUES(page_group), body = VALUES(body), updated_at = VALUES(updated_at), updated_by = VALUES(updated_by)", [page.slug, page.title, page.summary, page.group, page.body, now, now, actor]); return this.get(page.slug); }
   async seed(content) { for (const page of readSeedPages(content)) await this.upsert(page, "system-seed"); }
   close() { return this.#pool.end(); }
+}
+
+class LocalDocuments {
+  storage = "local";
+  #pages = new Map();
+
+  async start(content) {
+    if (this.#pages.size > 0) return;
+    for (const page of readSeedPages(content)) this.#pages.set(page.slug, { ...page, updatedAt: "local" });
+  }
+
+  async list(query) {
+    const term = query.trim().toLowerCase();
+    return [...this.#pages.values()]
+      .filter((page) => !term || `${page.title} ${page.summary}`.toLowerCase().includes(term))
+      .sort((left, right) => left.group.localeCompare(right.group) || left.title.localeCompare(right.title));
+  }
+
+  async get(slug) {
+    const page = this.#pages.get(slug);
+    if (!page) throw new HttpError(404, "Document not found.");
+    return page;
+  }
+
+  async upsert() { throw new HttpError(503, "Configure DOCS_DATABASE_URL or DATABASE_URL to edit documentation."); }
+  async close() {}
 }
 
 async function writeDocument(request, response, documents, authorize, slug) { const actor = await authorize(request.headers.authorization); const page = validatePage(await readJson(request), slug); return send(response, slug ? 200 : 201, { document: await documents.upsert(page, actor) }); }

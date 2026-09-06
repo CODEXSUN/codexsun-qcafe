@@ -1,6 +1,6 @@
 {
   "name": "codexsun-os",
-  "version": "0.1.22",
+  "version": "0.1.23",
   "private": true,
   "description": "CODEXSUN application core and agent-first orchestration runtime",
   "engines": {
@@ -51,6 +51,9 @@
     "identity:first-login-sync": "powershell -ExecutionPolicy Bypass -File deploy/sync-first-login-setup.ps1",
     "check:desktop": "npm run check -w @codexsun/core-desktop",
     "q-cafe:token": "node tools/q-cafe-token.mjs --replace",
+    "release:daily": "powershell -ExecutionPolicy Bypass -File deploy/release-routine.ps1",
+    "release:notify": "node deploy/notify-release.mjs",
+    "release:status": "powershell -ExecutionPolicy Bypass -File deploy/watch-vps-release.ps1",
     "neot:token": "node tools/neot-token.mjs --replace",
     "start": "npm run start -w @codexsun/core-api",
     "test:tools": "node --test tools/*.test.mjs",

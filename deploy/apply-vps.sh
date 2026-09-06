@@ -15,11 +15,17 @@ ROLLBACK_TAG="codexsun-os/api:rollback-$STAMP"
 PORTAL_BACKUP=""
 HAS_ROLLBACK_IMAGE=false
 
+write_release_state() {
+  mkdir -p "$APP_ROOT/deploy/state"
+  printf '{"version":"%s","phase":"%s","updatedAt":"%s","run":"%s"}\n' "${CODEXSUN_VERSION:-unknown}" "$1" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$STAMP" > "$APP_ROOT/deploy/state/release.json"
+}
+
 mkdir -p "$RUN_DIR"
 exec > >(tee -a "$LOG_FILE") 2>&1
 
 fail() {
   local status=$?
+  write_release_state "failed"
   if [[ -n "$PORTAL_BACKUP" && -d "$PORTAL_BACKUP" ]]; then
     if [[ -d "$APP_ROOT/deploy/portal" ]]; then mv "$APP_ROOT/deploy/portal" "$RUN_DIR/portal.failed" || true; fi
     mv "$PORTAL_BACKUP" "$APP_ROOT/deploy/portal" || true
@@ -52,6 +58,7 @@ tar -xzf "$ARCHIVE" -C "$STAGE_DIR"
 [[ -f "$STAGE_DIR/deploy/compose.json" ]] || { echo "Archive does not contain deploy/compose.json"; exit 2; }
 CODEXSUN_VERSION=$(node -p 'require(process.argv[1]).version' "$STAGE_DIR/package.json")
 export CODEXSUN_VERSION
+write_release_state "planned"
 
 echo "Checkpoint: archive validated and staged."
 if docker image inspect "codexsun-os/api:$CODEXSUN_VERSION" >/dev/null 2>&1; then
@@ -87,13 +94,16 @@ if [[ -n "$PORTAL_ARCHIVE" ]]; then
 fi
 python3 "$APP_ROOT/deploy/bootstrap-vps.py"
 docker compose -f "$COMPOSE_FILE" config -q
+write_release_state "validated"
 echo "Checkpoint: source activated and configuration validated."
 
 cd "$APP_ROOT"
+write_release_state "building"
 docker compose -f "$COMPOSE_FILE" build platform dcs
 docker compose -f "$COMPOSE_FILE" up -d --wait platform chat zetro dcs files zxa
 docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-deps web
 docker compose -f "$COMPOSE_FILE" ps
 if [[ -n "$PORTAL_BACKUP" ]]; then mv "$PORTAL_BACKUP" "$RUN_DIR/portal.previous"; fi
+write_release_state "running"
 echo "Deployment complete. Log: $LOG_FILE"
 install -m 0755 "$STAGE_DIR/deploy/apply-vps.sh" "$APP_ROOT/deploy/apply-vps.sh"
