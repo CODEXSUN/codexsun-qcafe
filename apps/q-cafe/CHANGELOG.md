@@ -1,5 +1,24 @@
 # Q Cafe changelog
 
+## 1.0.3 - 2026-09-06
+
+### Local desktop verification
+
+- Completed the local Windows desktop verification path with a PIN-based cashier sign-in and staff activity records.
+- Added daily SQLite backups to the configured data drive and retained application settings separately from business data.
+- Kept Q Cafe in local desktop mode for customer verification; cloud synchronization remains a later release.
+
+### POS and tables
+
+- Refined the keyboard-first POS entry screen and the table-and-chair selection flow, including grouped seat selection for a bill.
+- Added separate POS bill, POS item, receipt, and payment transaction records with SQLite migrations and sync metadata for future cloud use.
+
+### Release preparation
+
+- Aligned root, web, desktop, Rust, and Tauri versions at 1.0.3.
+- Prepared versioned NSIS, WiX MSI, ZIP, checksums, and `qcafe-update.json` assets.
+- Added guarded release tooling that verifies a clean source tree, runs checks and builds, then can tag and publish the GitHub release.
+
 ## 0.1.5 - 2026-09-04
 
 ### POS billing
