@@ -192,6 +192,9 @@ export function Tables({ data, navigate, topology, onSelectTable }: Props) {
           <div>
             <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
               Floor & Guest Tables
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-lg bg-muted text-muted-foreground border border-border">
+                {totalTables} Tables
+              </span>
             </h1>
             <p className="text-xs text-muted-foreground">
               Select chair on table, then hit table to start billing in POS.
@@ -279,7 +282,7 @@ export function Tables({ data, navigate, topology, onSelectTable }: Props) {
           const isBilled = stats.isBilled;
           const isParcel = table.type === 'parcel' || table.tableNo.toLowerCase() === 'parcel';
           const capacity = table.chairCount || 4;
-          const selectedChair = selectedChairMap[table.tableNo] ?? 1;
+          const selectedChairs = selectedChairsMap[table.tableNo] ?? [];
 
           // Split chairs around the table: top row and bottom row
           const topCount = Math.ceil(capacity / 2);
@@ -295,11 +298,21 @@ export function Tables({ data, navigate, topology, onSelectTable }: Props) {
                   : 'border-border hover:border-primary/50 shadow-xs'
               }`}
             >
-              {/* Card Header: Table No on left, Trimmed status to ONLY green/amber/blue dot on right */}
+              {/* Card Header: Table No on left (compact size with seats count), Trimmed status to ONLY green/amber/blue dot on right */}
               <div className="flex items-center justify-between pb-2">
-                <span className="text-lg font-extrabold tracking-tight text-foreground">
-                  {table.tableNo}
-                </span>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-sm font-bold tracking-tight text-foreground">
+                    {table.tableNo}
+                  </span>
+                  <span className="text-[11px] font-medium text-muted-foreground">
+                    ({capacity} Seats)
+                  </span>
+                  {selectedChairs.length > 0 && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-primary/10 text-primary dark:text-primary-foreground">
+                      {selectedChairs.length > 1 ? `${selectedChairs.length} Chairs` : `Chair ${selectedChairs[0]}`}
+                    </span>
+                  )}
+                </div>
 
                 {/* Only green dot for available, amber dot for occupied, blue dot for billed */}
                 <div className="flex items-center">
@@ -332,7 +345,7 @@ export function Tables({ data, navigate, topology, onSelectTable }: Props) {
                   <div className="w-full flex flex-col items-center gap-2 py-3">
                     <button
                       type="button"
-                      onClick={() => handleTableHit(table, 1)}
+                      onClick={() => handleTableHit(table, [1])}
                       title="Parcel / Takeaway counter · Hit to open POS"
                       className="w-full py-6 rounded-2xl border-2 border-purple-500/40 bg-purple-500/5 hover:bg-purple-500/10 flex flex-col items-center justify-center gap-2 text-purple-700 dark:text-purple-300 cursor-pointer select-none touch-manipulation transition-all duration-150 active:scale-95 shadow-xs"
                     >
@@ -346,7 +359,7 @@ export function Tables({ data, navigate, topology, onSelectTable }: Props) {
                     {/* Top Row of Chairs (2 chairs for 4p, 3 for 6p) */}
                     <div className="flex items-center justify-center gap-2 w-full">
                       {topChairs.map((chairNum) => {
-                        const isSelected = selectedChair === chairNum;
+                        const isSelected = selectedChairs.includes(chairNum);
                         const isOccupiedChair = stats.occupiedChairs.includes(chairNum);
                         return (
                           <button
@@ -354,14 +367,21 @@ export function Tables({ data, navigate, topology, onSelectTable }: Props) {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleChairSelect(table.tableNo, chairNum);
+                              handleChairToggle(table.tableNo, chairNum);
                             }}
                             onDoubleClick={(e) => {
                               e.stopPropagation();
-                              handleChairSelect(table.tableNo, chairNum);
-                              handleTableHit(table, chairNum);
+                              const current = selectedChairsMap[table.tableNo] ?? [];
+                              const updated = current.includes(chairNum)
+                                ? current
+                                : [...current, chairNum].sort((a, b) => a - b);
+                              setSelectedChairsMap((prev) => ({
+                                ...prev,
+                                [table.tableNo]: updated,
+                              }));
+                              handleTableHit(table, updated);
                             }}
-                            title={`Chair ${chairNum} (Tap to select, then hit table to open POS)`}
+                            title={`Chair ${chairNum} (Tap to select/group, then hit table to open POS)`}
                             className={`flex items-center justify-center gap-1 min-w-9 h-8 px-2 rounded-xl border text-xs font-bold cursor-pointer select-none touch-manipulation transition-all duration-150 active:scale-90 ${
                               isSelected
                                 ? 'bg-primary text-primary-foreground border-primary ring-2 ring-primary/40 shadow-sm scale-105'
@@ -380,11 +400,13 @@ export function Tables({ data, navigate, topology, onSelectTable }: Props) {
                       })}
                     </div>
 
-                    {/* Table Surface Center (Hit Table to open POS with selected chair) */}
+                    {/* Table Surface Center (Hit Table to open POS with selected chair grouping) */}
                     <button
                       type="button"
-                      onClick={() => handleTableHit(table, selectedChair)}
-                      title={`Table ${table.tableNo} · Hit to open POS with Chair ${selectedChair}`}
+                      onClick={() => handleTableHit(table)}
+                      title={`Table ${table.tableNo}${
+                        selectedChairs.length > 0 ? ` · Chairs ${selectedChairs.join(', ')}` : ''
+                      } · Hit to open POS`}
                       className={`w-full py-5 px-3 rounded-2xl border-2 flex flex-col items-center justify-center gap-1.5 cursor-pointer select-none touch-manipulation transition-all duration-150 hover:shadow-md active:scale-95 ${
                         isOccupied
                           ? 'border-amber-500/60 bg-gradient-to-b from-amber-50 to-amber-100/40 dark:from-amber-950/40 dark:to-card text-amber-900 dark:text-amber-100 shadow-xs'
@@ -399,15 +421,22 @@ export function Tables({ data, navigate, topology, onSelectTable }: Props) {
                             : 'text-muted-foreground/80 group-hover:text-primary transition-colors'
                         }
                       />
-                      <span className="text-xs font-bold tracking-tight text-foreground/80">
+                      <span className="text-xs font-semibold tracking-tight text-foreground/80">
                         {table.tableNo}
                       </span>
+                      {selectedChairs.length > 0 && (
+                        <span className="inline-flex items-center rounded-full bg-primary text-primary-foreground px-2 py-0.5 text-[10px] font-bold shadow-xs">
+                          {selectedChairs.length > 1
+                            ? `Chairs ${selectedChairs.join(', ')}`
+                            : `Chair ${selectedChairs[0]}`}
+                        </span>
+                      )}
                     </button>
 
                     {/* Bottom Row of Chairs (2 chairs for 4p, 3 for 6p) */}
                     <div className="flex items-center justify-center gap-2 w-full">
                       {bottomChairs.map((chairNum) => {
-                        const isSelected = selectedChair === chairNum;
+                        const isSelected = selectedChairs.includes(chairNum);
                         const isOccupiedChair = stats.occupiedChairs.includes(chairNum);
                         return (
                           <button
@@ -415,14 +444,21 @@ export function Tables({ data, navigate, topology, onSelectTable }: Props) {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleChairSelect(table.tableNo, chairNum);
+                              handleChairToggle(table.tableNo, chairNum);
                             }}
                             onDoubleClick={(e) => {
                               e.stopPropagation();
-                              handleChairSelect(table.tableNo, chairNum);
-                              handleTableHit(table, chairNum);
+                              const current = selectedChairsMap[table.tableNo] ?? [];
+                              const updated = current.includes(chairNum)
+                                ? current
+                                : [...current, chairNum].sort((a, b) => a - b);
+                              setSelectedChairsMap((prev) => ({
+                                ...prev,
+                                [table.tableNo]: updated,
+                              }));
+                              handleTableHit(table, updated);
                             }}
-                            title={`Chair ${chairNum} (Tap to select, then hit table to open POS)`}
+                            title={`Chair ${chairNum} (Tap to select/group, then hit table to open POS)`}
                             className={`flex items-center justify-center gap-1 min-w-9 h-8 px-2 rounded-xl border text-xs font-bold cursor-pointer select-none touch-manipulation transition-all duration-150 active:scale-90 ${
                               isSelected
                                 ? 'bg-primary text-primary-foreground border-primary ring-2 ring-primary/40 shadow-sm scale-105'
