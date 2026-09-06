@@ -18,8 +18,8 @@ type Props = {
 };
 
 export function Tables({ data, navigate, topology, onSelectTable }: Props) {
-  // Map of tableNo -> selected chair number (default 1)
-  const [selectedChairMap, setSelectedChairMap] = useState<Record<string, number>>({});
+  // Map of tableNo -> selected chair numbers (default empty, no chair selected initially)
+  const [selectedChairsMap, setSelectedChairsMap] = useState<Record<string, number[]>>({});
   const [filter, setFilter] = useState<'all' | 'available' | 'occupied' | 'parcel'>('all');
   const [, setNow] = useState<number>(() => Date.now());
 
@@ -130,25 +130,36 @@ export function Tables({ data, navigate, topology, onSelectTable }: Props) {
     });
   }, [tables, filter, tableStats]);
 
-  // Select a chair for a table
-  function handleChairSelect(tableNo: string, chairNum: number) {
-    setSelectedChairMap((prev) => ({
-      ...prev,
-      [tableNo]: chairNum,
-    }));
+  // Toggle selection of a chair for a table (multiple selection / grouping supported)
+  function handleChairToggle(tableNo: string, chairNum: number) {
+    setSelectedChairsMap((prev) => {
+      const current = prev[tableNo] ?? [];
+      const exists = current.includes(chairNum);
+      const updated = exists
+        ? current.filter((c) => c !== chairNum)
+        : [...current, chairNum].sort((a, b) => a - b);
+      return {
+        ...prev,
+        [tableNo]: updated,
+      };
+    });
   }
 
-  // Hit the table to navigate to POS with the selected chair
-  function handleTableHit(table: TableMasterConfig, chairOverride?: number) {
+  // Hit the table to navigate to POS with the selected chair grouping
+  function handleTableHit(table: TableMasterConfig, specificChairs?: number[]) {
     const tableNo = table.tableNo;
-    const chair = chairOverride ?? selectedChairMap[tableNo] ?? 1;
+    const chairsToUse = specificChairs ?? selectedChairsMap[tableNo] ?? [];
+    const chairStr = chairsToUse.length > 0 ? chairsToUse.join(', ') : '';
+    const chairCount = chairsToUse.length > 0 ? chairsToUse.length : 1;
 
     try {
       sessionStorage.setItem(
         'q-cafe-selected-table',
         JSON.stringify({
           tableNo,
-          chairCount: chair,
+          chair: chairStr,
+          chairCount,
+          chairs: chairsToUse,
           timestamp: Date.now(),
         })
       );
@@ -158,12 +169,12 @@ export function Tables({ data, navigate, topology, onSelectTable }: Props) {
 
     window.dispatchEvent(
       new CustomEvent('q-cafe-table-selected', {
-        detail: { tableNo, chairCount: chair },
+        detail: { tableNo, chair: chairStr, chairCount, chairs: chairsToUse },
       })
     );
 
     if (onSelectTable) {
-      onSelectTable(tableNo, chair);
+      onSelectTable(tableNo, chairCount);
     }
 
     navigate('POS');
