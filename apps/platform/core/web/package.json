@@ -1,6 +1,6 @@
 {
   "name": "@codexsun/core-web",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,13 +12,13 @@
   "dependencies": {
     "@codexsun/ai-task-web": "*",
     "@codexsun/chat-web": "*",
-    "@codexsun/core-desktop": "^0.1.13",
+    "@codexsun/core-desktop": "*",
     "@codexsun/dcs-web": "*",
     "@codexsun/devkit-ito": "*",
     "@codexsun/docs-web": "*",
-    "@codexsun/identity-web": "^0.1.13",
+    "@codexsun/identity-web": "*",
     "@codexsun/orship-web": "*",
-    "@codexsun/platform-host-contracts": "^0.1.13",
+    "@codexsun/platform-host-contracts": "*",
     "@codexsun/ui": "*",
     "@codexsun/ui-desk": "*",
     "@codexsun/zetro-web": "*",

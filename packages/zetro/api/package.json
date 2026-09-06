@@ -1,6 +1,6 @@
 {
   "name": "@codexsun/zetro-api",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "type": "module",
   "exports": {
@@ -19,7 +19,7 @@
   "dependencies": {
     "@codexsun/ai-task-api": "*",
     "@codexsun/zetro-knowledge": "*",
-    "@codexsun/platform-host-contracts": "^0.1.13",
+    "@codexsun/platform-host-contracts": "*",
     "@fastify/cors": "latest",
     "@langchain/langgraph": "1.4.13",
     "better-sqlite3": "^13.0.3",

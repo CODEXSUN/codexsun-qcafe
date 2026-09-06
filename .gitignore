@@ -160,3 +160,4 @@ vite.config.ts.timestamp-*
 /deploy/config/
 /deploy/state/
 deploy/build/
+/apps/open source/

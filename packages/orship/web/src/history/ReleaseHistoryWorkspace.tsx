@@ -1,6 +1,7 @@
 import { AlertTriangle, CheckCircle2, Clock3, GitCommitHorizontal, History, RefreshCw, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@codexsun/ui/components/button";
+import { GlobalLoader } from "@codexsun/ui/components/global-loader";
 import { Input } from "@codexsun/ui/components/ui/input";
 import type { MdiTopologyAdapter } from "@codexsun/ui-desk";
 import type { ReleaseHistoryEntry, ReleaseReviewStatus } from "@codexsun/orship-contracts";
@@ -11,7 +12,8 @@ export function ReleaseHistoryWorkspace({ apiBase, topology }: { apiBase: string
   const [selectedId, setSelectedId] = useState<string>();
   const [query, setQuery] = useState("");
   const [phase, setPhase] = useState("");
-  const [status, setStatus] = useState("Loading release history…");
+  const [status, setStatus] = useState("");
+  const [loading, setLoading] = useState(true);
   const [reviewStatus, setReviewStatus] = useState<ReleaseReviewStatus>("pending");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
@@ -26,6 +28,8 @@ export function ReleaseHistoryWorkspace({ apiBase, topology }: { apiBase: string
       setStatus(`${history.length} completed release${history.length === 1 ? "" : "s"} · refreshed ${new Date().toLocaleTimeString()}`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Release history is unavailable.");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -48,6 +52,8 @@ export function ReleaseHistoryWorkspace({ apiBase, topology }: { apiBase: string
       setSaving(false);
     }
   }
+
+  if (loading) return <GlobalLoader className="h-full min-h-64" fullScreen={false} />;
 
   return <main className="flex h-full min-h-0 w-full flex-col bg-background text-foreground" {...topology?.regionProps("o1")}>
     {topology?.marker("o1")}

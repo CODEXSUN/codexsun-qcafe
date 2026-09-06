@@ -20,7 +20,7 @@ export function registerZetro(app: FastifyInstance, dispatcher = new ZetroDispat
       try {
         const res = await dispatcher.transport(new URL("/api/v1/zxa/connections", endpoint.url), {
           headers: token ? { authorization: `Bearer ${token}` } : undefined,
-          signal: AbortSignal.timeout(1000),
+          signal: AbortSignal.timeout(3000),
         });
         const data = await res.json();
         if (res.ok && data && typeof data === "object" && "providers" in data) return data;
@@ -43,7 +43,7 @@ export function registerZetro(app: FastifyInstance, dispatcher = new ZetroDispat
       try {
         const res = await dispatcher.transport(new URL(`/api/v1/zxa/connections/${provider}/models`, endpoint.url), {
           headers: token ? { authorization: `Bearer ${token}` } : undefined,
-          signal: AbortSignal.timeout(1000),
+          signal: AbortSignal.timeout(3000),
         });
         const data = await res.json();
         if (res.ok && data && typeof data === "object" && "models" in data) return data;

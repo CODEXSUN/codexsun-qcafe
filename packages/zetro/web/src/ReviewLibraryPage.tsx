@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { BarChart3, Bot, CheckSquare, ClipboardList, FileSearch, Loader2, MessageSquareText, RefreshCw, Send, Sparkles, WandSparkles } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@codexsun/ui/components/button";
+import { GlobalLoader } from "@codexsun/ui/components/global-loader";
 import { MdiTopologyRegion, type MdiTopologyAdapter } from "@codexsun/ui-desk";
 import { createAndStartAiTask, createZetroTaskSource, listAiTasks } from "./ai-task-api.js";
 import { getWorkspace } from "./workspace-api.js";
@@ -71,7 +72,7 @@ export function ReviewLibraryPage({ sideCarTarget, topology }: { sideCarTarget?:
     </MdiTopologyRegion>
 
     <MdiTopologyRegion id="zr4" topology={topology} className="min-h-0 flex-1 overflow-y-auto p-5">
-      {(workspace.isLoading || tasks.isLoading) ? <div className="grid h-40 place-items-center"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div> : visible.length ? <div className="mx-auto max-w-6xl overflow-hidden rounded-xl border border-border bg-card">
+      {(workspace.isLoading || tasks.isLoading) ? <GlobalLoader className="min-h-64" fullScreen={false} /> : visible.length ? <div className="mx-auto max-w-6xl overflow-hidden rounded-xl border border-border bg-card">
         {visible.map((item) => <label key={item.id} className="grid cursor-pointer grid-cols-[auto_auto_minmax(0,1fr)_auto] items-start gap-3 border-b border-border p-3 last:border-b-0 hover:bg-accent/40">
           <input type="checkbox" className="mt-1" checked={selected.has(item.id)} onChange={() => setSelected((current) => { const next = new Set(current); next.has(item.id) ? next.delete(item.id) : next.add(item.id); return next; })} />
           <KindIcon kind={item.kind} />

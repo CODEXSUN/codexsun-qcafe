@@ -32,6 +32,7 @@ export function buildZetroApp(options: { dispatcher?: ZetroDispatcher } = {}) {
   if (!options.dispatcher) {
     const workspaceStore = new WorkspaceStore(process.env.ZETRO_WORKSPACE_DATABASE_FILE ?? resolve(import.meta.dirname, "../state/workspace.db"), {
       repositoryRoot: process.env.ZETRO_PROJECTS_ROOT || process.cwd(), githubUrl: "", enabledAgentIds: [defaultAgentId], defaultAgentId,
+      runtimeTarget: "docker-local", vpsAgentUrl: "",
     }, process.env.ZETRO_SETTINGS_FILE || undefined);
     registerWorkspaceRoutes(app, workspaceStore, () => dispatcher.registry.health());
     registerKnowledgeRoutes(app, knowledge!, process.env.ZETRO_PROJECTS_ROOT || process.cwd());

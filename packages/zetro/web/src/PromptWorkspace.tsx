@@ -188,15 +188,32 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
     streamCancels.current.forEach((cancel) => cancel());
   }, []);
   useEffect(() => {
-    if (!workspace.data || workspaceHydrated.current) return;
-    workspaceHydrated.current = true;
-    if (workspace.data.projects.length || workspace.data.conversations.length) {
+    if (!workspace.data) return;
+    if (!workspaceHydrated.current) {
+      workspaceHydrated.current = true;
+      if (workspace.data.projects.length || workspace.data.conversations.length) {
+        setProjects(workspace.data.projects);
+        setConversations(workspace.data.conversations);
+        return;
+      }
+      void Promise.all([...projects.map(saveStoredProject), ...conversations.map(saveStoredConversation)]);
+    } else {
       setProjects(workspace.data.projects);
       setConversations(workspace.data.conversations);
-      return;
     }
-    void Promise.all([...projects.map(saveStoredProject), ...conversations.map(saveStoredConversation)]);
-  }, [workspace.data, projects, conversations]);
+  }, [workspace.data]);
+
+  useEffect(() => {
+    const handleWorkspaceUpdated = () => {
+      void workspace.refetch();
+    };
+    window.addEventListener("zetro-workspace-updated", handleWorkspaceUpdated);
+    window.addEventListener("storage", handleWorkspaceUpdated);
+    return () => {
+      window.removeEventListener("zetro-workspace-updated", handleWorkspaceUpdated);
+      window.removeEventListener("storage", handleWorkspaceUpdated);
+    };
+  }, [workspace]);
   useEffect(() => { bottom.current?.scrollIntoView({ block: "end" }); }, [exchanges, sending, pendingTurn?.streamedResult, pendingTurn?.statusText]);
   useEffect(() => { promptInputRef.current?.focus(); }, [activeId]);
   useEffect(() => { if (!sending) promptInputRef.current?.focus(); }, [sending]);
@@ -330,11 +347,34 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
   function handleCreateProject(name: string, localFolder: string, kind: "project" | "addon" = "project") {
     const trimmed = name.trim();
     if (!trimmed) return;
-    const newProj: Project = { id: `${kind}-${Date.now()}`, name: trimmed, localFolder, kind };
+    const maxNum = projects.reduce((max, p) => {
+      const match = p.projectNumber?.match(/PRJ-(\d+)/i);
+      return match && match[1] ? Math.max(max, parseInt(match[1], 10)) : max;
+    }, 0);
+    const projectNumber = `PRJ-${String(maxNum + 1).padStart(4, "0")}`;
+    const initialsGlyph = trimmed.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join("").toUpperCase() || "PR";
+    const colors: Array<Project["color"]> = ["slate", "violet", "amber", "blue", "rose"];
+    const color = colors[projects.length % colors.length] ?? "slate";
+
+    const newProj: Project = {
+      id: `${kind}-${Date.now()}`,
+      name: trimmed,
+      projectNumber,
+      icon: initialsGlyph,
+      color,
+      localFolder,
+      status: "new",
+      kind,
+      createdAt: new Date().toISOString(),
+    };
     const updated = [...projects, newProj];
     setProjects(updated);
     try { saveProjects(localStorage, updated); } catch { /* ignore */ }
-    void saveStoredProject(newProj).catch((cause: unknown) => setError(zetroNotifications.error(cause, "Unable to synchronize the new project.")));
+    void saveStoredProject(newProj)
+      .then(() => {
+        window.dispatchEvent(new CustomEvent("zetro-workspace-updated", { detail: { project: newProj } }));
+      })
+      .catch((cause: unknown) => setError(zetroNotifications.error(cause, "Unable to synchronize the new project.")));
     zetroNotifications.success(`${kind === "addon" ? "Add-on" : "Project"} created`, { description: trimmed });
   }
 
@@ -346,7 +386,10 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
     setProjects(updated);
     try { saveProjects(localStorage, updated); } catch { /* Local cache is optional. */ }
     void saveStoredProject(updatedProject)
-      .then(() => zetroNotifications.success("Project updated", { description: updatedProject.name }))
+      .then(() => {
+        zetroNotifications.success("Project updated", { description: updatedProject.name });
+        window.dispatchEvent(new CustomEvent("zetro-workspace-updated", { detail: { project: updatedProject } }));
+      })
       .catch((cause: unknown) => setError(zetroNotifications.error(cause, "Unable to save the project.")));
   }
 
@@ -358,7 +401,11 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
     setProjects(updated);
     try { saveProjects(localStorage, updated); } catch { /* Local cache is optional. */ }
     zetroNotifications.success(updatedProject.pinned ? "Project pinned" : "Project unpinned", { description: updatedProject.name });
-    void saveStoredProject(updatedProject).catch((cause: unknown) => setError(zetroNotifications.error(cause, "Unable to synchronize the project.")));
+    void saveStoredProject(updatedProject)
+      .then(() => {
+        window.dispatchEvent(new CustomEvent("zetro-workspace-updated", { detail: { project: updatedProject } }));
+      })
+      .catch((cause: unknown) => setError(zetroNotifications.error(cause, "Unable to synchronize the project.")));
   }
 
   async function handleArchiveProjectChats(id: string) {
@@ -368,6 +415,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
       setConversations(snapshot.conversations);
       if (snapshot.conversations.find((item) => item.id === activeId)?.archived) handleNewChat();
       zetroNotifications.success("Project chats archived");
+      window.dispatchEvent(new CustomEvent("zetro-workspace-updated"));
     } catch (cause) { setError(zetroNotifications.error(cause, "Unable to archive project chats.")); }
   }
 
@@ -377,6 +425,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
       setProjects(snapshot.projects);
       setConversations(snapshot.conversations);
       zetroNotifications.success("Project removed", { description: "Its chats are now unassigned." });
+      window.dispatchEvent(new CustomEvent("zetro-workspace-updated"));
     } catch (cause) { setError(zetroNotifications.error(cause, "Unable to remove project.")); }
   }
 

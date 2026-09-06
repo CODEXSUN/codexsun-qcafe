@@ -398,7 +398,7 @@ export function ConversationSideCar({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="size-5 cursor-pointer p-0 text-muted-foreground hover:text-foreground"
+                  className="size-5 cursor-pointer p-0 text-muted-foreground hover:text-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
                   title="New Project"
                   aria-label="New Project"
                   onClick={(e) => {
@@ -433,17 +433,19 @@ export function ConversationSideCar({
                         )}
                       </span>
                       <span className="flex items-center gap-0.5" onClick={(event) => event.stopPropagation()}>
-                        <Button type="button" variant="ghost" size="icon" className="size-6 cursor-pointer" aria-label={`New chat in ${proj.name}`} title="New chat" onClick={() => onNew(proj.id)}><Plus className="size-3.5" /></Button>
-                        <Popover>
-                          <PopoverTrigger asChild><Button type="button" variant="ghost" size="icon" className="size-6 cursor-pointer" aria-label={`${proj.name} options`} title="Project options"><MoreHorizontal className="size-3.5" /></Button></PopoverTrigger>
-                          <PopoverContent align="end" className="w-48 p-1">
-                            <ProjectAction icon={Pin} label={proj.pinned ? "Unpin" : "Pin"} onClick={() => onPinProject?.(proj.id)} />
-                            <ProjectAction icon={Pencil} label="Edit" onClick={() => { setEditingProjectId(proj.id); setEditingKind("project"); setProjectName(proj.name); setProjectFolder(proj.localFolder ?? "."); setProjectDialogOpen(true); }} />
-                            <ProjectAction icon={FolderOpen} label={exploringProjectId === proj.id ? "Show all projects" : "Open in Explore"} onClick={() => setExploringProjectId((current) => current === proj.id ? null : proj.id)} />
-                            <ProjectAction icon={Archive} label="Archive Chats" onClick={() => onArchiveProjectChats?.(proj.id)} />
-                            <ProjectAction destructive icon={Trash2} label="Remove project" onClick={() => { onRemoveProject?.(proj.id); setExploringProjectId(null); }} />
-                          </PopoverContent>
-                        </Popover>
+                        <span className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover/proj:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100">
+                          <Button type="button" variant="ghost" size="icon" className="size-6 cursor-pointer" aria-label={`New chat in ${proj.name}`} title="New chat" onClick={() => onNew(proj.id)}><Plus className="size-3.5" /></Button>
+                          <Popover>
+                            <PopoverTrigger asChild><Button type="button" variant="ghost" size="icon" className="size-6 cursor-pointer" aria-label={`${proj.name} options`} title="Project options"><MoreHorizontal className="size-3.5" /></Button></PopoverTrigger>
+                            <PopoverContent align="end" className="w-48 p-1">
+                              <ProjectAction icon={Pin} label={proj.pinned ? "Unpin" : "Pin"} onClick={() => onPinProject?.(proj.id)} />
+                              <ProjectAction icon={Pencil} label="Edit" onClick={() => { setEditingProjectId(proj.id); setEditingKind("project"); setProjectName(proj.name); setProjectFolder(proj.localFolder ?? "."); setProjectDialogOpen(true); }} />
+                              <ProjectAction icon={FolderOpen} label={exploringProjectId === proj.id ? "Show all projects" : "Open in Explore"} onClick={() => setExploringProjectId((current) => current === proj.id ? null : proj.id)} />
+                              <ProjectAction icon={Archive} label="Archive Chats" onClick={() => onArchiveProjectChats?.(proj.id)} />
+                              <ProjectAction destructive icon={Trash2} label="Remove project" onClick={() => { onRemoveProject?.(proj.id); setExploringProjectId(null); }} />
+                            </PopoverContent>
+                          </Popover>
+                        </span>
                         <ChevronDown className="size-3 text-muted-foreground transition-transform group-open/proj:rotate-180 shrink-0" />
                       </span>
                     </summary>
@@ -473,7 +475,7 @@ export function ConversationSideCar({
               )}
             </span>
             <div className="flex items-center gap-1">
-              <Button type="button" variant="ghost" size="icon" className="size-5 cursor-pointer p-0 text-muted-foreground hover:text-foreground" title="New Add-on" aria-label="New Add-on" onClick={(event) => { event.stopPropagation(); setEditingProjectId(null); setEditingKind("addon"); setProjectName(""); setProjectFolder("."); setProjectDialogOpen(true); }}><Plus className="size-3" /></Button>
+              <Button type="button" variant="ghost" size="icon" className="size-5 cursor-pointer p-0 text-muted-foreground hover:text-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100" title="New Add-on" aria-label="New Add-on" onClick={(event) => { event.stopPropagation(); setEditingProjectId(null); setEditingKind("addon"); setProjectName(""); setProjectFolder("."); setProjectDialogOpen(true); }}><Plus className="size-3" /></Button>
               <ChevronDown className="size-3 transition-transform group-open:rotate-180" />
             </div>
           </summary>
@@ -494,13 +496,15 @@ export function ConversationSideCar({
                     )}
                   </span>
                   <span className="flex items-center gap-0.5" onClick={(event) => event.stopPropagation()}>
-                    <Button type="button" variant="ghost" size="icon" className="size-6 cursor-pointer" aria-label={`New chat in ${addon.name}`} title="New chat" onClick={() => onNew(addon.id)}><Plus className="size-3.5" /></Button>
-                    <Popover><PopoverTrigger asChild><Button type="button" variant="ghost" size="icon" className="size-6 cursor-pointer" aria-label={`${addon.name} options`} title="Add-on options"><MoreHorizontal className="size-3.5" /></Button></PopoverTrigger><PopoverContent align="end" className="w-48 p-1">
-                      <ProjectAction icon={Pin} label={addon.pinned ? "Unpin" : "Pin"} onClick={() => onPinProject?.(addon.id)} />
-                      <ProjectAction icon={Pencil} label="Edit" onClick={() => { setEditingProjectId(addon.id); setEditingKind("addon"); setProjectName(addon.name); setProjectFolder(addon.localFolder ?? "."); setProjectDialogOpen(true); }} />
-                      <ProjectAction icon={Archive} label="Archive Chats" onClick={() => onArchiveProjectChats?.(addon.id)} />
-                      <ProjectAction destructive icon={Trash2} label="Remove add-on" onClick={() => onRemoveProject?.(addon.id)} />
-                    </PopoverContent></Popover>
+                    <span className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover/addon:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100">
+                      <Button type="button" variant="ghost" size="icon" className="size-6 cursor-pointer" aria-label={`New chat in ${addon.name}`} title="New chat" onClick={() => onNew(addon.id)}><Plus className="size-3.5" /></Button>
+                      <Popover><PopoverTrigger asChild><Button type="button" variant="ghost" size="icon" className="size-6 cursor-pointer" aria-label={`${addon.name} options`} title="Add-on options"><MoreHorizontal className="size-3.5" /></Button></PopoverTrigger><PopoverContent align="end" className="w-48 p-1">
+                        <ProjectAction icon={Pin} label={addon.pinned ? "Unpin" : "Pin"} onClick={() => onPinProject?.(addon.id)} />
+                        <ProjectAction icon={Pencil} label="Edit" onClick={() => { setEditingProjectId(addon.id); setEditingKind("addon"); setProjectName(addon.name); setProjectFolder(addon.localFolder ?? "."); setProjectDialogOpen(true); }} />
+                        <ProjectAction icon={Archive} label="Archive Chats" onClick={() => onArchiveProjectChats?.(addon.id)} />
+                        <ProjectAction destructive icon={Trash2} label="Remove add-on" onClick={() => onRemoveProject?.(addon.id)} />
+                      </PopoverContent></Popover>
+                    </span>
                     <ChevronDown className="size-3 shrink-0 text-muted-foreground transition-transform group-open/addon:rotate-180" />
                   </span>
                 </summary>

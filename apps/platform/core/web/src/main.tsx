@@ -4,7 +4,11 @@ import { App } from "./App";
 import { IdentityGate } from "@codexsun/identity-web";
 import { clearChatConnection, setChatConnection } from "@codexsun/chat-web";
 import { desktopCredentialStore } from "@codexsun/core-desktop";
+import { applyDesignSystemPreference, applyThemeModePreference } from "@codexsun/ui/design-system";
 import "./styles.css";
+
+applyThemeModePreference();
+applyDesignSystemPreference();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

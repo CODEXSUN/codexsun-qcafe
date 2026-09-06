@@ -7,8 +7,8 @@ import { join } from "node:path";
 import { randomUUID, timingSafeEqual, randomBytes, createHash } from "node:crypto";
 import sharp from "sharp";
 
-const GOOGLE_CLIENT_ID= process.env.ZXA_GOOGLE_OAUTH_CLIENT_ID ?? '';
-const GOOGLE_CLIENT_SECRET= process.env.ZXA_GOOGLE_OAUTH_CLIENT_SECRET ?? '';
+const GOOGLE_CLIENT_ID = process.env.ZXA_GOOGLE_OAUTH_CLIENT_ID || "";
+const GOOGLE_CLIENT_SECRET = process.env.ZXA_GOOGLE_OAUTH_CLIENT_SECRET || "";
 const GOOGLE_REDIRECT_URI = "https://codeassist.google.com/authcode";
 const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/cloud-platform",
@@ -163,12 +163,14 @@ async function runGemini(message, images, modelOverride) {
   const isGoogleAccount = connectionSettings.g?.authType === "oauth-personal" || existsSync("/state/gemini/.gemini/oauth_creds.json");
   const model = modelOverride || connectionSettings.g?.model || process.env.GEMINI_MODEL || (isGoogleAccount ? "gemini-2.5-pro" : "gemini-2.5-flash");
   const apiKey = connectionSettings.g?.apiKey || process.env.GEMINI_API_KEY;
+  const projectId = connectionSettings.g?.projectId || process.env.GOOGLE_CLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT_ID;
   const args = ["-p", `${systemInstruction()}\n\nUser request:\n${enrichedMessage(message, images)}${fileReferences(images)}`, "--output-format", "json", "-m", model];
   const output = await runCommand("gemini", args, {
     HOME: "/state/gemini",
     GEMINI_CLI_HOME: "/state/gemini",
     GEMINI_CLI_TRUST_WORKSPACE: "true",
     NO_BROWSER: "true",
+    ...(projectId ? { GOOGLE_CLOUD_PROJECT: projectId, GOOGLE_CLOUD_PROJECT_ID: projectId } : {}),
     ...(apiKey && !isGoogleAccount ? { GEMINI_API_KEY: apiKey, GOOGLE_GENERATIVE_AI_API_KEY: apiKey, GOOGLE_GENAI_API_KEY: apiKey } : {})
   });
   const parsed = safeJson(output);
@@ -378,6 +380,9 @@ function coded(code, message) { const error = new Error(message); error.code = c
 function publicError(error) {
   if (error?.code === "BUSY" || error?.code === "UNCONFIGURED") return error.message;
   const message = safeErrorMessage(error);
+  if (/IneligibleTierError|no longer supported for Gemini Code Assist for individuals/iu.test(message)) {
+    return "Google has sunset Gemini Code Assist for personal Gmail accounts on this CLI client ('IneligibleTierError'). Personal accounts require a free Google AI Studio API key. Please click 'Disconnect Gemini' and connect with a free API key from https://aistudio.google.com/app/apikey (or configure a Google Cloud Project ID with Code Assist enabled).";
+  }
   if (/usage limit|purchase more credits|upgrade to pro/iu.test(message)) return "The connected Codex account has reached its usage limit. Sign in with an available account or retry after its reset time.";
   if (/unauthorized|authentication|sign.?in|login|API_KEY_INVALID|API key not valid/iu.test(message)) return message || "The selected provider needs to be signed in again or the API key is invalid.";
   if (/timed out|timeout/iu.test(message)) return "The selected provider did not respond before the local request timeout.";
@@ -472,6 +477,17 @@ async function saveProviderConnection(request, reply) {
       updated.apiKey = apiKey.trim();
       updated.enabled = true;
     }
+    if (provider === "g") {
+      delete updated.authType;
+      delete updated.connectedAs;
+      delete updated.connectionMethod;
+      await rm("/state/gemini/.gemini", { recursive: true, force: true }).catch(() => {});
+      await rm("/state/.gemini", { recursive: true, force: true }).catch(() => {});
+    }
+  }
+  if (request.body?.projectId !== undefined) {
+    if (request.body.projectId) updated.projectId = request.body.projectId.trim();
+    else delete updated.projectId;
   }
   if (model !== undefined) updated.model = model.trim();
   if (baseUrl !== undefined) updated.baseUrl = baseUrl.trim();

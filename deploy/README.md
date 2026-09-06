@@ -26,7 +26,7 @@ Do not print or commit these files. The root `.env` contains the local operator 
 Build cloud frontend assets with `VITE_OS_CLOUD=true`. Desktop builds use their own cloud URL configuration and Windows credential storage.
 Recreate the web container after replacing its mounted Nginx configuration. Dynamic upstream DNS supports application container replacement.
 
-Run `node deploy/verify-live.mjs` from the repository root to check authenticated APIs, enrollment, DCS replay, and Chat WebSockets.
+Run `node deploy/verify-live.mjs` from the repository root to check authenticated APIs, Docs database readiness, enrollment, DCS replay, and Chat WebSockets.
 The test creates and revokes a verification device. It does not print credentials.
 
 ## Verified on September 5, 2026

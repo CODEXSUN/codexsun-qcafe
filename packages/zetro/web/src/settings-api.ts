@@ -9,6 +9,10 @@ export type ZetroSettings = {
   githubUrl: string;
   enabledAgentIds: string[];
   defaultAgentId: string;
+  runtimeTarget: "local" | "docker-local" | "docker-vps";
+  vpsAgentUrl: string;
+  vpsAgentToken?: string;
+  hasVpsAgentToken?: boolean;
 };
 
 export async function getZetroSettings(): Promise<ZetroSettings> { return isDesktopZetro() ? desktopZetroSettings() : request("/api/v1/zetro/settings"); }

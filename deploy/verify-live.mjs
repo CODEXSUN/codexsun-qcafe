@@ -24,6 +24,10 @@ function socket(path, ticket, operation) {
 const login = await request("/api/v1/identity/login", "POST", { login: process.env.OS_SUPER_ADMIN_EMAIL, password: process.env.OS_SUPER_ADMIN_PASSWORD });
 token = login.accessToken;
 for (const path of ["/api/v1/zetro/workspace", "/api/v1/ai-tasks", "/api/v1/chat/profile"]) await request(path);
+const docs = await request("/api/v1/docs/status");
+assert.equal(docs.status, "ok");
+assert.equal(docs.migration, "docs.pages.v1");
+assert.equal(docs.table, "docs_pages");
 const device = await request("/dcs/devices", "POST", { name: "Deployment verification", kind: "desktop" });
 const id = randomUUID();
 try {
@@ -41,5 +45,5 @@ try {
   });
   const chat = await request("/api/v1/chat/realtime/tickets", "POST");
   await socket("/chat/ws", chat.ticket, event => event.type === "ready");
-  console.log("PASS: authenticated APIs, device enrollment, durable DCS replay, separate Chat WebSocket.");
+  console.log("PASS: authenticated APIs, Docs database readiness, device enrollment, durable DCS replay, separate Chat WebSocket.");
 } finally { await request(`/dcs/devices/${device.deviceId}`, "DELETE"); }

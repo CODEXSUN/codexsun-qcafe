@@ -8,7 +8,7 @@ import { WorkspaceStore } from "./workspace-store.js";
 it("migrates legacy settings once and preserves JSON settings across restart", () => {
   const directory = mkdtempSync(join(tmpdir(), "zetro-settings-"));
   const file = join(directory, "workspace.db");
-  const defaults = { repositoryRoot: directory, githubUrl: "", enabledAgentIds: ["zxa"], defaultAgentId: "zxa" };
+  const defaults = { repositoryRoot: directory, githubUrl: "", enabledAgentIds: ["zxa"], defaultAgentId: "zxa", runtimeTarget: "docker-local" as const, vpsAgentUrl: "" };
   try {
     const legacy = new Database(file);
     legacy.exec("CREATE TABLE zetro_settings (id TEXT PRIMARY KEY, snapshot TEXT NOT NULL, updated_at TEXT NOT NULL)");

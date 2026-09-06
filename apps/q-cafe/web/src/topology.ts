@@ -7,7 +7,13 @@ export const qCafeTopology: InterfaceTopologySection[] = [
   item('q1.1', 'qCafe.authentication.pinInput', 'Cashier PIN input', 'Authentication', 'Enter the cashier PIN.'),
   item('q1.2', 'qCafe.authentication.authStatus', 'Authentication status', 'Authentication', 'Display authentication status and opening progress.'),
   item('q1.3', 'qCafe.authentication.errorAlert', 'Login error', 'Authentication', 'Show an authentication failure.'),
-  item('q1.4', 'qCafe.authentication.usernameSwitch', 'Sign with username switch', 'Authentication', 'Switch to username authentication mode.'),
+  item('q1.4', 'qCafe.authentication.usernameSwitch', 'Username sign-in switch', 'Authentication', 'Switch from cashier PIN to username authentication.'),
+  item('q1.5', 'qCafe.authentication.credentialsForm', 'Username sign-in form', 'Authentication', 'Authenticate with a username and password or PIN.'),
+  item('q1.5.1', 'qCafe.credentials.usernameInput', 'Username input', 'Username sign-in', 'Enter the Q Cafe account username.'),
+  item('q1.5.2', 'qCafe.credentials.passwordInput', 'Password or PIN input', 'Username sign-in', 'Enter the account password or PIN.'),
+  item('q1.5.3', 'qCafe.credentials.submitButton', 'Sign-in button', 'Username sign-in', 'Submit username credentials.'),
+  item('q1.5.4', 'qCafe.credentials.errorAlert', 'Credential error', 'Username sign-in', 'Show a username authentication failure.'),
+  item('q1.5.5', 'qCafe.credentials.pinSwitch', 'Cashier PIN switch', 'Username sign-in', 'Return to four-digit cashier PIN authentication.'),
   item('q2', 'qCafe.commandBar.container', 'Command bar', 'Application chrome', 'Q Cafe identity and utility controls.'),
   item('q2.1', 'qCafe.commandBar.navigationToggle', 'Navigation toggle', 'Command bar', 'Collapse or expand restaurant navigation.'),
   item('q2.2', 'qCafe.commandBar.homeLink', 'Q Cafe home link', 'Command bar', 'Return to the service dashboard.'),
@@ -83,4 +89,3 @@ export const qCafeTopology: InterfaceTopologySection[] = [
   item('q14.1', 'qCafe.tables.chairSelector', 'Interactive Table Chairs', 'Tables', 'Touch chair buttons positioned around the table to select chair before hitting table.'),
   item('q14.2', 'qCafe.tables.gridCards', 'Table Floor Grid', 'Tables', 'Touch-first table cards with trimmed status dot and interactive chair selection.'),
 ];
-

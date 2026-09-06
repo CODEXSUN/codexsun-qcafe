@@ -13,7 +13,7 @@ it("persists projects and conversations and applies project lifecycle actions", 
   directory = await mkdtemp(join(tmpdir(), "zetro-workspace-"));
   await mkdir(join(directory, "project-one"));
   const app = Fastify();
-  registerWorkspaceRoutes(app, new WorkspaceStore(join(directory, "workspace.db"), { repositoryRoot: directory, githubUrl: "", enabledAgentIds: ["zetro"], defaultAgentId: "zetro" }), async () => [{ id: "zetro", name: "Zetro", duty: "Test", skills: [], configured: true }]);
+  registerWorkspaceRoutes(app, new WorkspaceStore(join(directory, "workspace.db"), { repositoryRoot: directory, githubUrl: "", enabledAgentIds: ["zetro"], defaultAgentId: "zetro", runtimeTarget: "docker-local", vpsAgentUrl: "" }), async () => [{ id: "zetro", name: "Zetro", duty: "Test", skills: [], configured: true }]);
   const project = { id: "project-one", name: "Project One", projectNumber: "PRJ-0001", icon: "PO", color: "blue", gitRepositoryUrl: "https://github.com/codexsun/project-one.git", status: "planning", pinned: true, localFolder: "project-one" };
   const conversation = { id: "chat-one", title: "First chat", updatedAt: new Date().toISOString(), exchanges: [], projectId: project.id };
 
@@ -26,9 +26,9 @@ it("persists projects and conversations and applies project lifecycle actions", 
   expect((await app.inject({ method: "GET", url: "/api/v1/zetro/workspace/folders" })).json().folders).toEqual([".", "agents", "agents/image", "project-one"]);
   expect((await app.inject({ method: "POST", url: "/api/v1/zetro/workspace/folders", payload: { folder: "../escape" } })).statusCode).toBe(400);
   expect((await app.inject({ method: "POST", url: "/api/v1/zetro/workspace/folders", payload: { folder: join(directory, "absolute") } })).statusCode).toBe(400);
-  const settings = { repositoryRoot: join(directory, "project-one"), githubUrl: "https://github.com/codexsun/project-one", enabledAgentIds: ["zetro"], defaultAgentId: "zetro" };
+  const settings = { repositoryRoot: join(directory, "project-one"), githubUrl: "https://github.com/codexsun/project-one", enabledAgentIds: ["zetro"], defaultAgentId: "zetro", runtimeTarget: "docker-local", vpsAgentUrl: "" };
   expect((await app.inject({ method: "PUT", url: "/api/v1/zetro/settings", payload: settings })).statusCode).toBe(200);
-  expect((await app.inject({ method: "GET", url: "/api/v1/zetro/settings" })).json()).toMatchObject({ githubUrl: settings.githubUrl, enabledAgentIds: ["zetro"], defaultAgentId: "zetro" });
+  expect((await app.inject({ method: "GET", url: "/api/v1/zetro/settings" })).json()).toMatchObject({ githubUrl: settings.githubUrl, enabledAgentIds: ["zetro"], defaultAgentId: "zetro", runtimeTarget: "docker-local", vpsAgentUrl: "" });
   expect((await app.inject({ method: "GET", url: "/api/v1/zetro/workspace/folders" })).json().root).toBe(join(directory, "project-one"));
   expect((await app.inject({ method: "PUT", url: "/api/v1/zetro/settings", payload: { ...settings, defaultAgentId: "missing", enabledAgentIds: ["missing"] } })).statusCode).toBe(400);
   expect((await app.inject({ method: "PUT", url: "/api/v1/zetro/settings", payload: { ...settings, repositoryRoot: join(directory, "missing") } })).statusCode).toBe(400);

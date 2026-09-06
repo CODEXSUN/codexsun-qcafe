@@ -9,7 +9,6 @@ import {
 } from '@codexsun/devkit-ito';
 import { signIn, signInWithCredentials, setupOwner } from './api';
 import { ItoRegion } from './ItoRegion';
-import { field } from './Workspaces';
 
 type Props = {
   topology: InterfaceTopologyController;
@@ -301,14 +300,14 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
         ) : (
           <form
             className="ito-region space-y-4"
-            {...topology.regionProps('q1')}
+            {...topology.regionProps('q1.5')}
             onSubmit={handleUsernameSubmit}
           >
-            <TopologyMarker id="q1" topology={topology} />
+            <TopologyMarker id="q1.5" topology={topology} />
 
-            <div className="space-y-1.5">
+            <ItoRegion id="q1.5.1" topology={topology} className="space-y-1.5">
               <label className="text-xs font-semibold text-muted-foreground">Username</label>
-              <div className="relative">
+              <div className="relative w-full">
                 <input
                   type="text"
                   required
@@ -316,34 +315,34 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="e.g. cashier or admin"
-                  className={field}
+                  className="w-full h-11 rounded-xl border border-input bg-background pl-3.5 pr-10 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring transition-all placeholder:text-muted-foreground/60"
                 />
                 <UserRound
-                  size={16}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
+                  size={18}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
                 />
               </div>
-            </div>
+            </ItoRegion>
 
-            <div className="space-y-1.5">
+            <ItoRegion id="q1.5.2" topology={topology} className="space-y-1.5">
               <label className="text-xs font-semibold text-muted-foreground">Password / PIN</label>
-              <div className="relative">
+              <div className="relative w-full">
                 <input
                   type="password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password or PIN"
-                  className={field}
+                  className="w-full h-11 rounded-xl border border-input bg-background pl-3.5 pr-10 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring transition-all placeholder:text-muted-foreground/60"
                 />
                 <KeyRound
-                  size={16}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
+                  size={18}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
                 />
               </div>
-            </div>
+            </ItoRegion>
 
-            <Button
+            <ItoRegion id="q1.5.3" topology={topology}><Button
               type="submit"
               disabled={busy || !username.trim() || !password}
               className="w-full h-11 cursor-pointer rounded-xl font-semibold shadow-xs mt-2"
@@ -356,16 +355,16 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
               ) : (
                 'Sign in'
               )}
-            </Button>
+            </Button></ItoRegion>
 
             {error && (
-              <p role="alert" className="text-center text-xs font-medium text-destructive">
+              <ItoRegion id="q1.5.4" topology={topology}><p role="alert" className="text-center text-xs font-medium text-destructive">
                 {error}
-              </p>
+              </p></ItoRegion>
             )}
 
             {/* Switch back to PIN login text */}
-            <div className="pt-2 text-center border-t border-border/60">
+            <ItoRegion id="q1.5.5" topology={topology} className="pt-2 text-center border-t border-border/60">
               <button
                 type="button"
                 onClick={() => {
@@ -378,7 +377,7 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
                 <Lock size={14} />
                 <span>Sign in with 4-digit cashier PIN</span>
               </button>
-            </div>
+            </ItoRegion>
           </form>
         )}
       </div>

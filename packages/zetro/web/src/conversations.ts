@@ -36,9 +36,56 @@ const key = "zetro.prompt-conversations.v1";
 const projectsKey = "zetro.prompt-projects.v1";
 
 export const DEFAULT_PROJECTS: Project[] = [
-  { id: "proj-1", name: "Core Platform", description: "Platform services and runtime" },
-  { id: "proj-2", name: "Agent Workflows", description: "Zetro autonomous agents" },
-  { id: "proj-3", name: "UI Components", description: "Design system & interface modules" },
+  {
+    id: "proj-1",
+    name: "DevKit",
+    projectNumber: "PRJ-0001",
+    icon: "cx",
+    color: "slate",
+    description: "Plan and deliver the DevKit project lifecycle from roadmap through review.",
+    status: "planning",
+    kind: "project",
+  },
+  {
+    id: "proj-2",
+    name: "Techmedia.in",
+    projectNumber: "PRJ-0002",
+    icon: "TM",
+    color: "violet",
+    description: "Online shoping cart with portfolio",
+    status: "new",
+    kind: "project",
+  },
+  {
+    id: "proj-3",
+    name: "app.techmedia.in",
+    projectNumber: "PRJ-0003",
+    icon: "TM",
+    color: "amber",
+    description: "application backend for frappe backend and react front",
+    status: "new",
+    kind: "project",
+  },
+  {
+    id: "proj-4",
+    name: "Tirupur Connect",
+    projectNumber: "PRJ-0004",
+    icon: "TC",
+    color: "blue",
+    description: "B2B connect",
+    status: "new",
+    kind: "project",
+  },
+  {
+    id: "proj-5",
+    name: "CXSHOP",
+    projectNumber: "PRJ-0005",
+    icon: "cx",
+    color: "rose",
+    description: "Online Shopping cart",
+    status: "new",
+    kind: "project",
+  },
 ];
 
 export function loadProjects(storage: Pick<Storage, "getItem">): Project[] {

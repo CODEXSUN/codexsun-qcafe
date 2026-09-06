@@ -6,7 +6,7 @@ import { WorkspaceStore } from "./workspace-store.js";
 const file = process.env.ZETRO_WORKSPACE_DATABASE_FILE ?? resolve(import.meta.dirname, "../state/workspace.db");
 const store = new WorkspaceStore(file, {
   repositoryRoot: process.env.ZETRO_PROJECTS_ROOT || process.cwd(), githubUrl: "",
-  enabledAgentIds: ["zxa"], defaultAgentId: "zxa",
+  enabledAgentIds: ["zxa"], defaultAgentId: "zxa", runtimeTarget: "docker-local", vpsAgentUrl: "",
 }, process.env.ZETRO_SETTINGS_FILE || undefined);
 try {
   const sample = workspaceSchema.parse(JSON.parse(readFileSync(resolve(import.meta.dirname, "../sample-workspace.json"), "utf8")));

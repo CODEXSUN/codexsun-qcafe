@@ -21,3 +21,9 @@ it("does not probe an unconfigured agent", async () => {
   expect(await new AgentRegistry([endpoint], {}).health()).toEqual([expect.objectContaining({ runtimeStatus: "unconfigured" })]);
   expect(fetcher).not.toHaveBeenCalled();
 });
+
+it("reports the selected desktop runtime target", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ status: "ok", configured: true, agentId: "image-agent", mode: "docker-vps" }))));
+  const [agent] = await new AgentRegistry([endpoint], { TEST_TOKEN: "test" }).health();
+  expect(agent).toMatchObject({ runtimeStatus: "healthy", mode: "docker-vps" });
+});

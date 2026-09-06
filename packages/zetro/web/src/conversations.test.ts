@@ -56,7 +56,7 @@ it("loads default projects when storage is empty and saves custom projects", () 
   const storage = { getItem: () => data, setItem: (_key: string, value: string) => { data = value; } };
   const loadedDefaults = loadProjects(storage);
   expect(loadedDefaults.length).toBeGreaterThan(0);
-  expect(loadedDefaults[0]?.name).toBe("Core Platform");
+  expect(loadedDefaults[0]?.name).toBe("DevKit");
 
   const customProjects = [{ id: "p-test", name: "Custom Project", description: "Testing" }];
   saveProjects(storage, customProjects);

@@ -35,10 +35,16 @@ export class AgentRegistry {
         return {
           ...agent,
           runtimeStatus: healthy ? "healthy" as const : "offline" as const,
-          mode: body.mode === "local-demo" ? "local-demo" as const : "provider" as const,
+          mode: runtimeMode(body.mode),
           providers: Array.isArray(body.providers) ? body.providers : undefined,
         };
       } catch { return { ...agent, runtimeStatus: "offline" as const }; }
     }));
   }
+}
+
+function runtimeMode(value: unknown): AgentSummary["mode"] {
+  return value === "local-demo" || value === "local-cli" || value === "docker-local" || value === "docker-vps"
+    ? value
+    : "provider";
 }

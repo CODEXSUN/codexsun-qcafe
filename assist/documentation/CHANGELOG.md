@@ -2,13 +2,51 @@
 
 ## Version State
 
-Current version: 1.1.0
+Current version: 1.1.1
 
-Release tag: v-1.1.0
+Release tag: v-1.1.1
 
-Changelog label: v 1.1.0
+Changelog label: v 1.1.1
 
 ## Unreleased
+
+- No unreleased changes.
+
+## v-1.1.1
+
+### [v 1.1.1] 2026-09-06 11:25 p.m. - Ship the shared workspace system and reliable Zetro Desk runtime
+
+#### Database Changes
+
+- Database update: Yes.
+- Added and updated platform and Docs persistence migrations for cloud MariaDB deployment.
+
+#### App Codebase Changes
+
+- Added the shared CODEXSUN design system, workspace primitives, layout presets, theme controls, and global branded loader.
+- Refined Docs as a cloud-backed workspace with administrator authoring, normalized content, and API proxy support.
+- Made Zetro Desk project settings persistent and added local, local Docker, and VPS Docker runtime targets.
+- Added the live multi-provider model selector and opened the matching ZXA configuration page from desktop and web.
+- Added ZXA provider authentication, account status, usage reporting, and safer local credential handling.
+- Updated the VPS apply routine to rebuild ZXA with each release so provider changes cannot remain on an older cloud image.
+- Made the ZXA image build its React connection page from tracked source instead of requiring an ignored local `dist` directory.
+- Added Orship release history, deployment evidence, and release operation views.
+- Fixed installed CODEXSUN desktop startup by limiting Vite chunk splitting to stable dependency groups.
+- Preserved the Q Cafe 1.1.0 updater, installer shutdown, and installed-version improvements from the current main branch.
+
+### Detailed feature log
+
+### Zetro Sidecar Action Buttons Hover-Only Presentation
+
+#### Database Changes
+
+- Database update: No.
+
+#### App Codebase Changes
+
+- Cleaned up Zetro's `ConversationSideCar` interface to reduce visual clutter:
+  - The New Project (`+`) and New Add-on (`+`) section header buttons now only appear on hover or keyboard focus (`opacity-0 group-hover:opacity-100 group-focus-within:opacity-100`).
+  - The project and add-on row action buttons (New Chat `+` and More Options `...`) are now neatly hidden by default and appear on hover, focus-within, or when the options popover menu is open (`opacity-0 group-hover/...:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100`), preserving the fold chevron in place.
 
 ### ZXA Gemini OAuth Credentials and Individual Account Handling
 
@@ -18,7 +56,7 @@ Changelog label: v 1.1.0
 
 #### App Codebase Changes
 
-- Configured official Google Code Assist OAuth client credentials (`client_id` and `client_secret`) in ZXA Docker container and compose configuration, resolving the Google OAuth 400 `Missing required parameter: client_id` error on browser sign-in.
+- Added environment-based Google Code Assist OAuth client configuration to the ZXA Docker container and compose configuration, with no credential defaults stored in source control.
 - Added comprehensive handling and friendly user guidance for Google's `IneligibleTierError` (where Google Code Assist OAuth now requires an enterprise workspace or Google Cloud project ID):
   - Added optional Google Cloud Project ID (`GOOGLE_CLOUD_PROJECT`) support in `runGemini` and `saveProvider`.
   - Added 1-click fallback in ZXA Web UI to switch immediately to a free Google AI Studio API key (which works with personal `@gmail.com` accounts and supports Gemini 2.5 Pro, 2.5 Flash, 2.0 Flash, etc.).
@@ -111,7 +149,6 @@ Changelog label: v 1.1.0
 - Added ITO entries for the workspace canvas, navigation, navigation rail, and workspace surface.
 - Cleared workspace canvas child blocks and reserved the full canvas for the next MDI feature.
 - Bound the shared AppSidebar and SidebarInset composition inside the workspace canvas.
-
 ## v-1.1.0
 
 ### [v 1.1.0] 2026-09-06 11:21 p.m. - Adopt Q Cafe 1.1.0 minor version

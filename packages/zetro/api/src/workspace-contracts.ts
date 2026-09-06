@@ -19,13 +19,17 @@ export const projectSchema = z.object({
 });
 export const createFolderSchema = z.object({ folder: z.string().trim().min(1).max(500) }).strict();
 export const workspaceSchema = z.object({ projects: z.array(projectSchema), conversations: z.array(conversationSchema) });
+export const runtimeTargetSchema = z.enum(["local", "docker-local", "docker-vps"]);
 export const settingsSchema = z.object({
   repositoryRoot: z.string().trim().min(1).max(1_000),
   githubUrl: z.union([z.literal(""), z.string().url().max(1_000)]),
   enabledAgentIds: z.array(agentIdSchema).max(32),
   defaultAgentId: agentIdSchema,
+  runtimeTarget: runtimeTargetSchema.default("docker-local"),
+  vpsAgentUrl: z.union([z.literal(""), z.string().url().max(1_000)]).default(""),
 }).strict();
 export type ZetroConversation = z.infer<typeof conversationSchema>;
 export type ZetroProject = z.infer<typeof projectSchema>;
 export type ZetroWorkspace = z.infer<typeof workspaceSchema>;
 export type ZetroSettings = z.infer<typeof settingsSchema>;
+export type RuntimeTarget = z.infer<typeof runtimeTargetSchema>;

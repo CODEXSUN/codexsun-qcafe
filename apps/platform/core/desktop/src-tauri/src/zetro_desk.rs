@@ -60,6 +60,14 @@ struct DesktopSettings {
     github_url: String,
     enabled_agent_ids: Vec<String>,
     default_agent_id: String,
+    #[serde(default = "default_runtime_target")]
+    runtime_target: String,
+    #[serde(default)]
+    vps_agent_url: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    vps_agent_token: Option<String>,
+    #[serde(default)]
+    has_vps_agent_token: bool,
 }
 
 #[tauri::command]
@@ -112,10 +120,18 @@ pub async fn zetro_desk_save_settings(settings: Value, runtime: State<'_, LocalR
     if !settings.enabled_agent_ids.contains(&settings.default_agent_id) {
         settings.default_agent_id = settings.enabled_agent_ids[0].clone();
     }
+    validate_runtime_settings(&settings)?;
+    if let Some(token) = settings.vps_agent_token.as_ref().map(|value| value.trim()).filter(|value| !value.is_empty()) {
+        crate::credentials::save_credential("zxa-vps".to_string(), token.to_string())?;
+    }
+    let stored_token = crate::credentials::read_credential("zxa-vps".to_string())?;
+    settings.has_vps_agent_token = stored_token.is_some();
+    settings.vps_agent_token = stored_token;
     let value = serde_json::to_value(&settings).map_err(|_| "Zetro Desk settings are invalid.".to_string())?;
-    if let Ok(saved) = request_with_timeout("PUT", "/api/v1/desktop/zetro/settings", Some(value), Duration::from_secs(3)).await {
+    if let Ok(saved) = request_with_timeout("PUT", "/api/v1/desktop/zetro/settings", Some(value), Duration::from_secs(60)).await {
         return Ok(saved);
     }
+    settings.vps_agent_token = None;
     write_settings(&settings)?;
     runtime.ensure_started()?;
     serde_json::to_value(settings).map_err(|_| "Zetro Desk settings are invalid.".to_string())
@@ -189,7 +205,15 @@ fn read_settings() -> Result<DesktopSettings, String> {
         github_url: String::new(),
         enabled_agent_ids: vec!["zxa".to_string()],
         default_agent_id: "zxa".to_string(),
+        runtime_target: default_runtime_target(),
+        vps_agent_url: String::new(),
+        vps_agent_token: None,
+        has_vps_agent_token: crate::credentials::read_credential("zxa-vps".to_string()).ok().flatten().is_some(),
     }))
+}
+
+pub fn selected_runtime_target() -> String {
+    read_settings().map(|settings| settings.runtime_target).unwrap_or_else(|_| default_runtime_target())
 }
 
 fn write_settings(settings: &DesktopSettings) -> Result<(), String> {
@@ -222,6 +246,10 @@ fn settings_from_state(state: &Value) -> DesktopSettings {
         github_url: state.get("githubUrl").and_then(Value::as_str).unwrap_or("").to_string(),
         enabled_agent_ids,
         default_agent_id,
+        runtime_target: state.get("runtimeTarget").and_then(Value::as_str).unwrap_or("docker-local").to_string(),
+        vps_agent_url: state.get("vpsAgentUrl").and_then(Value::as_str).unwrap_or("").to_string(),
+        vps_agent_token: None,
+        has_vps_agent_token: crate::credentials::read_credential("zxa-vps".to_string()).ok().flatten().is_some(),
     }
 }
 
@@ -234,6 +262,8 @@ fn apply_settings(state: &mut Value, settings: &DesktopSettings) {
     object.insert("githubUrl".to_string(), json!(settings.github_url));
     object.insert("enabledAgentIds".to_string(), json!(settings.enabled_agent_ids));
     object.insert("defaultAgentId".to_string(), json!(settings.default_agent_id));
+    object.insert("runtimeTarget".to_string(), json!(settings.runtime_target));
+    object.insert("vpsAgentUrl".to_string(), json!(settings.vps_agent_url));
 }
 
 fn bridge_state() -> Result<BridgeState, String> {
@@ -257,13 +287,15 @@ fn spawn_runtime() -> Result<Child, String> {
     let mut command = Command::new(node_executable());
     command
         .arg(script)
-        .arg("--docker")
         .current_dir(&repository)
         .env("CODEXSUN_DESKTOP_PARENT_PID", std::process::id().to_string())
         .env("ZETRO_WORKSPACE_ROOT", &repository)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
+    if let Ok(Some(token)) = crate::credentials::read_credential("zxa-vps".to_string()) {
+        command.env("ZXA_VPS_TOKEN", token);
+    }
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -323,6 +355,27 @@ fn relative_project_folder(root: &Path, selected: &Path) -> Result<String, Strin
     Ok(if folder.is_empty() { ".".to_string() } else { folder })
 }
 
+fn default_runtime_target() -> String {
+    "docker-local".to_string()
+}
+
+fn validate_runtime_settings(settings: &DesktopSettings) -> Result<(), String> {
+    if !["local", "docker-local", "docker-vps"].contains(&settings.runtime_target.as_str()) {
+        return Err("Choose Local CLI, Local Docker, or VPS Docker.".to_string());
+    }
+    if settings.runtime_target == "docker-vps" {
+        let url = reqwest::Url::parse(settings.vps_agent_url.trim())
+            .map_err(|_| "Enter the public HTTPS URL for the VPS ZXA container.".to_string())?;
+        if url.scheme() != "https" {
+            return Err("The VPS ZXA URL must use HTTPS.".to_string());
+        }
+        if !settings.has_vps_agent_token && settings.vps_agent_token.as_deref().unwrap_or("").trim().is_empty() {
+            return Err("Enter the VPS ZXA access token.".to_string());
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -348,10 +401,15 @@ mod tests {
             github_url: "https://github.com/CODEXSUN/codexsun.git".to_string(),
             enabled_agent_ids: vec!["zxa".to_string()],
             default_agent_id: "zxa".to_string(),
+            runtime_target: "docker-local".to_string(),
+            vps_agent_url: String::new(),
+            vps_agent_token: None,
+            has_vps_agent_token: false,
         };
         apply_settings(&mut state, &settings);
         assert_eq!(state["bridgeToken"], "private");
         assert_eq!(state["repositoryRoot"], "E:\\Workspace\\codexsun");
+        assert_eq!(state["runtimeTarget"], "docker-local");
     }
 
     #[test]

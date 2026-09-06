@@ -1,11 +1,11 @@
 import { Search } from "lucide-react"
 
-import { Label } from "../../../components/ui/label"
+import { Label } from "../../label"
 import {
     SidebarGroup,
     SidebarGroupContent,
     SidebarInput,
-} from "../../../components/ui/sidebar"
+} from "../../sidebar"
 
 type SearchFormProps = React.ComponentProps<"form"> & {
     placeholder?: string
@@ -24,7 +24,7 @@ export function SearchForm({ placeholder = "Search...", query, onQueryChange, ..
                     <SidebarInput
                         id="search"
                         value={query}
-                        onChange={(event) => onQueryChange?.(event.target.value)}
+                        onChange={(event: React.ChangeEvent<HTMLInputElement>) => onQueryChange?.(event.target.value)}
                         placeholder={placeholder}
                         className="pl-8"
                     />

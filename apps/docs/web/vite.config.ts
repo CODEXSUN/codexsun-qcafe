@@ -1,8 +1,10 @@
 import tailwindcss from "@tailwindcss/vite";
+import path from "node:path";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 export default defineConfig({
+  publicDir: path.resolve(import.meta.dirname, "../../../packages/ui/desk/public"),
   plugins: [react(), tailwindcss()],
   build: {
     rolldownOptions: {

@@ -1,7 +1,7 @@
 use keyring::{Entry, Error};
 
 fn entry(name: &str) -> Result<Entry, String> {
-    if !["identity-refresh", "dcs-device"].contains(&name) {
+    if !["identity-refresh", "dcs-device", "zxa-vps"].contains(&name) {
         return Err("Unknown credential slot".into());
     }
     Entry::new("in.codexsun.desktop", name).map_err(|_| "Credential store unavailable".into())

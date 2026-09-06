@@ -479,7 +479,38 @@ function App() {
                     {testResult.ok ? (
                       <pre className="test-message-content">{testResult.message}</pre>
                     ) : (
-                      <p className="test-error-content">{testResult.error}</p>
+                      <div>
+                        <p className="test-error-content">{testResult.error}</p>
+                        {(testResult.error?.includes("IneligibleTierError") || testResult.error?.includes("Code Assist for individuals") || testResult.error?.includes("sunset")) && (
+                          <div className="ineligible-tier-help" style={{ marginTop: "12px", padding: "12px", background: "rgba(239, 68, 68, 0.08)", borderRadius: "8px", border: "1px solid rgba(239, 68, 68, 0.25)" }}>
+                            <strong style={{ color: "#ef4444", display: "block", marginBottom: "6px" }}>⚡ Recommended Solution for Personal Gmail Accounts</strong>
+                            <p style={{ margin: "0 0 10px 0", fontSize: "13px", lineHeight: "1.4" }}>
+                              Google requires a Google Cloud project for Google Account OAuth. For personal Gmail accounts, you can use a <strong>free Google AI Studio API key</strong> (instant setup, 100% free with any Gmail account, supports all Gemini models).
+                            </p>
+                            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                              <button
+                                type="button"
+                                className="primary small-btn"
+                                onClick={async () => {
+                                  await disconnectProvider();
+                                  setShowApiKeyForm(true);
+                                }}
+                              >
+                                ⚡ Switch to Free Google AI Studio API Key
+                              </button>
+                              <a
+                                href="https://aistudio.google.com/app/apikey"
+                                target="_blank"
+                                rel="noreferrer"
+                                className="secondary small-btn"
+                                style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", padding: "6px 12px" }}
+                              >
+                                Get Free Gemini API Key ↗
+                              </a>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}

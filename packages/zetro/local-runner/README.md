@@ -48,6 +48,18 @@ The command starts only the `zxa:v1` Docker agent and three loopback-only servic
 
 Desktop chat and task actions pass through the coordinator before reaching ZXA. This preserves one durable timeline from prompt through evidence and an optional Orship handoff. The bridge exposes a fixed coordinator route allowlist to the Tauri web view; it is not an open HTTP proxy.
 
+## Execution targets
+
+Zetro Desk stores the selected execution target with its local properties:
+
+- **Local CLI** uses the signed-in Codex CLI for chat-only requests. It disables the shell tool and uses the read-only sandbox.
+- **Local Docker** is the default. It routes Codex, Gemini, and OpenCode through the isolated ZXA container at `127.0.0.1:4230`.
+- **VPS Docker** routes requests to an operator-provided HTTPS ZXA URL. Windows Credential Manager stores its bearer token.
+
+The desktop bridge owns a loopback runtime router on port `4162`. The Zetro coordinator calls this stable endpoint, and the router forwards each request to the selected target. Changing the target does not change Zetro conversation or task storage.
+
+The cloud proxy exposes its ZXA container below `/zxa/`. Use `https://os.codexsun.com/zxa` as the VPS URL after the matching cloud release is deployed. The ZXA bearer token remains required.
+
 The bridge stores its private configuration under `%APPDATA%\CODEXSUN\zetro-desk-bridge.json`. It includes the approved repository root and local tokens. Do not copy that file, add it to source control, or expose either port beyond the local computer.
 
 In Zetro properties inside the desktop app, choose an existing repository root and save it. The bridge validates and canonicalizes that local path, then the Docker agent can use only `workspace_list`, `workspace_read`, and `workspace_search`. The cloud cannot browse the desktop repository. Cloud synchronization requires a reviewed DCS application adapter and is not implied by the local coordinator.

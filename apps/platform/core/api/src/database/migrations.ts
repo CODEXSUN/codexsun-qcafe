@@ -87,6 +87,21 @@ const migrations: readonly PlatformMigration[] = [
         .execute();
     },
   },
+  {
+    name: "docs.pages.v1",
+    async up(database) {
+      await sql`CREATE TABLE IF NOT EXISTS docs_pages (
+        slug VARCHAR(160) PRIMARY KEY,
+        title VARCHAR(240) NOT NULL,
+        summary VARCHAR(360) NOT NULL,
+        page_group VARCHAR(80) NOT NULL,
+        body MEDIUMTEXT NOT NULL,
+        created_at DATETIME NOT NULL,
+        updated_at DATETIME NOT NULL,
+        updated_by VARCHAR(254) NOT NULL
+      ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`.execute(database);
+    },
+  },
 ];
 
 export async function migratePlatformDatabase(database: Kysely<PlatformDatabaseSchema>): Promise<string[]> {

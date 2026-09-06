@@ -44,7 +44,7 @@
       }
     },
     "dcs": {
-      "image": "codexsun-os/dcs:${CODEXSUN_VERSION:-1.1.0}",
+      "image": "codexsun-os/dcs:${CODEXSUN_VERSION:-1.1.1}",
       "restart": "unless-stopped",
       "build": {
         "context": "..",
@@ -85,7 +85,7 @@
       }
     },
     "platform": {
-      "image": "codexsun-os/api:${CODEXSUN_VERSION:-1.1.0}",
+      "image": "codexsun-os/api:${CODEXSUN_VERSION:-1.1.1}",
       "restart": "unless-stopped",
       "read_only": true,
       "cap_drop": [
@@ -128,7 +128,7 @@
       }
     },
     "zetro": {
-      "image": "codexsun-os/api:${CODEXSUN_VERSION:-1.1.0}",
+      "image": "codexsun-os/api:${CODEXSUN_VERSION:-1.1.1}",
       "restart": "unless-stopped",
       "read_only": true,
       "cap_drop": [
@@ -177,7 +177,7 @@
       }
     },
     "chat": {
-      "image": "codexsun-os/api:${CODEXSUN_VERSION:-1.1.0}",
+      "image": "codexsun-os/api:${CODEXSUN_VERSION:-1.1.1}",
       "restart": "unless-stopped",
       "read_only": true,
       "cap_drop": [
@@ -218,7 +218,7 @@
       }
     },
     "docs": {
-      "image": "codexsun-os/api:${CODEXSUN_VERSION:-1.1.0}",
+      "image": "codexsun-os/api:${CODEXSUN_VERSION:-1.1.1}",
       "restart": "unless-stopped",
       "read_only": true,
       "cap_drop": ["ALL"],
@@ -227,7 +227,6 @@
       "env_file": ["./config/platform.env"],
       "environment": {
         "DOCS_API_HOST": "0.0.0.0",
-        "DOCS_CONTENT_DIRECTORY": "/app/docs-content",
         "OS_IDENTITY_URL": "http://platform:4100"
       },
       "networks": ["internal"],
@@ -244,7 +243,7 @@
       }
     },
     "orship": {
-      "image": "codexsun-os/api:${CODEXSUN_VERSION:-1.1.0}",
+      "image": "codexsun-os/api:${CODEXSUN_VERSION:-1.1.1}",
       "restart": "unless-stopped",
       "read_only": true,
       "cap_drop": ["ALL"],

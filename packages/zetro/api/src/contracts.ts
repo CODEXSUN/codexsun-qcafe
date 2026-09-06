@@ -40,7 +40,7 @@ export type AgentTurn = z.infer<typeof turnSchema>;
 export type AgentSummary = AgentProfile & {
   configured: boolean;
   runtimeStatus?: "healthy" | "offline" | "unconfigured";
-  mode?: "local-demo" | "provider";
+  mode?: "local-demo" | "provider" | "local-cli" | "docker-local" | "docker-vps";
   providers?: Array<{
     id: string;
     name: string;

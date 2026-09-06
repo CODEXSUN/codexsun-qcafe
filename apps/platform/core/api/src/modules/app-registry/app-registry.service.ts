@@ -560,6 +560,21 @@ export class AppRegistryService {
       });
     }
 
+    if (this.manifests.some((m) => m.id === "app.docs")) {
+      boundaries.push({
+        databaseProvider: this.databaseProvider,
+        migrationLedgerStatus: "applied",
+        migrationName: "docs.pages.v1",
+        moduleId: "app.docs",
+        moduleName: "Docs Persistence",
+        outboxTopics: [],
+        owner: "Docs",
+        seedStatus: "none",
+        tables: ["docs_pages"],
+        tenancyEnabled: false,
+      });
+    }
+
     return boundaries;
   }
 

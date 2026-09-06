@@ -30,6 +30,7 @@ import {
   type RuntimeServiceStatusDTO,
   type StructureNodeDTO,
 } from "@codexsun/platform-host-contracts";
+import { GlobalLoader } from "@codexsun/ui/components/global-loader";
 
 type WorkspaceTab = "applications" | "structures" | "runtime" | "data" | "security";
 type AppDetailTab = "overview" | "architecture" | "modules" | "contracts" | "runtime" | "security" | "data";
@@ -256,12 +257,7 @@ export function AppRegistryWorkspace() {
 
   // Render State: Loading
   if (loading) {
-    return (
-      <div className="flex h-96 flex-col items-center justify-center gap-3 text-muted-foreground" role="status">
-        <RefreshCw className="size-8 animate-spin text-primary" />
-        <p className="text-sm font-medium">Loading Platform Architecture & Registry...</p>
-      </div>
-    );
+    return <GlobalLoader className="min-h-96" fullScreen={false} />;
   }
 
   // Render State: Denied (403)

@@ -1,9 +1,10 @@
 import { platformFetch } from "@codexsun/platform-host-contracts";
-import { desktopZetroCoordinator, isDesktopZetro } from "./desktop-bridge.js";
+import { desktopZetroCoordinator, desktopZetroSettings, isDesktopZetro } from "./desktop-bridge.js";
 
 const base = import.meta.env.VITE_ZETRO_API_URL ?? "";
 
 export type ProviderId = "g" | "c" | "o";
+export type RuntimeTarget = "local" | "docker-local" | "docker-vps";
 
 export type ZxaProvider = {
   id: ProviderId;
@@ -27,6 +28,8 @@ export type ZxaModelOption = {
 
 export type ProvidersResponse = {
   providers: ZxaProvider[];
+  runtimeTarget?: RuntimeTarget;
+  configureUrl?: string;
   codex?: { status: string; url?: string; code?: string; message?: string };
   geminiAuth?: { status: string; url?: string; email?: string; message?: string };
 };
@@ -39,8 +42,8 @@ export type ModelsResponse = {
 };
 
 export const FALLBACK_PROVIDERS: ZxaProvider[] = [
-  { id: "g", name: "Gemini", model: "gemini-2.5-pro", configured: true, connectedAs: "Google Account / API Key" },
-  { id: "o", name: "OpenCode", model: "opencode/nemotron-3-ultra-free", configured: true, connectedAs: "Free Built-in LLM" },
+  { id: "g", name: "Gemini", model: "gemini-2.5-pro", configured: false },
+  { id: "o", name: "OpenCode", model: "opencode/nemotron-3-ultra-free", configured: false },
   { id: "c", name: "Codex", model: "account default", configured: false },
 ];
 
@@ -69,11 +72,44 @@ export const FALLBACK_MODELS: Record<ProviderId, ZxaModelOption[]> = {
 
 export async function getZxaProviders(): Promise<ProvidersResponse> {
   if (isDesktopZetro()) {
-    return desktopZetroCoordinator<ProvidersResponse>("/api/v1/zetro/providers");
+    const [providers, settings] = await Promise.all([
+      desktopZetroCoordinator<ProvidersResponse>("/api/v1/zetro/providers"),
+      desktopZetroSettings(),
+    ]);
+    return {
+      ...providers,
+      runtimeTarget: settings.runtimeTarget,
+      configureUrl: resolveZxaConfigurationUrl(settings),
+    };
   }
   const response = await platformFetch(`${base}/api/v1/zetro/providers`);
   if (!response.ok) throw new Error("Failed to fetch ZXA providers.");
-  return (await response.json()) as ProvidersResponse;
+  return {
+    ...((await response.json()) as ProvidersResponse),
+    configureUrl: resolveZxaConfigurationUrl(),
+  };
+}
+
+export function resolveZxaConfigurationUrl(
+  settings?: { runtimeTarget: RuntimeTarget; vpsAgentUrl: string }
+): string {
+  if (settings?.runtimeTarget === "docker-vps" && settings.vpsAgentUrl.trim()) {
+    return `${settings.vpsAgentUrl.trim().replace(/\/+$/u, "")}/`;
+  }
+
+  if (
+    typeof window !== "undefined" &&
+    !isDesktopZetro() &&
+    !isLoopbackHost(window.location.hostname)
+  ) {
+    return new URL("/zxa/", window.location.origin).toString();
+  }
+
+  return "http://127.0.0.1:4230/";
+}
+
+function isLoopbackHost(hostname: string): boolean {
+  return hostname === "127.0.0.1" || hostname === "localhost" || hostname === "[::1]";
 }
 
 export async function getZxaModels(provider: ProviderId): Promise<ModelsResponse> {

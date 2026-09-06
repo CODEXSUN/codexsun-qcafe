@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Button } from "@codexsun/ui/components/button";
+import { GlobalLoader } from "@codexsun/ui/components/global-loader";
 import { clearPlatformSession, configurePlatformSession } from "@codexsun/platform-host-contracts";
 import { refreshSession } from "./refresh-session.js";
 
@@ -129,12 +130,5 @@ export function IdentityGate({ children, onAuthenticated, onSignedOut, baseUrl =
 }
 
 function IdentityLoadingScreen() {
-  return <main aria-busy="true" aria-label="Connecting to CODEXSUN OS" className="grid min-h-screen place-items-center bg-background text-foreground">
-    <div className="relative grid size-16 place-items-center">
-      <span className="absolute inset-0 animate-spin rounded-full border-2 border-border border-t-foreground" />
-      <span className="grid size-11 place-items-center rounded-xl bg-background">
-        <img alt="CODEXSUN" className="size-7" src="/logo/logo.svg" />
-      </span>
-    </div>
-  </main>;
+  return <GlobalLoader />;
 }

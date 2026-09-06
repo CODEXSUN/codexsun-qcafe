@@ -1,8 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { renderToString } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ModelProviderSelector } from "./ModelProviderSelector.js";
-import { FALLBACK_MODELS, FALLBACK_PROVIDERS } from "../model-provider-api.js";
+import { ModelProviderSelector, resolveProviderSelection } from "./ModelProviderSelector.js";
+import {
+  FALLBACK_MODELS,
+  FALLBACK_PROVIDERS,
+  resolveZxaConfigurationUrl,
+} from "../model-provider-api.js";
 
 describe("ModelProviderSelector", () => {
   const createWrapper = () => {
@@ -96,6 +100,7 @@ describe("ModelProviderSelector", () => {
 
   it("contains complete fallback providers and models", () => {
     expect(FALLBACK_PROVIDERS).toHaveLength(3);
+    expect(FALLBACK_PROVIDERS.every((provider) => provider.configured === false)).toBe(true);
     expect(FALLBACK_MODELS.g.length).toBeGreaterThanOrEqual(5);
     expect(FALLBACK_MODELS.o.length).toBeGreaterThanOrEqual(3);
     expect(FALLBACK_MODELS.c.length).toBeGreaterThanOrEqual(3);
@@ -107,5 +112,32 @@ describe("ModelProviderSelector", () => {
 
     const opencodeIds = FALLBACK_MODELS.o.map((m) => m.id);
     expect(opencodeIds).toContain("opencode/nemotron-3-ultra-free");
+  });
+
+  it("selects a connected provider with its configured model", () => {
+    expect(
+      resolveProviderSelection(
+        { id: "c", name: "Codex", model: "account default", configured: true },
+        "c"
+      )
+    ).toEqual({ provider: "c", model: "account default" });
+    expect(
+      resolveProviderSelection(
+        { id: "c", name: "Codex", model: "account default", configured: false },
+        "c"
+      )
+    ).toBeNull();
+  });
+
+  it("opens the local or configured VPS ZXA setup page", () => {
+    expect(
+      resolveZxaConfigurationUrl({ runtimeTarget: "docker-local", vpsAgentUrl: "" })
+    ).toBe("http://127.0.0.1:4230/");
+    expect(
+      resolveZxaConfigurationUrl({
+        runtimeTarget: "docker-vps",
+        vpsAgentUrl: "https://os.codexsun.com/zxa/",
+      })
+    ).toBe("https://os.codexsun.com/zxa/");
   });
 });

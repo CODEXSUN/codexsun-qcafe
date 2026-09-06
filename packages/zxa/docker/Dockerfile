@@ -1,3 +1,11 @@
+FROM node:24-bookworm-slim AS web-build
+WORKDIR /src/packages/zxa/web
+COPY tsconfig.base.json /src/tsconfig.base.json
+COPY packages/zxa/web/package.json ./package.json
+RUN npm install --include=dev --ignore-scripts
+COPY packages/zxa/web/ ./
+RUN npm run build
+
 FROM node:24-bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends python3 ca-certificates git && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
@@ -5,7 +13,7 @@ RUN npm init -y && npm install --save-exact @openai/codex@0.153.2 @openai/codex-
 COPY packages/zxa/docker/server.mjs /app/server.mjs
 COPY packages/zxa/docker/update-zxa.mjs /app/update-zxa.mjs
 COPY packages/zxa/docker/update-zxa.sh /app/update-zxa.sh
-COPY packages/zxa/web/dist /app/web
+COPY --from=web-build /src/packages/zxa/web/dist /app/web
 RUN chmod +x /app/update-zxa.sh && mkdir -p /state/codex /state/gemini /state/opencode /state/agents/candidates /runtime/releases /workspace && chown -R node:node /state /runtime /workspace
 ENV NODE_ENV=production HOME=/state CODEX_HOME=/state/codex GEMINI_CLI_HOME=/state/gemini XDG_CONFIG_HOME=/state/opencode GEMINI_CLI_TRUST_WORKSPACE=true PATH=/runtime/current/node_modules/.bin:/app/node_modules/.bin:$PATH
 USER node
