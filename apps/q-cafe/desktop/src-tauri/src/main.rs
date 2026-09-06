@@ -226,25 +226,35 @@ fn launch_verified_installer(installer: &Path) -> Result<(), String> {
     result.map(|_| ()).map_err(|_| "The verified installer could not start.".to_string())
 }
 
+fn stop_api(process: &ApiProcess) -> Result<(), String> {
+    if let Some(mut child) = process.0.lock().map_err(|_| "Q Cafe API process lock failed.")?.take() {
+        child.kill().map_err(|error| format!("Q Cafe local service could not stop: {error}"))?;
+        let _ = child.wait();
+    }
+    Ok(())
+}
+
 #[tauri::command]
 fn qcafe_check_for_update() -> Result<Option<UpdateManifest>, String> {
     check_for_update()
 }
 
 #[tauri::command]
-fn qcafe_install_update() -> Result<(), String> {
+fn qcafe_install_update(process: tauri::State<'_, ApiProcess>) -> Result<(), String> {
     let update = check_for_update()?.ok_or_else(|| "Q Cafe is already up to date.".to_string())?;
     let installer = download_verified_installer(&update)?;
+    stop_api(&process)?;
     launch_verified_installer(&installer)?;
     std::process::exit(0);
 }
 
-fn notify_update_if_available() {
+fn notify_update_if_available(app: AppHandle) {
     let Ok(Some(update)) = check_for_update() else { return; };
     let message = format!("Q Cafe {} is available. {}\n\nDownload and install it now?", update.version, update.notes);
     if MessageDialog::new().set_level(MessageLevel::Info).set_title("Q Cafe update available").set_description(&message).set_buttons(MessageButtons::YesNo).show() != MessageDialogResult::Yes { return; }
     match download_verified_installer(&update) {
         Ok(installer) => {
+            if stop_api(&app.state::<ApiProcess>()).is_err() { return; }
             if launch_verified_installer(&installer).is_ok() { std::process::exit(0); }
             let _ = MessageDialog::new().set_level(MessageLevel::Error).set_title("Q Cafe update").set_description("The verified installer could not start.").show();
         }
@@ -299,9 +309,7 @@ fn start_api(app: &AppHandle) -> Result<Child, String> {
 }
 
 fn replace_api(app: &AppHandle, process: &ApiProcess) -> Result<(), String> {
-    if let Some(mut child) = process.0.lock().map_err(|_| "Q Cafe API process lock failed.")?.take() {
-        let _ = child.kill();
-    }
+    stop_api(process)?;
     let child = start_api(app)?;
     *process.0.lock().map_err(|_| "Q Cafe API process lock failed.")? = Some(child);
     Ok(())
@@ -331,9 +339,7 @@ fn qcafe_clear_first_time_data(app: AppHandle, process: tauri::State<'_, ApiProc
     }
     let settings_dir = application_settings_dir(&app);
     let mut settings = load_or_configure_storage(&settings_dir)?;
-    if let Some(mut child) = process.0.lock().map_err(|_| "Q Cafe API process lock failed.")?.take() {
-        let _ = child.kill();
-    }
+    stop_api(&process)?;
     let database = settings.data_directory.join("q-cafe.sqlite");
     for suffix in ["", "-wal", "-shm"] {
         let _ = fs::remove_file(format!("{}{}", database.display(), suffix));
@@ -354,7 +360,8 @@ fn main() {
             }
             let child = start_api(app.handle())?;
             *app.state::<ApiProcess>().0.lock().expect("API process lock") = Some(child);
-            std::thread::spawn(notify_update_if_available);
+            let handle = app.handle().clone();
+            std::thread::spawn(move || notify_update_if_available(handle));
             Ok(())
         })
         .on_window_event(|window, event| {

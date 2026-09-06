@@ -1,5 +1,11 @@
 # Q Cafe changelog
 
+## 1.0.8 - 2026-09-06
+
+### Windows installer process shutdown
+
+- The NSIS installer closes the Q Cafe process tree before replacing files, including the Q Cafe Node sidecar.
+- In-app updates stop and wait for the local Node API before launching the verified installer.
 ## 1.0.7 - 2026-09-06
 
 ### Windows updater repair
