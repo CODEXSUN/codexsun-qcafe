@@ -50,7 +50,7 @@ fi
 mkdir -p "$STAGE_DIR"
 tar -xzf "$ARCHIVE" -C "$STAGE_DIR"
 [[ -f "$STAGE_DIR/deploy/compose.json" ]] || { echo "Archive does not contain deploy/compose.json"; exit 2; }
-CODEXSUN_VERSION="$(node -e "process.stdout.write(require(process.argv[1]).version)" "$STAGE_DIR/package.json")"
+CODEXSUN_VERSION=$(node -p 'require(process.argv[1]).version' "$STAGE_DIR/package.json")
 export CODEXSUN_VERSION
 
 echo "Checkpoint: archive validated and staged."

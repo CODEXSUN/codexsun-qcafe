@@ -2,11 +2,11 @@
 
 ## Version State
 
-Current version: 0.1.20
+Current version: 0.1.21
 
-Release tag: v-0.1.20
+Release tag: v-0.1.21
 
-Changelog label: v 0.1.20
+Changelog label: v 0.1.21
 
 ## Unreleased
 
@@ -42,6 +42,19 @@ Changelog label: v 0.1.20
 - Cleared workspace canvas child blocks and reserved the full canvas for the next MDI feature.
 - Bound the shared AppSidebar and SidebarInset composition inside the workspace canvas.
 
+## v-0.1.21
+
+### [v 0.1.21] 2026-09-06 10:05 a.m. - Validated cloud release handoff
+
+#### Database Changes
+
+- Database update: No.
+
+#### App Codebase Changes
+
+- Bumped the workspace version to 0.1.21.
+- Validated the shell-safe staged version lookup used by the cloud deployment script.
+
 ## v-0.1.20
 
 ### [v 0.1.20] 2026-09-06 10:02 a.m. - Reliable cloud release handoff
@@ -53,7 +66,7 @@ Changelog label: v 0.1.20
 #### App Codebase Changes
 
 - Bumped the workspace version to 0.1.20.
-- Made the cloud release handoff read the staged package version safely before rebuilding tagged runtime images.
+- Prepared the cloud release handoff to read the staged package version before rebuilding tagged runtime images.
 
 ## v-0.1.19
 
