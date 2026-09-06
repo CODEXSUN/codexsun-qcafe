@@ -5,7 +5,7 @@ use rfd::{MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::{env, fs, io::Read, path::{Path, PathBuf}, process::{Child, Command}, sync::Mutex, time::Duration};
+use std::{env, fs, io::Read, path::{Path, PathBuf}, process::{Child, Command, Stdio}, sync::Mutex, thread::sleep, time::Duration};
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 use tauri::{AppHandle, Manager};
@@ -106,11 +106,30 @@ fn prepare_api_runtime(data_dir: &PathBuf) -> Result<PathBuf, String> {
     write_api_file(&api_root, "src/server.mjs", include_str!("../../../api/src/server.mjs"))?;
     write_api_file(&api_root, "src/store.mjs", include_str!("../../../api/src/store.mjs"))?;
     write_api_file(&api_root, "src/backup.mjs", include_str!("../../../api/src/backup.mjs"))?;
+    write_api_file(&api_root, "src/staff-auth.mjs", include_str!("../../../api/src/staff-auth.mjs"))?;
     write_api_file(&api_root, "migrations/001-restaurant.sql", include_str!("../../../api/migrations/001-restaurant.sql"))?;
     write_api_file(&api_root, "migrations/002-editable-order-lines.sql", include_str!("../../../api/migrations/002-editable-order-lines.sql"))?;
     write_api_file(&api_root, "migrations/003-sync-and-activity.sql", include_str!("../../../api/migrations/003-sync-and-activity.sql"))?;
     write_api_file(&api_root, "migrations/004-pos-billing.sql", include_str!("../../../api/migrations/004-pos-billing.sql"))?;
+    write_api_file(&api_root, "migrations/005-staff-identity.sql", include_str!("../../../api/migrations/005-staff-identity.sql"))?;
     Ok(api_root)
+}
+
+fn wait_for_api(child: &mut Child, api_log: &Path) -> Result<(), String> {
+    for _ in 0..30 {
+        if let Some(status) = child.try_wait().map_err(|error| error.to_string())? {
+            return Err(format!("Q Cafe local service stopped during startup ({status}). Review {}.", api_log.display()));
+        }
+        if reqwest::blocking::get("http://127.0.0.1:4180/health")
+            .ok()
+            .and_then(|response| response.error_for_status().ok())
+            .is_some() {
+            return Ok(());
+        }
+        sleep(Duration::from_millis(100));
+    }
+    let _ = child.kill();
+    Err(format!("Q Cafe local service did not start. Review {} and reopen Q Cafe.", api_log.display()))
 }
 
 fn backup_database(node: &Path, api_root: &Path, database_path: &Path, backup_directory: &Path) -> Result<(), String> {
@@ -234,6 +253,12 @@ fn start_api(app: &AppHandle) -> Result<Child, String> {
         }
     }
 
+    let api_log = storage.data_directory.join("runtime").join("q-cafe-api.log");
+    let log = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&api_log)
+        .map_err(|error| format!("Q Cafe API log could not open: {error}"))?;
     let mut command = Command::new(node);
     command
         .arg(api_root.join("src").join("server.mjs"))
@@ -242,11 +267,15 @@ fn start_api(app: &AppHandle) -> Result<Child, String> {
         .env("QCAFE_API_PORT", "4180")
         .env("QCAFE_DEMO", env::var("QCAFE_DEMO").unwrap_or_else(|_| "true".to_string()))
         .env("QCAFE_API_TOKEN", "desktop-local-operator")
-        .env("QCAFE_BOOTSTRAP_OWNER_PIN", env::var("QCAFE_BOOTSTRAP_OWNER_PIN").unwrap_or_default());
+        .env("QCAFE_BOOTSTRAP_OWNER_PIN", env::var("QCAFE_BOOTSTRAP_OWNER_PIN").unwrap_or_default())
+        .stdout(Stdio::from(log.try_clone().map_err(|error| error.to_string())?))
+        .stderr(Stdio::from(log));
     #[cfg(target_os = "windows")]
     command.creation_flags(0x08000000);
-    command.spawn()
-        .map_err(|error| format!("Q Cafe API could not start: {error}"))
+    let mut child = command.spawn()
+        .map_err(|error| format!("Q Cafe API could not start: {error}"))?;
+    wait_for_api(&mut child, &api_log)?;
+    Ok(child)
 }
 
 fn main() {

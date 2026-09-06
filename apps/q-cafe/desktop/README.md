@@ -1,6 +1,6 @@
 # Q Cafe Windows application
 
-The Windows application packages the Q Cafe React web build and Node runtime in Tauri. On launch, the desktop executable writes its app-owned API and migrations into `%APPDATA%\\in.codexsun.qcafe\\runtime` before starting it. The API creates its SQLite database at `%APPDATA%\\in.codexsun.qcafe\\q-cafe.sqlite` and runs every Q Cafe migration without modifying an existing database.
+The Windows application packages the Q Cafe React web build and Node runtime in Tauri. On launch, the desktop executable writes its app-owned API and every migration into the selected data folder's `runtime\\api` directory before starting it. The API creates or upgrades `q-cafe.sqlite` in that folder without replacing existing business data.
 
 The MSI and NSIS installers include `node.exe`, so a Windows machine does not need a separate Node.js installation. `QCAFE_NODE_BINARY` remains available only for a managed runtime override.
 
@@ -15,3 +15,5 @@ On the first production launch, Q Cafe asks the operator to choose its data fold
 Q Cafe stores only the folder selection and the last successful backup date in `%APPDATA%\\in.codexsun.qcafe\\settings.json`. This JSON file does not contain business records. If it is missing, Q Cafe asks for the data folder again and does not replace or delete an existing database.
 
 At the first application start each day, Q Cafe creates a consistent SQLite backup before it starts the local API. Updates replace application files only; they retain both the settings JSON and the selected data folder.
+
+If the local API cannot start, Q Cafe reports the startup failure instead of showing a generic fetch error. The API startup log is at `runtime\\q-cafe-api.log` inside the selected data folder.

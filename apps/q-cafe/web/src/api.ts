@@ -12,14 +12,21 @@ export type Snapshot = { menu: MenuItem[]; restaurant_tables: RestaurantTable[];
 export type ActionResult<T> = { ok: true; result: T };
 export const money = (amount: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount / 100);
 const base = isDesktopRuntime() ? 'http://127.0.0.1:4180/api/v1/q-cafe' : '/api/v1/q-cafe';
+async function apiFetch(input: RequestInfo | URL, init?: RequestInit) {
+  try {
+    return await fetch(input, init);
+  } catch {
+    throw new Error('Q Cafe local service is unavailable. Close and reopen Q Cafe. If this continues, review the Q Cafe API log in the selected data folder.');
+  }
+}
 export async function signIn(pin: string): Promise<string> {
-  const response = await fetch(`${base}/auth/pin`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin }) });
+  const response = await apiFetch(`${base}/auth/pin`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin }) });
   const value = await response.json();
   if (!response.ok) throw new Error(value.error ?? 'Unable to sign in.');
   return value.access_token;
 }
 export async function signInWithCredentials(username: string, password: string): Promise<string> {
-  const response = await fetch(`${base}/auth/login`, {
+  const response = await apiFetch(`${base}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password, pin: password }),
@@ -29,7 +36,7 @@ export async function signInWithCredentials(username: string, password: string):
   return value.access_token;
 }
 export async function request<T>(token: string, path = '', body?: unknown): Promise<T> {
-  const response = await fetch(`${base}${path}`, { method: body ? 'POST' : 'GET', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) });
+  const response = await apiFetch(`${base}${path}`, { method: body ? 'POST' : 'GET', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) });
   const value = await response.json();
   if (!response.ok) throw new Error(value.error ?? 'Q Cafe is unavailable.');
   return value;
@@ -40,7 +47,7 @@ function isDesktopRuntime() {
 }
 
 export async function setupOwner(pin: string): Promise<string> {
-  const response = await fetch(`${base}/auth/setup`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: 'owner', name: 'Q Cafe owner', pin }) });
+  const response = await apiFetch(`${base}/auth/setup`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: 'owner', name: 'Q Cafe owner', pin }) });
   const payload = await response.json() as { access_token?: string; error?: string };
   if (!response.ok || !payload.access_token) throw new Error(payload.error ?? 'Could not set owner PIN.');
   return payload.access_token;

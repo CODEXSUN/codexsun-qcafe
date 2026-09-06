@@ -1,5 +1,14 @@
 # Q Cafe changelog
 
+## 1.0.4 - 2026-09-06
+
+### Windows startup repair
+
+- Packaged the staff authentication module and staff identity migration into the desktop API runtime.
+- Added a local API health check before Q Cafe opens its desktop workspace.
+- Added an API startup log in the selected data folder and a clear local-service error message in the sign-in screen.
+- Existing SQLite business data remains in place; startup now applies the missing migration before serving the local API.
+
 ## 1.0.3 - 2026-09-06
 
 ### Local desktop verification
