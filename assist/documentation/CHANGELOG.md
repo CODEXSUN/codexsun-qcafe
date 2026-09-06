@@ -2,11 +2,11 @@
 
 ## Version State
 
-Current version: 0.1.30
+Current version: 0.1.31
 
-Release tag: v-0.1.30
+Release tag: v-0.1.31
 
-Changelog label: v 0.1.30
+Changelog label: v 0.1.31
 
 ## Unreleased
 
@@ -41,6 +41,19 @@ Changelog label: v 0.1.30
 - Added ITO entries for the workspace canvas, navigation, navigation rail, and workspace surface.
 - Cleared workspace canvas child blocks and reserved the full canvas for the next MDI feature.
 - Bound the shared AppSidebar and SidebarInset composition inside the workspace canvas.
+
+## v-0.1.31
+
+### [v 0.1.31] 2026-09-06 3:29 p.m. - Fix Zetro cloud knowledge persistence path
+
+#### Database Changes
+
+- Database update: Yes.
+
+#### App Codebase Changes
+
+- Bumped the workspace version to 0.1.31.
+- Moved the Zetro cloud knowledge database to the persistent `/data` volume so the read-only API container can start and retain its knowledge ledger across deployments.
 
 ## v-0.1.30
 
