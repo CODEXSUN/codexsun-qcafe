@@ -2,11 +2,11 @@
 
 ## Version State
 
-Current version: 1.0.8
+Current version: 1.0.9
 
-Release tag: v-1.0.8
+Release tag: v-1.0.9
 
-Changelog label: v 1.0.8
+Changelog label: v 1.0.9
 
 ## Unreleased
 
@@ -111,6 +111,18 @@ Changelog label: v 1.0.8
 - Added ITO entries for the workspace canvas, navigation, navigation rail, and workspace surface.
 - Cleared workspace canvas child blocks and reserved the full canvas for the next MDI feature.
 - Bound the shared AppSidebar and SidebarInset composition inside the workspace canvas.
+
+## v-1.0.9
+
+### [v 1.0.9] 2026-09-06 10:43 p.m. - Q Cafe installer stops orphaned Node sidecar
+
+#### Database Changes
+
+- Database update: No.
+
+#### App Codebase Changes
+
+- Bumped the workspace version to 1.0.9.
 
 ## v-1.0.8
 

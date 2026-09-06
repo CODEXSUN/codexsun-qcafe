@@ -44,7 +44,7 @@
       }
     },
     "dcs": {
-      "image": "codexsun-os/dcs:${CODEXSUN_VERSION:-1.0.8}",
+      "image": "codexsun-os/dcs:${CODEXSUN_VERSION:-1.0.9}",
       "restart": "unless-stopped",
       "build": {
         "context": "..",
@@ -85,7 +85,7 @@
       }
     },
     "platform": {
-      "image": "codexsun-os/api:${CODEXSUN_VERSION:-1.0.8}",
+      "image": "codexsun-os/api:${CODEXSUN_VERSION:-1.0.9}",
       "restart": "unless-stopped",
       "read_only": true,
       "cap_drop": [
@@ -128,7 +128,7 @@
       }
     },
     "zetro": {
-      "image": "codexsun-os/api:${CODEXSUN_VERSION:-1.0.8}",
+      "image": "codexsun-os/api:${CODEXSUN_VERSION:-1.0.9}",
       "restart": "unless-stopped",
       "read_only": true,
       "cap_drop": [
@@ -177,7 +177,7 @@
       }
     },
     "chat": {
-      "image": "codexsun-os/api:${CODEXSUN_VERSION:-1.0.8}",
+      "image": "codexsun-os/api:${CODEXSUN_VERSION:-1.0.9}",
       "restart": "unless-stopped",
       "read_only": true,
       "cap_drop": [
@@ -218,7 +218,7 @@
       }
     },
     "docs": {
-      "image": "codexsun-os/api:${CODEXSUN_VERSION:-1.0.8}",
+      "image": "codexsun-os/api:${CODEXSUN_VERSION:-1.0.9}",
       "restart": "unless-stopped",
       "read_only": true,
       "cap_drop": ["ALL"],
@@ -244,7 +244,7 @@
       }
     },
     "orship": {
-      "image": "codexsun-os/api:${CODEXSUN_VERSION:-1.0.8}",
+      "image": "codexsun-os/api:${CODEXSUN_VERSION:-1.0.9}",
       "restart": "unless-stopped",
       "read_only": true,
       "cap_drop": ["ALL"],
