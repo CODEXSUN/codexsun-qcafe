@@ -38,14 +38,6 @@ type ThermalBillReceiptProps = {
   transactions?: ReceiptTransaction[];
 };
 
-function formatChair(table: string, chair: number | string) {
-  const match = table.match(/\d+/);
-  if (match) {
-    const num = parseInt(match[0], 10);
-    return `${num}.${chair}`;
-  }
-  return `P.${chair}`;
-}
 
 export function ThermalBillReceipt({
   settings,
@@ -174,15 +166,12 @@ export function ThermalBillReceipt({
           <span className="font-bold">Date:</span> {dateStr}
         </div>
         <div>
-          <span className="font-bold">Table:</span> {isTakeaway ? 'PARCEL' : resolvedTableName}
+          <span className="font-bold">Type:</span> {serviceType}
         </div>
         <div className="text-right">
           <span className="font-bold">Time:</span> {timeStr}
         </div>
         <div>
-          <span className="font-bold">Type:</span> {serviceType}
-        </div>
-        <div className="text-right">
           <span className="font-bold">Tab:</span> {tab?.name ?? 'Desk'}
         </div>
       </div>
@@ -199,16 +188,11 @@ export function ThermalBillReceipt({
 
       {/* Items List */}
       <div className="divide-y divide-dashed divide-black/30 py-0.5">
-        {resolvedLines.map((line, idx) => (
+        {resolvedLines.map((line) => (
           <div key={line.key} className="py-1 text-[10.5px] text-black">
             <div className="flex items-start justify-between">
               <div className="flex-1 pr-1 font-semibold leading-tight">
                 <span>{line.name}</span>
-                {!isTakeaway && (
-                  <span className="block text-[8.5px] font-normal text-black/85">
-                    Seat: {formatChair(resolvedTableName, line.chair ?? (idx + 1))} ({line.code})
-                  </span>
-                )}
               </div>
               <div className="w-8 text-right font-mono font-medium">{line.quantity}</div>
               <div className="w-13 text-right font-mono font-medium">{(line.price / 100).toFixed(2)}</div>

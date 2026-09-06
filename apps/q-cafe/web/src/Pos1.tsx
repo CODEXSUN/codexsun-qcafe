@@ -334,17 +334,19 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
 
     // Add to cart directly
     const targetChair = parseInt(chair, 10) || 1;
-    const existingIndex = lines.findIndex(
-      (l) => l.code.toUpperCase() === item.code.toUpperCase() && (l.chair ?? 1) === targetChair
-    );
+    updateActiveTab((tab) => {
+      const existingIndex = tab.lines.findIndex(
+        (l) => l.code.toUpperCase() === item.code.toUpperCase() && (l.chair ?? 1) === targetChair
+      );
 
-    if (existingIndex >= 0) {
-      updateActiveTab((tab) => ({
-        lines: tab.lines.map((l, idx) =>
-          idx === existingIndex ? { ...l, quantity: l.quantity + 1 } : l
-        ),
-      }));
-    } else {
+      if (existingIndex >= 0) {
+        return {
+          lines: tab.lines.map((l, idx) =>
+            idx === existingIndex ? { ...l, quantity: l.quantity + 1 } : l
+          ),
+        };
+      }
+
       const newLine: EntryLine = {
         key: `line-${crypto.randomUUID()}`,
         menuId: item.id,
@@ -355,10 +357,10 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         chair: targetChair,
         image: item.image,
       };
-      updateActiveTab((tab) => ({
+      return {
         lines: [...tab.lines, newLine],
-      }));
-    }
+      };
+    });
   }
 
   // Section 4: Bottom bar "Add to Order" action
@@ -788,8 +790,12 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         onSearchChange={setSearchQuery}
         searchInputRef={searchInputRef}
         onFirstItemPick={() => {
-          if (filteredItems.length > 0) {
+          if (searchQuery.trim() && filteredItems.length > 0) {
             handleSelectAndAddCard(filteredItems[0]!);
+            requestAnimationFrame(() => {
+              searchInputRef.current?.focus();
+              searchInputRef.current?.select();
+            });
           }
         }}
         tabs={tabs}

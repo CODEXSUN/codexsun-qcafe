@@ -141,7 +141,7 @@ export function Pos1BillingSection({
 
       {/* Floating Payment Collector Sheet (Mild Fly from Bottom Animation) */}
       <div
-        className={`absolute inset-x-2.5 bottom-[62px] z-40 max-h-[calc(100%-74px)] overflow-y-auto scrollbar-slim rounded-2xl border border-border bg-card/98 backdrop-blur-md p-3 shadow-2xl transition-all duration-250 ease-out transform ${
+        className={`absolute inset-x-2.5 bottom-[62px] z-40 max-h-[calc(100%-74px)] overflow-y-auto scrollbar-slim rounded-2xl border border-border bg-card/98 backdrop-blur-md p-4 shadow-2xl transition-all duration-250 ease-out transform ${
           showPaymentCollector
             ? 'translate-y-0 opacity-100 scale-100 pointer-events-auto'
             : 'translate-y-6 opacity-0 scale-[0.98] pointer-events-none'

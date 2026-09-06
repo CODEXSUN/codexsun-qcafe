@@ -44,6 +44,7 @@ export function Pos1HeaderSection({
               placeholder="Search items (e.g. Cappuccino) or scan..."
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
+              onFocus={(e) => e.currentTarget.select()}
               onKeyDown={(e) => {
                 if (e.key === 'Escape') {
                   onSearchChange('');
@@ -52,6 +53,10 @@ export function Pos1HeaderSection({
                 if (e.key === 'Enter' && onFirstItemPick) {
                   e.preventDefault();
                   onFirstItemPick();
+                  requestAnimationFrame(() => {
+                    searchInputRef.current?.focus();
+                    searchInputRef.current?.select();
+                  });
                 }
               }}
             />
