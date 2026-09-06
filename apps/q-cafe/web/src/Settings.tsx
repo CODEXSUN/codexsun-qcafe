@@ -218,6 +218,12 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
     setTimeout(() => setDemoInstallNotice(''), 4000);
   }
 
+  function updaterErrorMessage(error: unknown, fallback: string) {
+    if (error instanceof Error) return error.message;
+    if (typeof error === 'string') return error;
+    return fallback;
+  }
+
   async function checkForUpdate() {
     if (!('__TAURI_INTERNALS__' in window)) {
       setUpdateNotice('Updates are available from the Q Cafe Windows application.');
@@ -231,7 +237,7 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
       setAvailableUpdate(update);
       setUpdateNotice(update ? `Q Cafe ${update.version} is ready to install.` : 'Q Cafe is up to date.');
     } catch (error) {
-      setUpdateNotice(error instanceof Error ? error.message : 'Q Cafe could not check for updates.');
+      setUpdateNotice(updaterErrorMessage(error, 'Q Cafe could not check for updates.'));
     } finally {
       setUpdateBusy(false);
     }
@@ -245,7 +251,7 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
       await invoke('qcafe_install_update');
     } catch (error) {
       setUpdateBusy(false);
-      setUpdateNotice(error instanceof Error ? error.message : 'Q Cafe could not install the update.');
+      setUpdateNotice(updaterErrorMessage(error, 'Q Cafe could not install the update.'));
     }
   }
 

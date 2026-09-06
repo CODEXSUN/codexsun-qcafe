@@ -1,5 +1,11 @@
 # Q Cafe changelog
 
+## 1.0.7 - 2026-09-06
+
+### Windows updater repair
+
+- Uses Windows-native TLS trust for GitHub update checks, including locally trusted enterprise or proxy certificates.
+- Shows the exact update-check or installer error in Settings instead of replacing it with a generic message.
 ## 1.0.6 - 2026-09-06
 
 ### First setup data controls
