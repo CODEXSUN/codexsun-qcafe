@@ -1,6 +1,6 @@
 [package]
 name = "codexsun-desktop"
-version = "1.0.9"
+version = "1.0.10"
 description = "CODEXSUN Windows desktop host"
 authors = ["CODEXSUN"]
 edition = "2021"
