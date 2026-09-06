@@ -14,6 +14,7 @@
       "tmpfs": ["/tmp:rw,nosuid,size=256m"],
       "environment": {
         "ZXA_TOKEN": "${ZXA_LOCAL_TOKEN:-local-zxa-only}",
+        "ZETRO_TOOLS_TOKEN": "${ZETRO_TOOLS_TOKEN:-}",
         "ZXA_DEFAULT_PROVIDER": "${ZXA_DEFAULT_PROVIDER:-c}",
         "ZXA_REQUEST_TIMEOUT_MS": "${ZXA_REQUEST_TIMEOUT_MS:-120000}",
         "CODEX_MODEL": "${ZXA_CODEX_MODEL:-}",

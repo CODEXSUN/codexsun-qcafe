@@ -1,16 +1,17 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import test from "node:test";
 import { createDocsApi } from "./server.mjs";
 
-test("indexes local Markdown and persists metadata in SQLite", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "codexsun-docs-"));
-  writeFileSync(join(directory, "identity.mdx"), "# Identity\n\nShared authentication docs.\n");
-  const app = createDocsApi({ content: directory, database: join(directory, "docs.db") });
+test("lists database pages and upserts an administrator edit", async () => {
+  const pages = new Map([["architecture", { body: "# Architecture", group: "Platform", slug: "architecture", summary: "Platform guide.", title: "Architecture", updatedAt: "2026-01-01" }]]);
+  const repository = { close: async () => undefined, get: async (slug) => { const page = pages.get(slug); if (!page) throw new Error("Document not found."); return page; }, list: async () => [...pages.values()], start: async () => undefined, upsert: async (page) => { const saved = { ...page, updatedAt: "2026-01-02" }; pages.set(page.slug, saved); return saved; } };
+  const app = createDocsApi({ authorize: async () => "admin@example.com", repository });
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  const port = app.server.address().port;
   try {
-    assert.deepEqual(app.index.list("identity").map(document => document.slug), ["identity"]);
-    assert.match(app.index.get("identity").body, /Shared authentication/u);
-  } finally { await app.close(); }
+    assert.equal((await (await fetch(`http://127.0.0.1:${port}/api/v1/docs`)).json()).documents.length, 1);
+    const response = await fetch(`http://127.0.0.1:${port}/api/v1/docs`, { body: JSON.stringify({ body: "# New page", group: "Platform", slug: "new-page", summary: "A new page.", title: "New page" }), headers: { "content-type": "application/json" }, method: "POST" });
+    assert.equal(response.status, 201);
+    assert.equal((await (await fetch(`http://127.0.0.1:${port}/api/v1/docs/new-page`)).json()).document.title, "New page");
+  } finally { await app.close(); await new Promise((resolve) => app.server.close(resolve)); }
 });

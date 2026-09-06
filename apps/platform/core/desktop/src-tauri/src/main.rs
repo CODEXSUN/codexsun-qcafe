@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod credentials;
+mod zetro_desk;
 
 use serde::Serialize;
 use std::{env, path::PathBuf};
@@ -35,7 +36,7 @@ fn display(path: PathBuf) -> String {
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![desktop_status, credentials::read_credential, credentials::save_credential, credentials::delete_credential])
+        .invoke_handler(tauri::generate_handler![desktop_status, credentials::read_credential, credentials::save_credential, credentials::delete_credential, zetro_desk::zetro_desk_status, zetro_desk::zetro_desk_settings, zetro_desk::zetro_desk_agents, zetro_desk::zetro_desk_save_settings, zetro_desk::zetro_desk_send_prompt])
         .run(tauri::generate_context!())
         .expect("CODEXSUN desktop failed");
 }

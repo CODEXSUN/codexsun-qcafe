@@ -13,6 +13,9 @@ $sshOptions = @("-i", $KeyPath, "-o", "BatchMode=yes", "-o", "StrictHostKeyCheck
 
 Push-Location $root
 try {
+  $env:VITE_OS_CLOUD = "true"
+  $env:VITE_OS_API_URL = "https://os.codexsun.com"
+  $env:VITE_CHAT_API_URL = "https://os.codexsun.com"
   & npm.cmd run build -w @codexsun/core-web
   & tar -czf $portalArchive -C (Join-Path $root "apps/platform/core/web/dist") .
   node deploy/package-source.mjs

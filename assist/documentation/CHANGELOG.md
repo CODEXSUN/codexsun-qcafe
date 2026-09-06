@@ -2,11 +2,11 @@
 
 ## Version State
 
-Current version: 0.1.16
+Current version: 0.1.18
 
-Release tag: v-0.1.16
+Release tag: v-0.1.18
 
-Changelog label: v 0.1.16
+Changelog label: v 0.1.18
 
 ## Unreleased
 
@@ -42,6 +42,36 @@ Changelog label: v 0.1.16
 - Cleared workspace canvas child blocks and reserved the full canvas for the next MDI feature.
 - Bound the shared AppSidebar and SidebarInset composition inside the workspace canvas.
 
+## v-0.1.18
+
+### [v 0.1.18] 2026-09-06 9:48 a.m. - Zetro Desk, ZXA connections, and Today workspace
+
+#### Database Changes
+
+- Database update: Yes.
+
+#### App Codebase Changes
+
+- Bumped the workspace version to 0.1.18.
+
+## v-0.1.17
+
+### [v 0.1.17] 2026-09-06 9:33 a.m. - Cloud database Docs authoring
+
+#### Database Changes
+
+- Database update: Yes.
+- Added the Docs-owned `docs_pages` MariaDB table for shared cloud pages.
+- Seeded the table from packaged Docs content only when the table is empty.
+
+#### App Codebase Changes
+
+- Bumped the workspace version to 0.1.17.
+- Replaced runtime local-file and SQLite Docs reads with MariaDB page reads.
+- Added authenticated page creation and upsert editing for Identity administrators.
+- Added the Docs editor and dynamic grouped navigation for database-backed pages.
+- Configured the cloud Docs service to use the Platform database connection and internal Identity verification.
+
 ## v-0.1.16
 
 ### [v 0.1.16] 2026-09-05 11:14 a.m. - Unified cloud and desktop release
@@ -55,6 +85,8 @@ Changelog label: v 0.1.16
 - Bumped the workspace version to 0.1.16.
 - Published the cloud and desktop release from the same 0.1.16 source version.
 - Retained credentialed CORS support for approved Tauri desktop origins.
+- Included Docs MDX content in the cloud source package required by the Platform image.
+- Aligned cloud Compose image labels and rollback targets with 0.1.16.
 
 ## v-0.1.15
 

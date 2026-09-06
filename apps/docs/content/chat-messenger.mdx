@@ -1,0 +1,15 @@
+# Chat Messenger
+
+Chat Messenger owns user conversations independently of Device Communication Service.
+
+## Ownership
+
+The Chat module owns its API contracts, backend services, transport adapters, reusable workspace, and behavior tests. Applications use the public `@codexsun/chat-web` exports or registered API contracts.
+
+Applications must not copy Chat source, import private Chat files, or read Chat tables directly.
+
+## Integration
+
+The central Chat API runs on port `4165`. An application can use the central API, the DevKit adapter, or a custom public `ChatTransport` factory.
+
+Chat carries conversations between users. DCS carries durable, scoped events between trusted devices. The two modules can link through public contracts but do not share ownership.

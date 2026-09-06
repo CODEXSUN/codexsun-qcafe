@@ -30,15 +30,21 @@ Image requests accept up to three PNG, JPEG, WebP, or GIF attachments with a com
 
 Codex receives images through its local image input. Gemini and OpenCode receive the isolated local file reference and extracted metadata. Temporary files are deleted after the request.
 
+When `ZETRO_TOOLS_TOKEN` is configured by Zetro Desk, the Codex provider also receives three read-only MCP tools for the user-approved desktop repository: `workspace_list`, `workspace_read`, and `workspace_search`. ZXA never mounts the repository into the container. Gemini and OpenCode do not receive these tools.
+
 ## Build and run
 
 ```powershell
-npm.cmd run zxa:build
-npm.cmd run zxa:up
+./packages/zxa/docker/setup-zxa.ps1
 docker exec -it zxa codex login --device-auth
 docker exec zxa /app/update-zxa.sh check
 docker exec zxa /app/update-zxa.sh apply-cli
 ```
+
+`setup-zxa.ps1` builds the ZXA connection page, recreates only the ZXA container,
+waits for its health check, and confirms that `http://127.0.0.1:4230/` is serving
+the page. It retries a Docker completion failure once. Use `-SkipWebBuild` or
+`-SkipImageBuild` only when that asset is already known to be current.
 
 Set `CODEXSUN_ZXA_DOCKER=true` to register ZXA with Zetro during `npm.cmd run dev`. Configure provider secrets in the root `.env`. Codex device state, Gemini configuration, and OpenCode authentication remain in the `zxa_zxa-state` volume. The isolated workspace remains in `zxa_zxa-workspace`.
 

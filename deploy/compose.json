@@ -41,7 +41,7 @@
       }
     },
     "dcs": {
-      "image": "codexsun-os/dcs:0.1.13",
+      "image": "codexsun-os/dcs:0.1.16",
       "restart": "unless-stopped",
       "build": {
         "context": "..",
@@ -82,7 +82,7 @@
       }
     },
     "platform": {
-      "image": "codexsun-os/api:0.1.13",
+      "image": "codexsun-os/api:0.1.16",
       "restart": "unless-stopped",
       "read_only": true,
       "cap_drop": [
@@ -125,7 +125,7 @@
       }
     },
     "zetro": {
-      "image": "codexsun-os/api:0.1.13",
+      "image": "codexsun-os/api:0.1.16",
       "restart": "unless-stopped",
       "read_only": true,
       "cap_drop": [
@@ -171,7 +171,7 @@
       }
     },
     "chat": {
-      "image": "codexsun-os/api:0.1.13",
+      "image": "codexsun-os/api:0.1.16",
       "restart": "unless-stopped",
       "read_only": true,
       "cap_drop": [
@@ -212,18 +212,18 @@
       }
     },
     "docs": {
-      "image": "codexsun-os/api:0.1.13",
+      "image": "codexsun-os/api:0.1.16",
       "restart": "unless-stopped",
       "read_only": true,
       "cap_drop": ["ALL"],
       "security_opt": ["no-new-privileges:true"],
       "command": ["node", "build/docs.mjs"],
+      "env_file": ["./config/platform.env"],
       "environment": {
         "DOCS_API_HOST": "0.0.0.0",
         "DOCS_CONTENT_DIRECTORY": "/app/docs-content",
-        "DOCS_DATABASE_FILE": "/data/docs.db"
+        "OS_IDENTITY_URL": "http://platform:4100"
       },
-      "volumes": ["./state/docs:/data"],
       "networks": ["internal"],
       "depends_on": {
         "platform": {

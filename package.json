@@ -1,6 +1,6 @@
 {
   "name": "codexsun-os",
-  "version": "0.1.16",
+  "version": "0.1.18",
   "private": true,
   "description": "CODEXSUN application core and agent-first orchestration runtime",
   "engines": {
@@ -56,9 +56,11 @@
     "test:tools": "node --test tools/*.test.mjs",
     "version:bump": "node tools/version-bump.mjs",
     "version:show": "node tools/version/version.mjs show",
-    "zxa:build": "docker compose -f packages/zxa/docker/compose.json build",
+    "zxa:build": "npm run build -w @codexsun/zxa-web && docker compose -f packages/zxa/docker/compose.json build",
+    "zxa:setup": "powershell -ExecutionPolicy Bypass -File packages/zxa/docker/setup-zxa.ps1",
     "zxa:up": "docker compose -f packages/zxa/docker/compose.json up -d --wait",
-    "zxa:down": "docker compose -f packages/zxa/docker/compose.json down"
+    "zxa:down": "docker compose -f packages/zxa/docker/compose.json down",
+    "zetro:desk": "npm run desk -w @codexsun/zetro-local-runner -- --docker"
   },
   "devDependencies": {
     "concurrently": "latest",

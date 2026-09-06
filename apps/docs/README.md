@@ -2,13 +2,14 @@
 
 This application owns the documentation workspace.
 
-Markdown and MDX files in `apps/docs/content` are the canonical source. The API indexes document metadata in SQLite. The index supports search and document activity without moving authored content into a database.
+The API stores pages in the configured MariaDB database. The initial cloud deployment seeds the empty Docs table from `apps/docs/content`. After that seed, every page read and write uses the database.
 
 The workspace uses a safe MDX subset. It renders headings, lists, code blocks, and Mermaid diagrams. It does not run JavaScript expressions or imported components from documentation files.
 
 ## Run locally
 
-1. Start the API with `npm.cmd run start -w @codexsun/docs-api`.
+1. Set `DATABASE_URL` or `DOCS_DATABASE_URL` to the MariaDB database.
+2. Start the API with `npm.cmd run start -w @codexsun/docs-api`.
 2. Start the web app with `npm.cmd run dev -w @codexsun/docs-web`.
 3. Open `http://127.0.0.1:5185`.
 

@@ -114,7 +114,7 @@ export function IdentityGate({ children, onAuthenticated, onSignedOut, baseUrl =
     finally { setBusy(false); }
   }
 
-  if (checking) return <main className="grid min-h-screen place-items-center bg-background text-foreground">Connecting to CODEXSUN OS…</main>;
+  if (checking) return <IdentityLoadingScreen />;
   if (ready) return <IdentitySessionContext.Provider value={{ profile, signedIn: true, signOut }}>{children}</IdentitySessionContext.Provider>;
   return <main className="grid min-h-screen place-items-center bg-background p-6 text-foreground"><form className="flex w-full max-w-sm flex-col gap-6" onSubmit={submit}>
     <div><p className="text-sm text-muted-foreground">CODEXSUN OS</p><h1 className="mt-2 text-2xl font-semibold">{setupMode ? "Set your first password" : "Sign in to your workspace"}</h1></div>
@@ -126,4 +126,15 @@ export function IdentityGate({ children, onAuthenticated, onSignedOut, baseUrl =
     <Button className="cursor-pointer" disabled={busy} type="submit">{busy ? "Please wait…" : setupMode ? "Set password and sign in" : "Sign in"}</Button>
     {setupAvailable && <Button variant="ghost" className="cursor-pointer" disabled={busy} type="button" onClick={() => { setSetupMode(!setupMode); setError(""); setPassword(""); setCode(""); setConfirmation(""); }}>{setupMode ? "Back to sign in" : "First-time password setup"}</Button>}
   </form></main>;
+}
+
+function IdentityLoadingScreen() {
+  return <main aria-busy="true" aria-label="Connecting to CODEXSUN OS" className="grid min-h-screen place-items-center bg-background text-foreground">
+    <div className="relative grid size-16 place-items-center">
+      <span className="absolute inset-0 animate-spin rounded-full border-2 border-border border-t-foreground" />
+      <span className="grid size-11 place-items-center rounded-xl bg-background">
+        <img alt="CODEXSUN" className="size-7" src="/logo/logo.svg" />
+      </span>
+    </div>
+  </main>;
 }

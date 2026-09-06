@@ -1,5 +1,6 @@
 import { platformFetch } from "@codexsun/platform-host-contracts";
 import type { AgentSummary } from "@codexsun/zetro-api/contracts";
+import { desktopZetroAgents, desktopZetroSettings, isDesktopZetro, saveDesktopZetroSettings } from "./desktop-bridge.js";
 
 const base = import.meta.env.VITE_ZETRO_API_URL ?? "";
 
@@ -10,10 +11,10 @@ export type ZetroSettings = {
   defaultAgentId: string;
 };
 
-export async function getZetroSettings(): Promise<ZetroSettings> { return request("/api/v1/zetro/settings"); }
-export async function getZetroAgents(): Promise<AgentSummary[]> { return request("/api/v1/zetro/agents"); }
+export async function getZetroSettings(): Promise<ZetroSettings> { return isDesktopZetro() ? desktopZetroSettings() : request("/api/v1/zetro/settings"); }
+export async function getZetroAgents(): Promise<AgentSummary[]> { return isDesktopZetro() ? desktopZetroAgents() : request("/api/v1/zetro/agents"); }
 export async function saveZetroSettings(settings: ZetroSettings): Promise<ZetroSettings> {
-  return request("/api/v1/zetro/settings", { method: "PUT", body: settings });
+  return isDesktopZetro() ? saveDesktopZetroSettings(settings) : request("/api/v1/zetro/settings", { method: "PUT", body: settings });
 }
 
 async function request<T>(path: string, options: { method?: string; body?: unknown } = {}): Promise<T> {

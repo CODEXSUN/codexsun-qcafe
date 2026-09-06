@@ -273,6 +273,19 @@
         "apps/docs/api/src",
         "apps/docs/web/src"
       ]
+    },
+    {
+      "id": "addon.todos",
+      "owner": "Todos",
+      "roots": [
+        "packages/todos"
+      ],
+      "publicContracts": [
+        "@codexsun/todos-web"
+      ],
+      "protectedPaths": [
+        "packages/todos/web/src"
+      ]
     }
   ]
 }

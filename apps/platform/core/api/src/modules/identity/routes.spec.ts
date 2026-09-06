@@ -18,3 +18,33 @@ it("requires a valid session for introspection and only permits self revocation"
     expect((await app.inject({ url: "/api/v1/identity/verify", headers: { authorization: `Bearer ${b.accessToken}` } })).statusCode).toBe(401);
   } finally { await app.close(); }
 });
+
+it("lets an identity administrator manage accounts and revokes changed user sessions", async () => {
+  const administrator = { id: "a9cc22ba-bf1d-41a0-a803-0ebda105fb91", login: "admin@example.com", passwordHash: await hashPassword("safe-password"), applicationIds: ["app.zetro"], permissions: ["app.access", "identity.admin"], role: "administrator" as const, responsibilities: [], scope: "single-client" as const, status: "active" as const };
+  const service = new IdentityService(new MemoryIdentityRepository([administrator]), staticTokenKeyResolver("test-secret"), new MemoryIdentityEventPublisher());
+  const app = Fastify();
+  registerIdentityRoutes(app, service);
+  try {
+    const adminSession = await service.login({ login: administrator.login, password: "safe-password" });
+    const headers = { authorization: `Bearer ${adminSession.accessToken}` };
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/v1/identity/accounts",
+      headers,
+      payload: { applicationIds: ["app.chat"], login: "member@example.com", password: "member-password", permissions: ["chat.access"], responsibilities: ["Support"], role: "member", scope: "single-client", status: "active" },
+    });
+    expect(created.statusCode).toBe(201);
+    const member = created.json<{ account: { id: string; role: string } }>().account;
+    expect(member.role).toBe("member");
+    expect((await app.inject({ method: "GET", url: "/api/v1/identity/accounts", headers })).json<{ accounts: { login: string }[] }>().accounts).toEqual(expect.arrayContaining([expect.objectContaining({ login: "member@example.com" })]));
+    const memberSession = await service.login({ login: "member@example.com", password: "member-password" });
+    const updated = await app.inject({
+      method: "PATCH",
+      url: `/api/v1/identity/accounts/${member.id}`,
+      headers,
+      payload: { applicationIds: ["app.chat"], login: "member@example.com", permissions: [], responsibilities: ["Support"], role: "viewer", scope: "single-client", status: "suspended" },
+    });
+    expect(updated.statusCode).toBe(200);
+    await expect(service.verifyAccessToken(memberSession.accessToken)).rejects.toThrow(/revoked/u);
+  } finally { await app.close(); }
+});

@@ -1,4 +1,4 @@
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 import type { PlatformDatabaseSchema } from "./schema.js";
 
 export type PlatformMigration = {
@@ -23,6 +23,20 @@ const migrations: readonly PlatformMigration[] = [
         .addColumn("account_id", "varchar(36)", (column) => column.notNull().references("identity_accounts.id"))
         .addColumn("refresh_token_id", "varchar(36)", (column) => column.notNull())
         .addColumn("revoked_at", "datetime").execute();
+    },
+  },
+  {
+    name: "identity.access-management.v1",
+    async up(database) {
+      await database.schema.alterTable("identity_accounts").addColumn("role", "varchar(32)", column => column.notNull().defaultTo("member")).execute();
+      await database.schema.alterTable("identity_accounts").addColumn("responsibilities", "json", column => column.notNull().defaultTo("[]")).execute();
+      await database.schema.alterTable("identity_accounts").addColumn("status", "varchar(16)", column => column.notNull().defaultTo("active")).execute();
+    },
+  },
+  {
+    name: "identity.access-management.v2",
+    async up(database) {
+      await sql`UPDATE identity_accounts SET role = 'administrator' WHERE JSON_CONTAINS(permissions, JSON_QUOTE('identity.admin')) = 1`.execute(database);
     },
   },
   {

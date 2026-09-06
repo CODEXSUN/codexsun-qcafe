@@ -4,12 +4,13 @@ import { useInterfaceTopologyOverlay } from "@codexsun/devkit-ito/use-interface-
 import { MainMdi, type MdiPage } from "@codexsun/ui-desk";
 import { createChatWorkspaceAddon } from "./Workspace.js";
 import { chatTopology } from "./topology.js";
+import { defaultChatApiUrl } from "./connection-defaults.js";
 
 const initialPage: MdiPage = { view: "workspace", addonId: "chat", pageId: "" };
 
 export function App() {
   const addon = useMemo(() => createChatWorkspaceAddon({
-    defaultApiUrl: import.meta.env.VITE_CHAT_API_URL || "http://127.0.0.1:4165",
+    defaultApiUrl: defaultChatApiUrl(),
     demoApiUrl: import.meta.env.VITE_CHAT_DEMO_API_URL || "http://127.0.0.1:4165",
     demoToken: import.meta.env.VITE_CHAT_DEMO_TOKEN || "local-demo-only",
     localDemo: import.meta.env.DEV && import.meta.env.VITE_CHAT_LOCAL_DEMO === "true",

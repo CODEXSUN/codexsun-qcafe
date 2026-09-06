@@ -18,3 +18,9 @@ flowchart LR
 ```
 
 Agent runtimes can propose changes. They cannot change rules, prompts, learned guidance, or code without review.
+
+## Agent Crew boundary
+
+Zetro is the standalone agent experience. Agent Crew runs one authenticated specialist runtime per Docker container. The Platform only registers and composes these applications.
+
+Each runtime owns its reviewed duties, skills, memory, conversations, provider configuration, backup, and restore data. It cannot access the host checkout, Docker socket, or another runtime’s data.

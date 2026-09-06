@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
-import { AtSign, Calendar, Check, CheckCheck, ChevronDown, CircleHelp, Copy, EllipsisVertical, Forward, Hash, Info, MessageSquare, Paperclip, Phone, Plus, Reply, Search, Send, Slash, Smile, Video } from "lucide-react";
+import { AtSign, Calendar, Check, CheckCheck, ChevronDown, CircleHelp, Copy, EllipsisVertical, Forward, Hash, Info, KeyRound, LoaderCircle, MessageSquare, Paperclip, Phone, Plus, Reply, Search, Send, Slash, Smile, Video } from "lucide-react";
 import { Avatar, AvatarFallback } from "@codexsun/ui/components/avatar";
 import { Button } from "@codexsun/ui/components/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@codexsun/ui/components/ui/dialog";
@@ -9,6 +9,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@codexsun/ui/components
 import { MdiTopologyRegion, type MdiTopologyAdapter } from "@codexsun/ui-desk";
 import { CentralChatClient, mergeMessages, type ChatTransport, type ChatTransportFactory, type Contact, type Conversation, type Message } from "./client.js";
 import { clearChatConnection, readChatConnection, subscribeToChatConnection } from "./connection-session.js";
+import { defaultChatApiUrl, isLocalChatApiUrl, isLoopbackHost } from "./connection-defaults.js";
+import { issueLocalChatAccessToken } from "./local-access-token.js";
 
 export type ChatWorkspaceOptions = {
   id?: string;
@@ -23,7 +25,7 @@ export type ChatWorkspaceOptions = {
 const defaultOptions: Required<Omit<ChatWorkspaceOptions, "transportFactory">> = {
   id: "chat",
   label: "Chat",
-  defaultApiUrl: "http://127.0.0.1:4165",
+  defaultApiUrl: defaultChatApiUrl(),
   demoApiUrl: "http://127.0.0.1:4165",
   demoToken: "local-demo-only",
   localDemo: false,
@@ -39,21 +41,22 @@ export function createChatWorkspaceAddon(options: ChatWorkspaceOptions = {}) {
 }
 
 export const chatWorkspaceAddon = createChatWorkspaceAddon({
-  defaultApiUrl: import.meta.env.VITE_CHAT_API_URL || "http://127.0.0.1:4165",
+  defaultApiUrl: defaultChatApiUrl(),
   demoApiUrl: import.meta.env.VITE_CHAT_DEMO_API_URL || "http://127.0.0.1:4165",
   demoToken: import.meta.env.VITE_CHAT_DEMO_TOKEN || "local-demo-only",
   localDemo: import.meta.env.VITE_CHAT_LOCAL_DEMO === "true",
 });
 
 function isLoopbackBrowser() {
-  return ["127.0.0.1", "localhost"].includes(window.location.hostname);
-};
+  return typeof window !== "undefined" && isLoopbackHost(window.location.hostname);
+}
 
 export function ChatWorkspace({ options = defaultOptions, topology, target }: { options?: ChatWorkspaceOptions; topology?: MdiTopologyAdapter; target?: HTMLElement | null }) {
   const resolved = { ...defaultOptions, ...options };
   const localDemo = resolved.localDemo && isLoopbackBrowser();
   const initialConnection = useRef(readChatConnection());
   const [url, setUrl] = useState(initialConnection.current?.apiUrl ?? (localDemo ? resolved.demoApiUrl : resolved.defaultApiUrl));
+  const localTokenAvailable = isLocalChatApiUrl(url);
   const [token, setToken] = useState(initialConnection.current?.accessToken ?? (localDemo ? resolved.demoToken : ""));
   const [client, setClient] = useState<ChatTransport>();
   const [profile, setProfile] = useState<Contact>();
@@ -67,6 +70,9 @@ export function ChatWorkspace({ options = defaultOptions, topology, target }: { 
   const [newChat, setNewChat] = useState(false);
   const [archived, setArchived] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [tokenBusy, setTokenBusy] = useState(false);
+  const [tokenCopied, setTokenCopied] = useState(false);
+  const [tokenExpiresAt, setTokenExpiresAt] = useState("");
   const [error, setError] = useState("");
   const generation = useRef(0);
   const bottom = useRef<HTMLDivElement>(null);
@@ -133,6 +139,29 @@ export function ChatWorkspace({ options = defaultOptions, topology, target }: { 
       setProfile(identity); setConversations(threads.filter((item) => item.kind === "direct")); setContacts(people); setClient(connection); setToken("");
     });
   }
+  async function generateLocalToken() {
+    setTokenBusy(true);
+    setError("");
+    try {
+      const issued = await issueLocalChatAccessToken(url);
+      setUrl(issued.apiUrl);
+      setToken(issued.accessToken);
+      setTokenExpiresAt(issued.expiresAt);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Token generation failed.");
+    } finally {
+      setTokenBusy(false);
+    }
+  }
+  async function copyToken() {
+    try {
+      await navigator.clipboard.writeText(token);
+      setTokenCopied(true);
+      window.setTimeout(() => setTokenCopied(false), 1_500);
+    } catch {
+      setError("The browser could not copy the token. Select and copy it manually.");
+    }
+  }
   async function refresh() {
     if (!client) return;
     const items = (await client.conversations()).filter((item) => item.kind === "direct");
@@ -184,7 +213,7 @@ export function ChatWorkspace({ options = defaultOptions, topology, target }: { 
     });
   }
   const navigation = <ChatSidecar active={active} archived={archived} busy={busy} client={client} conversations={conversations} onNewChat={() => setNewChat((open) => !open)} onSelect={(conversation) => void select(conversation)} query={query} setArchived={setArchived} setQuery={setQuery} topology={topology} />;
-  return <section aria-label="Chat workspace" className="ito-region relative flex h-full min-h-0 flex-col bg-background [&>.technical-label]:!left-auto [&>.technical-label]:!right-3" {...topology?.regionProps("c1")}>
+  return <section aria-label="Chat workspace" className="ito-region relative flex h-full min-h-0 flex-col overflow-hidden bg-background [&>.technical-label]:!left-auto [&>.technical-label]:!right-3" {...topology?.regionProps("c1")}>
     {topology?.marker("c1")}
     {target && createPortal(navigation, target)}
     <ChatConversationHeader
@@ -198,7 +227,7 @@ export function ChatWorkspace({ options = defaultOptions, topology, target }: { 
       topology={topology}
     />
     {error && <MdiTopologyRegion id="c1.2" topology={topology}><div role="alert" className="border-b border-border p-4 text-sm text-destructive">{error}</div></MdiTopologyRegion>}
-    {!client ? <form {...topology?.regionProps("c4")} onSubmit={(event) => void connect(event)} className="ito-region relative mx-auto flex w-full max-w-lg flex-col gap-4 p-8">{topology?.marker("c4")}<h2 className="text-xl font-medium">Your conversations, connected</h2><p className="text-sm leading-6 text-muted-foreground">Use the local Chat API and a token generated in Settings. The token stays in memory for this session.</p><MdiTopologyRegion id="c4.1" topology={topology}><label className="grid gap-2 text-sm">Chat API URL<input required type="url" className="rounded-lg border border-input bg-background p-3" value={url} onChange={(event) => setUrl(event.target.value)} /></label></MdiTopologyRegion><MdiTopologyRegion id="c4.2" topology={topology}><label className="grid gap-2 text-sm">Access token<input required autoComplete="off" type="password" className="rounded-lg border border-input bg-background p-3" value={token} onChange={(event) => setToken(event.target.value)} /></label></MdiTopologyRegion><MdiTopologyRegion id="c4.3" topology={topology}><Button disabled={busy || !token.trim()}>{busy ? "Connecting…" : "Connect Chat"}</Button></MdiTopologyRegion></form>
+    {!client ? <form {...topology?.regionProps("c4")} onSubmit={(event) => void connect(event)} className="ito-region relative mx-auto flex min-h-0 w-full max-w-lg flex-1 flex-col justify-center gap-4 overflow-y-auto p-8">{topology?.marker("c4")}<h2 className="text-xl font-medium">Your conversations, connected</h2><p className="text-sm leading-6 text-muted-foreground">{localTokenAvailable ? "Generate a short-lived token for this local development API, then connect. Tokens stay only in memory for this session." : "Sign in through the CODEXSUN OS cloud workspace. Desktop and mobile use cloud enrollment and never generate Chat tokens."}</p>{localTokenAvailable ? <><MdiTopologyRegion id="c4.1" topology={topology}><label className="grid gap-2 text-sm">Chat API URL<input required type="url" className="rounded-lg border border-input bg-background p-3" value={url} onChange={(event) => setUrl(event.target.value)} /></label></MdiTopologyRegion><MdiTopologyRegion id="c4.2" topology={topology}><label className="grid gap-2 text-sm">Access token<span className="flex gap-2"><input required autoComplete="off" type="text" className="min-w-0 flex-1 rounded-lg border border-input bg-background p-3 font-mono text-xs" value={token} onChange={(event) => setToken(event.target.value)} />{localTokenAvailable && <MdiTopologyRegion id="c4.2.2" topology={topology}><Button aria-label="Copy access token" className="cursor-pointer" disabled={!token} onClick={() => void copyToken()} type="button" variant="outline">{tokenCopied ? <Check size={16} /> : <Copy size={16} />}</Button></MdiTopologyRegion>}</span>{tokenExpiresAt && <span className="text-xs text-muted-foreground">Expires {new Date(tokenExpiresAt).toLocaleString()}</span>}</label></MdiTopologyRegion><MdiTopologyRegion id="c4.2.1" topology={topology}><Button className="cursor-pointer" disabled={tokenBusy} onClick={() => void generateLocalToken()} type="button" variant="outline">{tokenBusy ? <><LoaderCircle className="animate-spin" size={16} />Generating…</> : <><KeyRound size={16} />Generate local token</>}</Button></MdiTopologyRegion></> : <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">Cloud Chat uses the signed-in CODEXSUN OS desktop session. No access token needs to be copied or pasted.</div>}<MdiTopologyRegion id="c4.3" topology={topology}><Button className="cursor-pointer" disabled={busy || !token.trim()}>{busy ? "Connecting…" : localTokenAvailable ? "Connect Chat" : "Retry Chat connection"}</Button></MdiTopologyRegion></form>
     : newChat ? <div {...topology?.regionProps("c5")} className="ito-region relative overflow-y-auto p-6">{topology?.marker("c5")}<h2 className="mb-4 font-medium">Start a conversation</h2>{contacts.filter((contact) => contact.uuid !== profile?.uuid).map((contact) => <Button key={contact.uuid} className="mb-2 flex w-full justify-start" variant="ghost" disabled={busy} onClick={() => void action(async () => { const conversation = await client.open(contact.uuid); generation.current++; setActive(conversation); setMessages([]); setBefore(null); setNewChat(false); const page = await client.history(conversation.id); setMessages(mergeMessages([], page.items)); setBefore(page.nextCursor); await refresh(); })}>{contact.name} · {contact.email}</Button>)}{!contacts.length && <p className="text-muted-foreground">No contacts available in DevKit.</p>}</div>
     : !active ? <MdiTopologyRegion id="c1.1" topology={topology} className="flex-1"><div className="grid flex-1 place-content-center gap-3 p-8 text-center"><MessageSquare className="mx-auto size-8 text-muted-foreground" /><h2 className="text-xl font-medium">Choose a conversation</h2><p className="text-sm text-muted-foreground">Your direct messages appear in the left navigation.</p></div></MdiTopologyRegion>
     : <><MdiTopologyRegion id="c7" topology={topology} className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6">
@@ -439,7 +468,7 @@ function ChatSidecar({ active, archived, busy, client, conversations, onNewChat,
     .filter((item) => `${item.title} ${item.lastMessage}`.toLowerCase().includes(query.toLowerCase()))
     .sort((left, right) => left.updatedAt.localeCompare(right.updatedAt));
 
-  return <aside aria-label="Chat conversations" className="ito-region relative flex h-full min-h-0 flex-col bg-background" {...topology?.regionProps("c2.1.1")}>
+  return <aside aria-label="Chat conversations" className="ito-region relative flex h-full min-h-0 flex-col overflow-hidden bg-background" {...topology?.regionProps("c2.1.1")}>
     {topology?.marker("c2.1.1")}
     <div className="flex items-center justify-between border-b border-border px-4 py-4">
       <h2 className="text-xl font-semibold tracking-tight text-foreground">Chats</h2>

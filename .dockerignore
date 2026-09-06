@@ -8,6 +8,8 @@
 **/src-tauri/target
 **/src-tauri/gen
 **/dist
+!packages/zxa/web/dist
+!packages/zxa/web/dist/**
 **/.local
 **/*.db
 **/*.db-wal

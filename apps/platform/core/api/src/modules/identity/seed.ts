@@ -13,7 +13,7 @@ export async function seedIdentity(database: Kysely<PlatformDatabaseSchema>, env
   if (existing) return;
   await database.insertInto("identity_accounts").values({
     id: randomUUID(), login, password_hash: await hashPassword(password), scope: "single-client", tenant_id: null,
-    application_ids: JSON.stringify(["app.zetro", "app.chat", "app.ai-task-system", "app.devkit"]),
-    permissions: JSON.stringify(["app.access", "identity.admin", "installation.manage", "devices.manage", "chat.access", "tasks.manage", "zetro.access"]),
+    application_ids: JSON.stringify(["app.zetro", "app.chat", "app.ai-task-system", "app.device-chat", "app.docs"]),
+    permissions: JSON.stringify(["app.access", "identity.admin", "installation.manage", "devices.manage", "chat.access", "tasks.manage", "zetro.access"]), role: "administrator", responsibilities: JSON.stringify(["Platform administration"]), status: "active",
   }).execute();
 }

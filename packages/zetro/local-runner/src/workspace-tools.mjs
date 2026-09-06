@@ -79,3 +79,20 @@ export class WorkspaceTools {
     return canonical;
   }
 }
+
+/** Holds the one user-approved workspace while the local tool server is running. */
+export class WorkspaceToolProvider {
+  constructor(workspace) { this.workspace = workspace; }
+
+  static async create(root) { return new WorkspaceToolProvider(await WorkspaceTools.create(root)); }
+
+  async setRoot(root) {
+    this.workspace = await WorkspaceTools.create(root);
+    return this.root();
+  }
+
+  root() { return this.workspace.root; }
+  list(input) { return this.workspace.list(input); }
+  read(input) { return this.workspace.read(input); }
+  search(input) { return this.workspace.search(input); }
+}

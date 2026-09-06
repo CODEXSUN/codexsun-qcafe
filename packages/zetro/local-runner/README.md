@@ -9,7 +9,7 @@ The selected folder defaults to `packages/zetro/local-runner/template`. The mode
 | workspace_read | Read UTF-8 text | 64 KiB |
 | workspace_search | Search literal text | 100 entries, 30 matches, three-second scan budget |
 
-## Start
+## Development start
 
 Set `CODEXSUN_ZETRO_DOCKER=true` in the root `.env`.
 Build `zetro:v1` with `docker compose -f packages/zetro/docker/compose.json build`.
@@ -29,6 +29,27 @@ Activity appears with the final response in this version. The host console recor
 ## Scope and controls
 
 To select another folder later, set `ZETRO_WORKSPACE_ROOT` to an absolute path in the root `.env`, then restart.
+
+## Zetro Desk Bridge
+
+The installed Windows desktop does not send a local folder path to the cloud API. It uses a separate local bridge instead.
+
+Run this once from the CODEXSUN repository after Docker Desktop is ready:
+
+```powershell
+npm.cmd run zetro:desk
+```
+
+The command starts only the `zxa:v1` Docker agent and two loopback-only services:
+
+- `127.0.0.1:4160` is the authenticated, read-only MCP tool server.
+- `127.0.0.1:4161` is the desktop bridge. It is authenticated with a private key held outside the web view.
+
+The bridge stores its private configuration under `%APPDATA%\CODEXSUN\zetro-desk-bridge.json`. It includes the approved repository root and local tokens. Do not copy that file, add it to source control, or expose either port beyond the local computer.
+
+In Zetro properties inside the desktop app, choose an existing repository root and save it. The bridge validates and canonicalizes that local path, then the Docker agent can use only `workspace_list`, `workspace_read`, and `workspace_search`. The cloud keeps identity and synchronized records, but it cannot browse the desktop repository.
+
+Run the command again after Docker is stopped or when you need to recreate the local Zetro container. It does not start the general development portal or unrelated Docker services.
 Only select a trusted folder intended for model access. Selected text can be sent to the connected model provider.
 Hidden paths, credential filenames, non-text types, links, hard-linked files, and traversal paths are denied.
 Canonical paths must remain inside the selected root. Do not allow untrusted processes to replace files during reads.

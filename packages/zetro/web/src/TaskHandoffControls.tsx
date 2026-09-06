@@ -19,15 +19,10 @@ export function TaskHandoffControls({ chatReview, prompt, response, taskId, onTa
   }
 
   return <>
-    <div className="flex items-center gap-0.5">
-      <Button type="button" variant="ghost" size="icon" className="size-7 cursor-pointer" aria-label="Review prompt" title="Review prompt" onClick={() => show("prompt")}><Eye className="size-3.5" /></Button>
-      <Button type="button" variant="ghost" size="icon" className="size-7 cursor-pointer" aria-label="Review chat" title="Review chat" onClick={() => show("chat")}><MessagesSquare className="size-3.5" /></Button>
-      <Button type="button" variant="ghost" size="icon" className="size-7 cursor-pointer" aria-label="Send to Task System" title="Send to Task System" disabled={send.isPending || Boolean(taskId)} onClick={() => show("prompt")}><Send className="size-3.5" /></Button>
-      {taskId && <Button type="button" variant="ghost" size="icon" className="size-7 cursor-pointer" aria-label="Check task status" title="Check task status" disabled={task.isFetching} onClick={() => void task.refetch()}>{task.isFetching ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}</Button>}
-    </div>
-
-    {task.data && <TaskResult task={task.data} />}
-    {task.error && <p className="mt-2 text-xs text-destructive" role="alert">{task.error.message}</p>}
+    <Button type="button" variant="ghost" size="icon" className="size-7 cursor-pointer hover:text-foreground" aria-label="Review prompt" title="Review prompt" onClick={() => show("prompt")}><Eye className="size-3.5" /></Button>
+    <Button type="button" variant="ghost" size="icon" className="size-7 cursor-pointer hover:text-foreground" aria-label="Review chat" title="Review chat" onClick={() => show("chat")}><MessagesSquare className="size-3.5" /></Button>
+    <Button type="button" variant="ghost" size="icon" className="size-7 cursor-pointer hover:text-foreground" aria-label="Send to Task System" title="Send to Task System" disabled={send.isPending || Boolean(taskId)} onClick={() => show("prompt")}><Send className="size-3.5" /></Button>
+    {taskId && <Button type="button" variant="ghost" size="icon" className="size-7 cursor-pointer hover:text-foreground" aria-label="Check task status" title="Check task status" disabled={task.isFetching} onClick={() => void task.refetch()}>{task.isFetching ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}</Button>}
 
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-2xl">
@@ -41,6 +36,15 @@ export function TaskHandoffControls({ chatReview, prompt, response, taskId, onTa
         <DialogFooter><Button type="button" variant="outline" className="cursor-pointer" onClick={() => setOpen(false)}>Cancel</Button><Button type="button" className="cursor-pointer gap-2" disabled={send.isPending || taskRequest.trim().length < 8} onClick={() => send.mutate(taskRequest.trim())}>{send.isPending ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}Send and start task</Button></DialogFooter>
       </DialogContent>
     </Dialog>
+  </>;
+}
+
+export function TaskHandoffResult({ taskId }: { taskId?: string }) {
+  const task = useQuery({ queryKey: ["zetro-linked-task", taskId], queryFn: () => getAiTask(taskId!), enabled: Boolean(taskId), refetchInterval: (query) => ["running", "planned"].includes(query.state.data?.status ?? "") ? 1500 : false });
+  if (!taskId) return null;
+  return <>
+    {task.data && <TaskResult task={task.data} />}
+    {task.error && <p className="mt-2 text-xs text-destructive" role="alert">{task.error.message}</p>}
   </>;
 }
 

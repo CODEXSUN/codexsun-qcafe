@@ -50,6 +50,12 @@ const services = qCafeOnly ? cafeServices : [
     label: "zetro-api",
   },
   {
+    args: ["packages/dcs/src/server.mjs"],
+    bin: null,
+    healthUrl: "http://127.0.0.1:4170/health",
+    label: "dcs",
+  },
+  {
     args: ["packages/zetro/web", "--config", "packages/zetro/web/vite.config.ts"],
     bin: resolve(ROOT, "node_modules", "vite", "bin", "vite.js"),
     healthUrl: "http://127.0.0.1:5175/",
@@ -86,7 +92,7 @@ try {
   releaseDevelopmentLock = await acquireDevelopmentLock(lockPath, initialEnvironment.OS_DEV_PORT_POLICY);
   const { env } = await runPreflight({
     host: qCafeOnly ? "0.0.0.0" : "127.0.0.1",
-    ports: qCafeOnly ? [4180, 5180] : [4100, 4150, 4160, 4165, 4185, 5173, 5174, 5175, 5176, 5185],
+    ports: qCafeOnly ? [4180, 5180] : [4100, 4150, 4160, 4165, 4170, 4185, 5173, 5174, 5175, 5176, 5185],
   });
   console.log("CODEXSUN OS local portal runtime");
   for (const service of services) {
@@ -103,6 +109,7 @@ try {
   console.log("  - DevKit: http://127.0.0.1:5174\n");
   console.log("  - Chat: http://127.0.0.1:5176\n");
   console.log("  - Chat API: http://127.0.0.1:4165\n");
+  console.log("  - DCS: http://127.0.0.1:4170\n");
   console.log("  - Zetro API: http://127.0.0.1:4150");
   console.log("  - Zetro Web: http://127.0.0.1:5175\n");
   console.log("  - Docs: http://127.0.0.1:5185 (API: 4185)\n");
@@ -114,7 +121,7 @@ try {
 function startService(service, env) {
   const child = spawn(process.execPath, [...(service.bin ? [service.bin] : []), ...service.args], {
     cwd: ROOT,
-    env: { ...process.env, ...env },
+    env: developmentServiceEnvironment(service, { ...process.env, ...env }),
     stdio: ["ignore", "pipe", "pipe"],
   });
   children.add(child);
@@ -127,6 +134,15 @@ function startService(service, env) {
     if (!stopping && !restartingServices.has(service.label)) void recoverService(service, env, code);
   });
   return child;
+}
+
+function developmentServiceEnvironment(service, environment) {
+  if (service.label !== "dcs") return environment;
+  return {
+    ...environment,
+    DCS_DATABASE_FILE: environment.DCS_DATABASE_FILE || resolve(ROOT, ".local", "dcs", "dcs.db"),
+    DCS_DEVICES_FILE: environment.DCS_DEVICES_FILE || resolve(ROOT, ".local", "dcs", "devices.json"),
+  };
 }
 
 async function recoverService(service, env, code) {

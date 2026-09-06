@@ -38,7 +38,7 @@ export default defineConfig({
     },
   },
   server: {
-    ...createViteDevelopmentServer({ host: "127.0.0.1", port: 5173, proxy: { "/api/v1/docs": "http://127.0.0.1:4185", "/api/v1/zetro": "http://127.0.0.1:4150", "/api/v1/ai-tasks": "http://127.0.0.1:4150", "/dcs": { target: "http://127.0.0.1:4170", ws: true }, "/api": "http://127.0.0.1:4100" } }),
+    ...createViteDevelopmentServer({ host: "127.0.0.1", port: 5173, proxy: { "/api/v1/docs": "http://127.0.0.1:4185", "/api/v1/zetro": "http://127.0.0.1:4150", "/api/v1/ai-tasks": "http://127.0.0.1:4150", "/dcs": { target: "http://127.0.0.1:4170", rewrite: path => path.replace(/^\/dcs/u, ""), ws: true }, "/health": "http://127.0.0.1:4100", "/api": "http://127.0.0.1:4100" } }),
     fs: { allow: [path.resolve(import.meta.dirname, "../../../..")] },
   },
 });

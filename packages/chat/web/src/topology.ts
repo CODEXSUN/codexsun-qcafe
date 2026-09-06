@@ -26,6 +26,8 @@ export const chatTopology: InterfaceTopologySection[] = [
   { id: "c4", technicalName: "chat.connection.form", name: "DevKit connection form", scope: "Chat", description: "Account connection form." },
   { id: "c4.1", technicalName: "chat.connection.apiUrlInput", name: "API URL input", scope: "Chat", description: "Set the DevKit server." },
   { id: "c4.2", technicalName: "chat.connection.accessTokenInput", name: "Access token input", scope: "Chat", description: "Session-only authentication." },
+  { id: "c4.2.1", technicalName: "chat.connection.generateLocalTokenButton", name: "Generate local token", scope: "Chat", description: "Issue a short-lived loopback Chat token." },
+  { id: "c4.2.2", technicalName: "chat.connection.copyAccessTokenButton", name: "Copy access token", scope: "Chat", description: "Copy the generated token for another local messenger." },
   { id: "c4.3", technicalName: "chat.connection.connectButton", name: "Connect DevKit button", scope: "Chat", description: "Connect to DevKit." },
   { id: "c5", technicalName: "chat.contacts.picker", name: "Contact picker", scope: "Chat", description: "Choose a contact to start a direct conversation." },
   { id: "c7", technicalName: "chat.history.container", name: "Message history", scope: "Chat", description: "Paged messages, timestamps, delivery state, and copy actions." },

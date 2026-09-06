@@ -37,6 +37,11 @@ const definitions = {
     bin: resolve(ROOT, "node_modules", "tsx", "dist", "cli.mjs"),
     portIndex: 3,
   },
+  dcs: {
+    args: ["packages/dcs/src/server.mjs"],
+    bin: null,
+    portIndex: 4,
+  },
   zetro: {
     args: ["packages/zetro/web", "--config", "packages/zetro/web/vite.config.ts"],
     bin: resolve(ROOT, "node_modules", "vite", "bin", "vite.js"),
@@ -55,18 +60,27 @@ const definitions = {
 };
 
 if (!service || !definitions[service]) {
-  console.error("Usage: node tools/start-service.mjs <api|web|devkit|chat|chat-api|zetro-api|zetro|docs-api|docs>");
+  console.error("Usage: node tools/start-service.mjs <api|web|devkit|chat|chat-api|zetro-api|dcs|zetro|docs-api|docs>");
   process.exit(1);
 }
 
 const definition = definitions[service];
-const servicePort = service === "api" ? 4100 : service === "zetro-api" ? 4150 : service === "chat-api" ? 4165 : service === "docs-api" ? 4185 : service === "web" ? 5173 : service === "devkit" ? 5174 : service === "chat" ? 5176 : service === "docs" ? 5185 : 5175;
+const servicePort = service === "api" ? 4100 : service === "zetro-api" ? 4150 : service === "chat-api" ? 4165 : service === "dcs" ? 4170 : service === "docs-api" ? 4185 : service === "web" ? 5173 : service === "devkit" ? 5174 : service === "chat" ? 5176 : service === "docs" ? 5185 : 5175;
 const { env, ports } = await runPreflight({ ports: [servicePort] });
 const child = spawn(process.execPath, [...(definition.bin ? [definition.bin] : []), ...definition.args], {
   cwd: ROOT,
-  env: { ...env, ...process.env, OS_API_PORT: String(ports[0]) },
+  env: developmentServiceEnvironment(service, { ...env, ...process.env, OS_API_PORT: String(ports[0]) }),
   stdio: "inherit",
 });
 
 for (const signal of ["SIGINT", "SIGTERM"]) process.once(signal, () => child.kill(signal));
 child.once("exit", (code) => process.exit(code ?? 0));
+
+function developmentServiceEnvironment(serviceName, environment) {
+  if (serviceName !== "dcs") return environment;
+  return {
+    ...environment,
+    DCS_DATABASE_FILE: environment.DCS_DATABASE_FILE || resolve(ROOT, ".local", "dcs", "dcs.db"),
+    DCS_DEVICES_FILE: environment.DCS_DEVICES_FILE || resolve(ROOT, ".local", "dcs", "devices.json"),
+  };
+}

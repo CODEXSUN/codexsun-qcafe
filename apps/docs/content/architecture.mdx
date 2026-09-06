@@ -4,6 +4,8 @@
 
 CODEXSUN OS is the host for independent applications and add-ons. It owns shared identity, application registration, persistence infrastructure, desktop host adapters, and operations.
 
+The framework kernel is tenancy-neutral. A tenancy add-on is optional and must not become an implicit platform dependency.
+
 Zetro is an add-on. Zetro plans and coordinates agent work. It does not belong to the platform kernel.
 
 ## System map
@@ -27,6 +29,8 @@ flowchart LR
 ## Ownership
 
 Each module owns its routes, persistence, UI, and operations. Modules communicate through public contracts or durable events. Applications do not query another module’s tables.
+
+Composition roots only register modules and adapters. A module keeps its behavior, data, routes, events, and migrations in its own folder.
 
 ## Deployment
 

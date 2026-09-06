@@ -14,12 +14,13 @@ import { Spinner } from "@codexsun/ui/components/ui/spinner";
 import { MdiTopologyRegion, type MdiTopologyAdapter } from "@codexsun/ui-desk";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { sendPrompt } from "./prompt-api.js";
+import { desktopZetroStatus, isDesktopZetro } from "./desktop-bridge.js";
 import { ComposerOptions } from "./ComposerOptions.js";
 import { createRun } from "./workflow-api.js";
 import { WorkflowPanel, type WorkflowMode } from "./WorkflowPanel.js";
 import { archiveProjectChats, deleteConversation as deleteStoredConversation, deleteProject as deleteStoredProject, getWorkspace, saveConversation as saveStoredConversation, saveProject as saveStoredProject } from "./workspace-api.js";
 import { getZetroSettings } from "./settings-api.js";
-import { TaskHandoffControls } from "./TaskHandoffControls.js";
+import { TaskHandoffControls, TaskHandoffResult } from "./TaskHandoffControls.js";
 
 export const ZETRO_MODELS = [
   { id: "codex-specialist", name: "Codex Specialist", badge: "Docker · Sandbox", desc: "Isolated specialist container with code execution tools." },
@@ -99,6 +100,11 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
     let active = true;
     async function checkHealth() {
       try {
+        if (isDesktopZetro()) {
+          const status = await desktopZetroStatus();
+          if (active) setConnected(status.status === "ok" && status.agent === "ready");
+          return;
+        }
         const res = await platformFetch(`${import.meta.env.VITE_ZETRO_API_URL ?? ""}/health`, { signal: AbortSignal.timeout(2500) });
         if (active) setConnected(res.ok);
       } catch {
@@ -504,7 +510,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
       </div>
     </header>
     <MdiTopologyRegion id="z4" topology={topology} className="min-h-0 flex-1 overflow-y-auto px-6 py-8"><div aria-live="polite">
-      <MdiTopologyRegion id="z4.1" topology={topology} className="mx-auto max-w-3xl space-y-8">
+      <MdiTopologyRegion id="z4.1" topology={topology} className="mx-auto w-full md:w-4/5 max-w-5xl space-y-8">
         {exchanges.length ? (
           groupExchangesByDate(exchanges).map((dateGroup) => (
             <section key={dateGroup.dateKey} aria-label={`Messages from ${dateGroup.dateLabel}`} className="space-y-6">
@@ -576,7 +582,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="whitespace-pre-wrap break-words text-sm leading-7">{exchange.result}</p>
-                        <div className="mt-1 flex flex-wrap items-center gap-1 text-muted-foreground opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                        <div className="mt-1 flex items-center gap-1 text-muted-foreground opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                           {exchange.timestamp && <span className="mr-1 text-[10px] text-muted-foreground">{formatShortTime(exchange.timestamp)}</span>}
                           <Button type="button" variant="ghost" size="icon" className="size-7 cursor-pointer hover:text-foreground" title="Copy response" aria-label="Copy response" onClick={() => copyText(exchange.result, `${exchange.id}-result`)}>
                             {copiedId === `${exchange.id}-result` ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
@@ -625,6 +631,13 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
                               </Button>
                             </PopoverContent>
                           </Popover>
+                          <TaskHandoffControls
+                            chatReview={exchanges.slice(0, index).map((item) => `You: ${item.prompt}\nZetro: ${item.result}`).join("\n\n")}
+                            onTaskCreated={(taskId) => linkTask(exchange.id, taskId)}
+                            prompt={exchange.prompt}
+                            response={exchange.result}
+                            taskId={exchange.taskId}
+                          />
                           <div className="ml-auto">
                             <Popover>
                               <PopoverTrigger asChild>
@@ -662,13 +675,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
                             </Popover>
                           </div>
                         </div>
-                        <TaskHandoffControls
-                          chatReview={exchanges.slice(0, index).map((item) => `You: ${item.prompt}\nZetro: ${item.result}`).join("\n\n")}
-                          onTaskCreated={(taskId) => linkTask(exchange.id, taskId)}
-                          prompt={exchange.prompt}
-                          response={exchange.result}
-                          taskId={exchange.taskId}
-                        />
+                        <TaskHandoffResult taskId={exchange.taskId} />
                       </div>
                     </div>
                     {showActivity && <div className="ml-9 space-y-1 border-l border-border pl-3 text-xs text-muted-foreground">{exchange.activities?.length ? exchange.activities.map((item) => <p key={item.id}>{item.label} · {item.status}</p>) : <p>No tool evidence reported.</p>}</div>}
@@ -703,7 +710,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
       <form
         onClick={() => promptInputRef.current?.focus()}
         onSubmit={(event) => void send(event)}
-        className="relative mx-auto w-full md:w-4/5 rounded-2xl border border-input bg-card p-3 shadow-sm cursor-text"
+        className="relative mx-auto w-full md:w-4/5 max-w-5xl rounded-2xl border border-input bg-card p-3 shadow-sm cursor-text"
       >
         <MdiTopologyRegion id="z5.5" topology={topology} className="!absolute -top-5 right-3 z-10 cursor-default"><ComposerOptions activity={showActivity} motion={motion} onActivity={setShowActivity} onMotion={setMotion} workflow={<MdiTopologyRegion id="z5.6" topology={topology}><WorkflowPanel enabled={workflowEnabled} mode={workflowMode} manualApprovals={manualApprovals} onEnabled={setWorkflowEnabled} onMode={setWorkflowMode} onManualApprovals={setManualApprovals} /></MdiTopologyRegion>} /></MdiTopologyRegion>
         <MdiTopologyRegion id="z5.1" topology={topology}><textarea ref={promptInputRef} autoFocus aria-label="Prompt" disabled={sending} maxLength={20000} value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Send a prompt…" className="min-h-20 w-full resize-none border-0 bg-transparent p-2 text-sm leading-6 shadow-none outline-none ring-0 focus:border-0 focus:shadow-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0" onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); setTimeout(() => promptInputRef.current?.focus(), 0); } }} />
