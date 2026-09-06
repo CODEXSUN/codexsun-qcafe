@@ -1,6 +1,6 @@
 {
   "name": "@codexsun/core-web",
-  "version": "0.1.24",
+  "version": "0.1.25",
   "private": true,
   "type": "module",
   "scripts": {
@@ -17,6 +17,7 @@
     "@codexsun/devkit-ito": "*",
     "@codexsun/docs-web": "*",
     "@codexsun/identity-web": "^0.1.13",
+    "@codexsun/orship-web": "*",
     "@codexsun/platform-host-contracts": "^0.1.13",
     "@codexsun/ui": "*",
     "@codexsun/ui-desk": "*",

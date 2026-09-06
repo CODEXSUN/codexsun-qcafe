@@ -223,6 +223,22 @@
       ]
     },
     {
+      "id": "module.orship",
+      "owner": "Orship",
+      "roots": [
+        "packages/orship"
+      ],
+      "publicContracts": [
+        "/api/v1/orship",
+        "@codexsun/orship-contracts",
+        "@codexsun/orship-api"
+      ],
+      "protectedPaths": [
+        "packages/orship/contracts/src",
+        "packages/orship/api/src"
+      ]
+    },
+    {
       "id": "app.agent-crew",
       "owner": "Agent Crew",
       "roots": [

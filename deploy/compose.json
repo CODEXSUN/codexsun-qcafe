@@ -37,11 +37,14 @@
         },
         "dcs": {
           "condition": "service_healthy"
+        },
+        "orship": {
+          "condition": "service_healthy"
         }
       }
     },
     "dcs": {
-      "image": "codexsun-os/dcs:${CODEXSUN_VERSION:-0.1.24}",
+      "image": "codexsun-os/dcs:${CODEXSUN_VERSION:-0.1.25}",
       "restart": "unless-stopped",
       "build": {
         "context": "..",
@@ -82,7 +85,7 @@
       }
     },
     "platform": {
-      "image": "codexsun-os/api:${CODEXSUN_VERSION:-0.1.24}",
+      "image": "codexsun-os/api:${CODEXSUN_VERSION:-0.1.25}",
       "restart": "unless-stopped",
       "read_only": true,
       "cap_drop": [
@@ -125,7 +128,7 @@
       }
     },
     "zetro": {
-      "image": "codexsun-os/api:${CODEXSUN_VERSION:-0.1.24}",
+      "image": "codexsun-os/api:${CODEXSUN_VERSION:-0.1.25}",
       "restart": "unless-stopped",
       "read_only": true,
       "cap_drop": [
@@ -171,7 +174,7 @@
       }
     },
     "chat": {
-      "image": "codexsun-os/api:${CODEXSUN_VERSION:-0.1.24}",
+      "image": "codexsun-os/api:${CODEXSUN_VERSION:-0.1.25}",
       "restart": "unless-stopped",
       "read_only": true,
       "cap_drop": [
@@ -212,7 +215,7 @@
       }
     },
     "docs": {
-      "image": "codexsun-os/api:${CODEXSUN_VERSION:-0.1.24}",
+      "image": "codexsun-os/api:${CODEXSUN_VERSION:-0.1.25}",
       "restart": "unless-stopped",
       "read_only": true,
       "cap_drop": ["ALL"],
@@ -232,6 +235,27 @@
       },
       "healthcheck": {
         "test": ["CMD", "node", "-e", "fetch('http://127.0.0.1:4185/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"],
+        "interval": "15s",
+        "timeout": "5s",
+        "retries": 5
+      }
+    },
+    "orship": {
+      "image": "codexsun-os/api:${CODEXSUN_VERSION:-0.1.25}",
+      "restart": "unless-stopped",
+      "read_only": true,
+      "cap_drop": ["ALL"],
+      "security_opt": ["no-new-privileges:true"],
+      "command": ["node", "build/orship.mjs"],
+      "environment": {
+        "ORSHIP_API_HOST": "0.0.0.0",
+        "ORSHIP_DATABASE_FILE": "/data/orship.db",
+        "ORSHIP_CLOUD_STATE_FILE": "/release-state/release.json"
+      },
+      "volumes": ["./state/orship:/data", "./state:/release-state:ro"],
+      "networks": ["internal"],
+      "healthcheck": {
+        "test": ["CMD", "node", "-e", "fetch('http://127.0.0.1:4190/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"],
         "interval": "15s",
         "timeout": "5s",
         "retries": 5

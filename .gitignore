@@ -11,6 +11,7 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # Runtime data
 packages/zetro/api/state/
+packages/orship/api/state/
 pids
 apps/agent-crew/docker/state/
 apps/agent-crew/docker/backups/

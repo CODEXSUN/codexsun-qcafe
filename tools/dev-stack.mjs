@@ -56,6 +56,12 @@ const services = qCafeOnly ? cafeServices : [
     label: "dcs",
   },
   {
+    args: ["packages/orship/api/src/server.ts"],
+    bin: resolve(ROOT, "node_modules", "tsx", "dist", "cli.mjs"),
+    healthUrl: "http://127.0.0.1:4190/health",
+    label: "orship-api",
+  },
+  {
     args: ["packages/zetro/web", "--config", "packages/zetro/web/vite.config.ts"],
     bin: resolve(ROOT, "node_modules", "vite", "bin", "vite.js"),
     healthUrl: "http://127.0.0.1:5175/",
@@ -92,7 +98,7 @@ try {
   releaseDevelopmentLock = await acquireDevelopmentLock(lockPath, initialEnvironment.OS_DEV_PORT_POLICY);
   const { env } = await runPreflight({
     host: qCafeOnly ? "0.0.0.0" : "127.0.0.1",
-    ports: qCafeOnly ? [4180, 5180] : [4100, 4150, 4160, 4165, 4170, 4185, 5173, 5174, 5175, 5176, 5185],
+    ports: qCafeOnly ? [4180, 5180] : [4100, 4150, 4160, 4165, 4170, 4185, 4190, 5173, 5174, 5175, 5176, 5185],
   });
   console.log("CODEXSUN OS local portal runtime");
   for (const service of services) {
@@ -110,6 +116,7 @@ try {
   console.log("  - Chat: http://127.0.0.1:5176\n");
   console.log("  - Chat API: http://127.0.0.1:4165\n");
   console.log("  - DCS: http://127.0.0.1:4170\n");
+  console.log("  - Orship API: http://127.0.0.1:4190\n");
   console.log("  - Zetro API: http://127.0.0.1:4150");
   console.log("  - Zetro Web: http://127.0.0.1:5175\n");
   console.log("  - Docs: http://127.0.0.1:5185 (API: 4185)\n");

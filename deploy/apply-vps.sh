@@ -100,7 +100,7 @@ echo "Checkpoint: source activated and configuration validated."
 cd "$APP_ROOT"
 write_release_state "building"
 docker compose -f "$COMPOSE_FILE" build platform dcs
-docker compose -f "$COMPOSE_FILE" up -d --wait platform chat zetro dcs files zxa
+docker compose -f "$COMPOSE_FILE" up -d --wait platform chat zetro dcs orship files zxa
 docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-deps web
 docker compose -f "$COMPOSE_FILE" ps
 if [[ -n "$PORTAL_BACKUP" ]]; then mv "$PORTAL_BACKUP" "$RUN_DIR/portal.previous"; fi

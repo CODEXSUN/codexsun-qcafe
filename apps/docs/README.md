@@ -14,3 +14,7 @@ The workspace uses a safe MDX subset. It renders headings, lists, code blocks, a
 4. Open `http://127.0.0.1:5185`.
 
 The API listens on `4185`. The standalone web app listens on `5185`.
+
+## Operational documents
+
+- `release-task-system.md` defines the daily release process, state phases, device events, verification, and recovery.
