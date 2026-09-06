@@ -1,5 +1,13 @@
 # Q Cafe changelog
 
+## 1.0.6 - 2026-09-06
+
+### First setup data controls
+
+- Added owner-first-setup actions to select the D: database folder or start with an empty local SQLite database.
+- Preserves existing backup history when starting with empty data and restarts the local API after either confirmed change.
+- Added the installed Q Cafe version at the login screen bottom-right.
+- Added Settings actions to check the verified GitHub stable release and install a downloaded, checksum-verified update.
 ## 1.0.5 - 2026-09-06
 
 ### Windows startup and release tags

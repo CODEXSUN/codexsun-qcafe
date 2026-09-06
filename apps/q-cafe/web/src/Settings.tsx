@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Store, Receipt, Palette, Server, Check, RotateCcw, HardDrive, FlaskConical, CheckCircle2, AlertCircle, Sparkles, Sliders } from 'lucide-react';
+import { Store, Receipt, Palette, Server, Check, RotateCcw, HardDrive, FlaskConical, CheckCircle2, AlertCircle, Sparkles, Sliders, Download, RefreshCw } from 'lucide-react';
 import { Button } from '@codexsun/ui/components/ui/button';
 import type { InterfaceTopologyController } from '@codexsun/devkit-ito';
 import { type Snapshot } from './api';
@@ -125,6 +125,9 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
   const [savedNotice, setSavedNotice] = useState(false);
   const [verificationResult, setVerificationResult] = useState<StorageVerificationResult | null>(null);
   const [demoInstallNotice, setDemoInstallNotice] = useState('');
+  const [availableUpdate, setAvailableUpdate] = useState<{ version: string; notes: string } | null>(null);
+  const [updateBusy, setUpdateBusy] = useState(false);
+  const [updateNotice, setUpdateNotice] = useState('');
 
   useEffect(() => {
     if (!savedNotice) return;
@@ -213,6 +216,37 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
     const res = installDemoItemsAndImages();
     setDemoInstallNotice(`Successfully installed ${res.count} demo menu items with high-resolution offline images!`);
     setTimeout(() => setDemoInstallNotice(''), 4000);
+  }
+
+  async function checkForUpdate() {
+    if (!('__TAURI_INTERNALS__' in window)) {
+      setUpdateNotice('Updates are available from the Q Cafe Windows application.');
+      return;
+    }
+    setUpdateBusy(true);
+    setUpdateNotice('');
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const update = await invoke<{ version: string; notes: string } | null>('qcafe_check_for_update');
+      setAvailableUpdate(update);
+      setUpdateNotice(update ? `Q Cafe ${update.version} is ready to install.` : 'Q Cafe is up to date.');
+    } catch (error) {
+      setUpdateNotice(error instanceof Error ? error.message : 'Q Cafe could not check for updates.');
+    } finally {
+      setUpdateBusy(false);
+    }
+  }
+
+  async function installUpdate() {
+    setUpdateBusy(true);
+    setUpdateNotice('Downloading and verifying the Q Cafe installer…');
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('qcafe_install_update');
+    } catch (error) {
+      setUpdateBusy(false);
+      setUpdateNotice(error instanceof Error ? error.message : 'Q Cafe could not install the update.');
+    }
   }
 
   const tabs: { id: TabId; label: string; icon: typeof Store }[] = [
@@ -781,6 +815,26 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                     <p>
                       Every local restaurant order, booking, and inventory adjustment includes unique <code className="text-xs">sync_id</code> and version timestamps. The API provides transactional resilience for standalone counter execution.
                     </p>
+                  </div>
+
+                  <div className="rounded-xl border border-border bg-card p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <h3 className="text-sm font-semibold">Q Cafe updates</h3>
+                        <p className="mt-1 text-xs text-muted-foreground">Checks the verified stable release on GitHub before installation.</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button type="button" variant="outline" size="sm" disabled={updateBusy} onClick={() => void checkForUpdate()} className="cursor-pointer gap-1.5">
+                          <RefreshCw size={14} className={updateBusy ? 'animate-spin' : ''} />
+                          Check for updates
+                        </Button>
+                        {availableUpdate && <Button type="button" size="sm" disabled={updateBusy} onClick={() => void installUpdate()} className="cursor-pointer gap-1.5">
+                          <Download size={14} />
+                          Install update
+                        </Button>}
+                      </div>
+                    </div>
+                    {updateNotice && <p className="mt-3 text-xs text-muted-foreground">{updateNotice}</p>}
                   </div>
 
                   <div className="pt-2">

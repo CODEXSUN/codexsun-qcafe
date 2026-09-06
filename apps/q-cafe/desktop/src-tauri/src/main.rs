@@ -151,14 +151,14 @@ fn backup_database(node: &Path, api_root: &Path, database_path: &Path, backup_di
     Ok(())
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct UpdateAsset {
     url: String,
     sha256: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct UpdateManifest {
     version: String,
@@ -218,17 +218,34 @@ fn download_verified_installer(update: &UpdateManifest) -> Result<PathBuf, Strin
     Ok(installer)
 }
 
+fn launch_verified_installer(installer: &Path) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    let result = Command::new(installer).arg("/S").creation_flags(0x08000000).spawn();
+    #[cfg(not(target_os = "windows"))]
+    let result = Command::new(installer).spawn();
+    result.map(|_| ()).map_err(|_| "The verified installer could not start.".to_string())
+}
+
+#[tauri::command]
+fn qcafe_check_for_update() -> Result<Option<UpdateManifest>, String> {
+    check_for_update()
+}
+
+#[tauri::command]
+fn qcafe_install_update() -> Result<(), String> {
+    let update = check_for_update()?.ok_or_else(|| "Q Cafe is already up to date.".to_string())?;
+    let installer = download_verified_installer(&update)?;
+    launch_verified_installer(&installer)?;
+    std::process::exit(0);
+}
+
 fn notify_update_if_available() {
     let Ok(Some(update)) = check_for_update() else { return; };
     let message = format!("Q Cafe {} is available. {}\n\nDownload and install it now?", update.version, update.notes);
     if MessageDialog::new().set_level(MessageLevel::Info).set_title("Q Cafe update available").set_description(&message).set_buttons(MessageButtons::YesNo).show() != MessageDialogResult::Yes { return; }
     match download_verified_installer(&update) {
         Ok(installer) => {
-            #[cfg(target_os = "windows")]
-            let result = Command::new(&installer).arg("/S").creation_flags(0x08000000).spawn();
-            #[cfg(not(target_os = "windows"))]
-            let result = Command::new(&installer).spawn();
-            if result.is_ok() { std::process::exit(0); }
+            if launch_verified_installer(&installer).is_ok() { std::process::exit(0); }
             let _ = MessageDialog::new().set_level(MessageLevel::Error).set_title("Q Cafe update").set_description("The verified installer could not start.").show();
         }
         Err(error) => { let _ = MessageDialog::new().set_level(MessageLevel::Error).set_title("Q Cafe update").set_description(&error).show(); }
@@ -281,9 +298,56 @@ fn start_api(app: &AppHandle) -> Result<Child, String> {
     Ok(child)
 }
 
+fn replace_api(app: &AppHandle, process: &ApiProcess) -> Result<(), String> {
+    if let Some(mut child) = process.0.lock().map_err(|_| "Q Cafe API process lock failed.")?.take() {
+        let _ = child.kill();
+    }
+    let child = start_api(app)?;
+    *process.0.lock().map_err(|_| "Q Cafe API process lock failed.")? = Some(child);
+    Ok(())
+}
+
+#[tauri::command]
+fn qcafe_select_data_directory(app: AppHandle, process: tauri::State<'_, ApiProcess>) -> Result<String, String> {
+    let settings_dir = application_settings_dir(&app);
+    let data_directory = choose_data_directory()?;
+    validate_data_directory(&data_directory)?;
+    let settings = StorageSettings {
+        backup_directory: data_directory.join("backups"),
+        data_directory: data_directory.clone(),
+        last_backup_date: None,
+        schema_version: 1,
+    };
+    fs::create_dir_all(&settings.backup_directory).map_err(|error| error.to_string())?;
+    save_storage_settings(&settings_dir, &settings)?;
+    replace_api(&app, &process)?;
+    Ok(data_directory.join("q-cafe.sqlite").display().to_string())
+}
+
+#[tauri::command]
+fn qcafe_clear_first_time_data(app: AppHandle, process: tauri::State<'_, ApiProcess>) -> Result<bool, String> {
+    if MessageDialog::new().set_level(MessageLevel::Warning).set_title("Start with empty Q Cafe data").set_description("This removes the current local database. Existing backups are kept. Continue?").set_buttons(MessageButtons::YesNo).show() != MessageDialogResult::Yes {
+        return Ok(false);
+    }
+    let settings_dir = application_settings_dir(&app);
+    let mut settings = load_or_configure_storage(&settings_dir)?;
+    if let Some(mut child) = process.0.lock().map_err(|_| "Q Cafe API process lock failed.")?.take() {
+        let _ = child.kill();
+    }
+    let database = settings.data_directory.join("q-cafe.sqlite");
+    for suffix in ["", "-wal", "-shm"] {
+        let _ = fs::remove_file(format!("{}{}", database.display(), suffix));
+    }
+    settings.last_backup_date = None;
+    save_storage_settings(&settings_dir, &settings)?;
+    replace_api(&app, &process)?;
+    Ok(true)
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(ApiProcess(Mutex::new(None)))
+        .invoke_handler(tauri::generate_handler![qcafe_check_for_update, qcafe_install_update, qcafe_select_data_directory, qcafe_clear_first_time_data])
         .setup(|app| {
             if cfg!(debug_assertions) {
                 return Ok(());

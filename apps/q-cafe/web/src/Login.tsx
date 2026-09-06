@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Coffee, UserRound, Lock, KeyRound } from 'lucide-react';
+import { Coffee, UserRound, Lock, KeyRound, Database, RotateCcw } from 'lucide-react';
 import { Button } from '@codexsun/ui/components/ui/button';
 import {
   InterfaceTopologyDrawer,
@@ -26,6 +26,8 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [shake, setShake] = useState(false);
+  const [setupBusy, setSetupBusy] = useState(false);
+  const [version, setVersion] = useState('1.0.6');
 
   const ref0 = useRef<HTMLInputElement>(null);
   const ref1 = useRef<HTMLInputElement>(null);
@@ -38,6 +40,26 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
       inputRefs[0].current?.focus();
     }
   }, [authMode]);
+
+  useEffect(() => {
+    if (!('__TAURI_INTERNALS__' in window)) return;
+    void import('@tauri-apps/api/app').then(({ getVersion }) => getVersion()).then(setVersion).catch(() => undefined);
+  }, []);
+
+  async function runFirstTimeAction(command: 'qcafe_select_data_directory' | 'qcafe_clear_first_time_data') {
+    if (!('__TAURI_INTERNALS__' in window)) return;
+    setSetupBusy(true);
+    setError('');
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const changed = await invoke<boolean>(command);
+      if (changed !== false) window.location.reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Q Cafe setup could not be changed.');
+    } finally {
+      setSetupBusy(false);
+    }
+  }
 
   async function submitPin(pinString: string) {
     if (pinString.length !== 4 || busy) return;
@@ -262,6 +284,10 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
 
             {/* Switch to username login text */}
             <ItoRegion id="q1.4" topology={topology} className="pt-2 text-center border-t border-border/60">
+              {authMode === 'setup' && <div className="mb-3 flex justify-center gap-2">
+                <Button type="button" variant="outline" size="sm" disabled={setupBusy} onClick={() => void runFirstTimeAction('qcafe_select_data_directory')} className="cursor-pointer gap-1.5"><Database size={14}/>Select database</Button>
+                <Button type="button" variant="outline" size="sm" disabled={setupBusy} onClick={() => void runFirstTimeAction('qcafe_clear_first_time_data')} className="cursor-pointer gap-1.5"><RotateCcw size={14}/>Clear data</Button>
+              </div>}
               <button
                 type="button"
                 onClick={() => { if (authMode === 'setup') return; setError(''); setAuthMode('username'); }}
@@ -356,6 +382,8 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
           </form>
         )}
       </div>
+
+      <p className="fixed bottom-4 right-5 text-xs text-gray-500">v{version}</p>
 
       {showItoIcon && <TopologyInspectionControl topology={topology} />}
       {showItoIcon && <InterfaceTopologyDrawer topology={topology} />}
