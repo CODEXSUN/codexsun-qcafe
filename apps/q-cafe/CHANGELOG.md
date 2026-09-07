@@ -1,5 +1,11 @@
 # Q Cafe changelog
 
+## 1.1.5 - 2026-09-07
+
+### Open Windows desktop maximized
+
+- Q Cafe now opens its Windows desktop workspace maximized by default while retaining the standard title bar and taskbar access.
+
 ## 1.1.4 - 2026-09-07
 
 ### Clear thermal receipts and empty POS startup
@@ -11,7 +17,7 @@
 
 ### Single Q Cafe version source
 
-- Q Cafe now uses apps/q-cafe/version.json as the single source for its API, web, desktop, updater, installer, and changelog version.
+- Q Cafe now opens its Windows desktop workspace maximized by default while retaining the standard title bar and taskbar access.
 
 ## 1.0.8 - 2026-09-06
 
