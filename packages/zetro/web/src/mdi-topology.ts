@@ -11,8 +11,10 @@ const zetroTopology: InterfaceTopologySection[] = [
   { id: "z2.2", technicalName: "zetro.sideCar.railToggle", name: "Side car rail toggle", scope: "Zetro", description: "Collapse or expand the companion panel." },
   { id: "z3", technicalName: "zetro.header.container", name: "Zetro header", scope: "Zetro", description: "Agent identity and workspace title." },
   { id: "z3.1", technicalName: "zetro.header.conversationTabs", name: "Parallel conversation tabs", scope: "Zetro", description: "Switch among open chats while their agent responses continue in parallel." },
+  { id: "z3.2", technicalName: "zetro.header.honeyVoiceAssistant", name: "Honey voice assistant", scope: "Zetro", description: "Use the Honey mascot to start voice typing and control spoken Zetro replies." },
   { id: "z4", technicalName: "zetro.history.container", name: "Response history", scope: "Zetro", description: "Welcome state and prompt-response exchanges." },
   { id: "z4.1", technicalName: "zetro.history.welcomeAndExchanges", name: "Welcome and response exchanges", scope: "Zetro", description: "Initial welcome or loaded prompt-response pairs." },
+  { id: "z4.2", technicalName: "zetro.history.honeyVoiceCompanion", name: "Honey voice companion", scope: "Zetro", description: "Show Honey and start a voice-first Zetro conversation." },
   { id: "z5", technicalName: "zetro.composer.form", name: "Prompt composer", scope: "Zetro", description: "Write and submit a prompt." },
   { id: "z5.1", technicalName: "zetro.composer.promptInput", name: "Prompt input", scope: "Zetro", description: "Enter a prompt for Zetro." },
   { id: "z5.2", technicalName: "zetro.composer.requestStatus", name: "Request status", scope: "Zetro", description: "Current request and provider status." },
@@ -22,6 +24,8 @@ const zetroTopology: InterfaceTopologySection[] = [
   { id: "z4.4", technicalName: "zetro.chat.taskHandoff", name: "Task handoff controls", scope: "Zetro chat", description: "Review a prompt and discussion, send approved work to the AI Task System, and inspect returned evidence and metrics." },
   { id: "z5.6", technicalName: "zetro.composer.orchestration", name: "Orchestration control", scope: "Zetro", description: "Select Sequential or LangGraph execution and control approval gates from Agent flow." },
   { id: "z5.7", technicalName: "zetro.composer.steeredQueue", name: "Steered message queue", scope: "Zetro", description: "Hold follow-up messages until the operator selects the next message to send." },
+  { id: "z5.8", technicalName: "zetro.composer.voiceTyping", name: "Voice typing", scope: "Zetro", description: "Turn speech into a draft in the Zetro prompt composer." },
+  { id: "z5.9", technicalName: "zetro.composer.honeyInputAssistant", name: "Honey input assistant", scope: "Zetro", description: "Help the focused non-sensitive text field with voice dictation and reviewed AI results." },
 ];
 
 export function zetroPageTopology(_page: string): InterfaceTopologySection[] {

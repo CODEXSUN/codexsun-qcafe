@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { ConversationSideCar } from "./ConversationSideCar.js";
 import { DEFAULT_PROJECTS, formatShortTime, groupExchangesByDate, loadConversations, loadProjects, saveConversations, saveProjects, type Conversation, type Exchange, type Project } from "./conversations.js";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { ArrowUp, Archive, Bot, Boxes, Calendar, Check, CheckSquare, Copy, Cpu, Folder, FolderKanban, Lightbulb, Mail, MessageSquare, MoreHorizontal, Pencil, Pin, RotateCcw, Share2, SlidersHorizontal, Sparkles, ThumbsDown, ThumbsUp, Trash2 } from "lucide-react";
+import { ArrowUp, Archive, Bot, Boxes, Calendar, Check, CheckSquare, Copy, Cpu, Folder, FolderKanban, Lightbulb, Mail, MessageSquare, Mic, MoreHorizontal, Pencil, Pin, RotateCcw, Share2, SlidersHorizontal, Sparkles, Square, ThumbsDown, ThumbsUp, Trash2, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@codexsun/ui/components/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@codexsun/ui/components/ui/dialog";
 import { Input } from "@codexsun/ui/components/ui/input";
@@ -27,6 +27,9 @@ import type { ProviderId } from "./model-provider-api.js";
 import { ConversationTabs } from "./ConversationTabs.js";
 import { useConversationValue } from "./useConversationValue.js";
 import { zetroNotifications } from "./notifications.js";
+import { HoneyMascot } from "./components/HoneyMascot.js";
+import { HoneyInputAssistant } from "./components/HoneyInputAssistant.js";
+import { useZetroVoiceAssistant } from "./useZetroVoiceAssistant.js";
 
 export const ZETRO_MODELS = [
   { id: "codex-specialist", name: "Codex Specialist", badge: "Docker · Sandbox", desc: "Isolated specialist container with code execution tools." },
@@ -101,6 +104,16 @@ function streamText(
   };
 }
 
+async function readConnectionHealth() {
+  if (isDesktopZetro()) {
+    const status = await desktopZetroStatus();
+    const connected = status.status === "ok" && status.agent === "ready";
+    return { connected, detail: connected ? "Model and approved workspace tools are ready." : status.detail || "Model or approved workspace tools are offline." };
+  }
+  const response = await platformFetch(`${import.meta.env.VITE_ZETRO_API_URL ?? ""}/health`, { signal: AbortSignal.timeout(2500) });
+  return { connected: response.ok, detail: response.ok ? "Zetro service is ready." : "Zetro service is unavailable." };
+}
+
 export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTopologyAdapter; sideCarTarget?: HTMLElement | null }) {
   const [conversations, setConversations] = useState<Conversation[]>(() => { try { return loadConversations(localStorage); } catch { return []; } });
   const [projects, setProjects] = useState<Project[]>(() => { try { return loadProjects(localStorage); } catch { return DEFAULT_PROJECTS; } });
@@ -118,7 +131,10 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
     multimodal: true,
     webTools: false,
   });
-  const [connected, setConnected] = useState(true);
+  const [connected, setConnected] = useState(false);
+  const [connectionDetail, setConnectionDetail] = useState("Checking Zetro runtime and workspace tools.");
+  const [checkingConnection, setCheckingConnection] = useState(false);
+  const voice = useZetroVoiceAssistant();
   const attachmentState = useConversationValue(activeId, emptyAttachments);
   const attachments = attachmentState.value;
   const setAttachments = attachmentState.setCurrent;
@@ -225,16 +241,20 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
   useEffect(() => {
     let active = true;
     async function checkHealth() {
+      if (active) setCheckingConnection(true);
       try {
-        if (isDesktopZetro()) {
-          const status = await desktopZetroStatus();
-          if (active) setConnected(status.status === "ok" && status.agent === "ready");
-          return;
+        const status = await readConnectionHealth();
+        if (active) {
+          setConnected(status.connected);
+          setConnectionDetail(status.detail);
         }
-        const res = await platformFetch(`${import.meta.env.VITE_ZETRO_API_URL ?? ""}/health`, { signal: AbortSignal.timeout(2500) });
-        if (active) setConnected(res.ok);
       } catch {
-        if (active) setConnected(false);
+        if (active) {
+          setConnected(false);
+          setConnectionDetail("Zetro health check failed.");
+        }
+      } finally {
+        if (active) setCheckingConnection(false);
       }
     }
     void checkHealth();
@@ -522,9 +542,18 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
 
   async function send(event: FormEvent) {
     event.preventDefault();
-    if (attachmentBusy || (!prompt.trim() && !attachments.length)) return;
-    const submitted = prompt.trim() || "Process attached files";
-    const submittedAttachments = [...attachments];
+    await submitMessage(prompt, attachments);
+  }
+
+  function submitVoiceMessage(transcript: string) {
+    setPrompt(transcript);
+    void submitMessage(transcript, []);
+  }
+
+  async function submitMessage(draft: string, attachedItems: PromptAttachment[]): Promise<string | undefined> {
+    if (attachmentBusy || (!draft.trim() && !attachedItems.length)) return undefined;
+    const submitted = draft.trim() || "Process attached files";
+    const submittedAttachments = [...attachedItems];
     const conversationId = activeId;
     const conversationExchanges = [...exchanges];
     const conversationProjectId = newConversationProjectId;
@@ -539,7 +568,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
       setAttachments([]);
       setError("");
       zetroNotifications.info("Message queued", { description: "Review the current response before sending it." });
-      return;
+      return undefined;
     }
 
     // Immediately remove from input area on submit
@@ -557,7 +586,7 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
       } finally {
         setTimeout(() => promptInputRef.current?.focus(), 0);
       }
-      return;
+      return undefined;
     }
 
     const pendingId = `turn-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -695,8 +724,10 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
       void saveStoredConversation(conversation).catch(() =>
         errorState.setFor(conversationId, zetroNotifications.error(null, "Unable to save chat history in Zetro."))
       );
+      if (voice.autoSpeak) voice.speak(result.message);
       pendingState.setFor(conversationId, null);
       if (activeIdRef.current !== conversationId) zetroNotifications.success("Zetro response ready", { description: conversation.title });
+      return result.message;
     } catch (cause) {
       clearTimeout(stageTimer1);
       clearTimeout(stageTimer2);
@@ -711,6 +742,13 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
       requestControllers.current.delete(conversationId);
       if (activeIdRef.current === conversationId) setTimeout(() => promptInputRef.current?.focus(), 0);
     }
+  }
+
+  async function askHoneyForField({ fieldLabel, fieldValue, instruction }: { fieldLabel: string; fieldValue: string; instruction: string }) {
+    return submitMessage(
+      `You are Honey, helping with a form field. Return only the final text that belongs in the field. Do not add markdown, labels, explanations, or quotation marks.\n\nField: ${fieldLabel}\nCurrent value: ${fieldValue || "(empty)"}\nRequest: ${instruction}`,
+      []
+    );
   }
 
   function prepareQueuedPrompt(id: string) {
@@ -758,21 +796,29 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
     <header {...topology?.regionProps("z3")} className="ito-region relative flex items-center justify-between gap-4 border-b border-border px-6 py-2">
       {topology?.marker("z3")}
       <div className="flex min-w-0 items-center gap-3.5">
-        <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <Bot className="size-4" />
-        </div>
+        <HoneyMascot listening={voice.listening} motion="running" speaking={voice.speaking} size="compact" />
         <div className="flex min-w-0 items-center gap-2.5 text-xs">
-          <h1 className="text-sm font-semibold leading-none text-foreground">Zetro</h1>
+          <h1 className="text-sm font-semibold leading-none text-foreground">Zetro with Honey</h1>
           <span className="text-muted-foreground/40">·</span>
           <button
             type="button"
-            onClick={() => setConnected((prev) => !prev)}
-            title={`Status: ${connected ? "Connected" : "Disconnected"} (click to toggle test)`}
+            onClick={async () => {
+              setCheckingConnection(true);
+              try {
+                const status = await readConnectionHealth();
+                setConnected(status.connected);
+                setConnectionDetail(status.detail);
+              } catch {
+                setConnected(false);
+                setConnectionDetail("Zetro health check failed.");
+              } finally { setCheckingConnection(false); }
+            }}
+            title={`${connectionDetail} Click to refresh.`}
             aria-label={`Connection status: ${connected ? "Connected" : "Disconnected"}`}
             className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground cursor-pointer hover:bg-muted"
           >
-            <span className={`size-2 rounded-full transition-colors ${connected ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]" : "bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.6)]"}`} />
-            <span>{connected ? "Connected" : "Disconnected"}</span>
+            <span className={`size-2 rounded-full transition-colors ${checkingConnection ? "animate-pulse bg-sky-500" : connected ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]" : "bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.6)]"}`} />
+            <span>{checkingConnection ? "Checking" : connected ? "Connected" : "Disconnected"}</span>
           </button>
           <span className="text-muted-foreground/40">·</span>
           <span className="truncate text-muted-foreground">
@@ -782,6 +828,32 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
       </div>
 
       <div className="flex shrink-0 items-center gap-2.5">
+        <MdiTopologyRegion id="z3.2" topology={topology} className="flex items-center gap-2.5">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!voice.supported || attachmentBusy}
+            className="gap-2 rounded-full border-border bg-background px-3 hover:bg-accent cursor-pointer"
+            title={voice.listening ? "Stop voice typing" : "Ask Honey by voice"}
+            onClick={() => void voice.toggleListening(submitVoiceMessage)}
+          >
+            <HoneyMascot listening={voice.listening} motion="running" speaking={voice.speaking} size="compact" />
+            {voice.listening ? "Listening" : "Talk to Honey"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            disabled={!voice.speechSupported}
+            className="size-8 rounded-full border-border bg-background hover:bg-accent cursor-pointer"
+            title={voice.autoSpeak ? "Turn off spoken replies" : "Turn on spoken replies"}
+            aria-label={voice.autoSpeak ? "Turn off spoken replies" : "Turn on spoken replies"}
+            onClick={() => voice.setAutoSpeak(!voice.autoSpeak)}
+          >
+            {voice.autoSpeak ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
+          </Button>
+        </MdiTopologyRegion>
         <Popover open={modelOpen} onOpenChange={setModelOpen}>
           <PopoverTrigger asChild>
             <Button
@@ -1121,7 +1193,21 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
             )}
           </>
         ) : (
-          <div className="py-16 text-center"><h2 className="text-xl font-medium">What would you like to send?</h2><p className="mt-3 text-sm text-muted-foreground">Write a prompt to get a response from Zetro.</p></div>
+          <MdiTopologyRegion id="z4.2" topology={topology} className="py-12 text-center">
+            <HoneyMascot listening={voice.listening} motion="flying" speaking={voice.speaking} size="hero" />
+            <h2 className="mt-5 text-xl font-semibold">Honey is ready to talk</h2>
+            <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-muted-foreground">Speak naturally. Honey will turn your voice into a Zetro request and read the reply aloud.</p>
+            <Button
+              type="button"
+              className="mt-5 gap-2 rounded-full cursor-pointer"
+              disabled={!voice.supported || attachmentBusy}
+              onClick={() => void voice.toggleListening(submitVoiceMessage)}
+            >
+              {voice.listening ? <Square className="size-4" /> : <Mic className="size-4" />}
+              {voice.listening ? "Finish speaking" : "Start voice chat"}
+            </Button>
+            {!voice.supported ? <p className="mt-3 text-xs text-muted-foreground">Voice recognition is unavailable in this WebView. You can still type to Honey.</p> : null}
+          </MdiTopologyRegion>
         )}
         {sending && !pendingTurn && <article className="flex items-start gap-3 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300">
           <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary mt-0.5">
@@ -1174,8 +1260,16 @@ export function PromptWorkspace({ topology, sideCarTarget }: { topology?: MdiTop
           </div>
           <MdiTopologyRegion id="z5.3" topology={topology}><Button type="submit" aria-label={sending ? "Queue prompt for next steer" : "Send prompt"} title={sending ? "Queue prompt for next steer" : "Send prompt"} disabled={attachmentBusy || (!prompt.trim() && !attachments.length)} className="rounded-full cursor-pointer" size="icon"><ArrowUp className="size-4" /></Button></MdiTopologyRegion>
         </div>
+        {voice.listening || voice.transcript || voice.error ? (
+          <p className={`mt-2 text-xs ${voice.error ? "text-destructive" : "text-muted-foreground"}`} role={voice.error ? "alert" : "status"}>
+            {voice.error || (voice.listening ? voice.transcript || "Honey is listening…" : `Honey sent: ${voice.transcript}`)}
+          </p>
+        ) : null}
         {error && <MdiTopologyRegion id="z5.4" topology={topology}><p role="alert" className="mt-3 text-sm text-destructive">{error}</p></MdiTopologyRegion>}
       </form>
+    </MdiTopologyRegion>
+    <MdiTopologyRegion id="z5.9" topology={topology}>
+      <HoneyInputAssistant voice={voice} onAskHoney={askHoneyForField} />
     </MdiTopologyRegion>
 
     <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>

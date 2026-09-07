@@ -4,5 +4,49 @@
 @import "@codexsun/devkit-ito/styles.css";
 @source "../../../ui/src";
 @source "../../../ui/desk/src";
+
+.honey-mascot {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.honey-mascot__sprite {
+  position: absolute;
+  inset: 0;
+  display: block;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 4px 5px rgb(91 62 12 / 20%));
+}
+
+.honey-mascot--running {
+  animation: honey-running-bob 760ms ease-in-out infinite;
+}
+
+.honey-mascot--flying {
+  animation: honey-flying 1.6s ease-in-out infinite;
+}
+
+.honey-mascot--active {
+  animation-duration: 480ms;
+}
+
+@keyframes honey-running-bob {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-3px) rotate(-2deg); }
+}
+
+@keyframes honey-flying {
+  0%, 100% { transform: translate3d(-5px, 2px, 0) rotate(-3deg); }
+  50% { transform: translate3d(7px, -6px, 0) rotate(3deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .honey-mascot--running,
+  .honey-mascot--flying,
+  .honey-mascot--active { animation: none; }
+}
 @custom-variant dark (&:is(.dark *));
 html, body, #root { height: 100%; margin: 0; }
