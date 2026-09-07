@@ -70,44 +70,14 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
   // Tabs state
   const [tabs, setTabs] = useState<OrderTab[]>(() => {
     const defaultTable = loadSettings().defaultServiceType === 'Takeaway' ? 'Parcel' : 'T01';
-    return [
-      {
-        id: 'tab-1',
-        name: 'Order 1',
-        tableName: defaultTable,
-        chair: '1',
-        lines: [
-          {
-            key: 'init-1',
-            menuId: 2,
-            code: 'ITM-002',
-            name: 'Cappuccino',
-            quantity: 1,
-            price: 14000,
-            chair: 4,
-          },
-          {
-            key: 'init-2',
-            menuId: 2,
-            code: 'ITM-002',
-            name: 'Cappuccino',
-            quantity: 1,
-            price: 14000,
-            chair: 4,
-          },
-          {
-            key: 'init-3',
-            menuId: 4,
-            code: 'ITM-004',
-            name: 'Masala chai',
-            quantity: 1,
-            price: 6000,
-            chair: 4,
-          },
-        ],
-        gstApplied: false,
-      },
-    ];
+    return [{
+      id: 'tab-1',
+      name: 'Order 1',
+      tableName: defaultTable,
+      chair: '1',
+      lines: [],
+      gstApplied: false,
+    }];
   });
   const [activeTabId, setActiveTabId] = useState('tab-1');
 
@@ -130,19 +100,11 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
   const [showPaymentCollector, setShowPaymentCollector] = useState(false);
 
   // Section 4: Manual entry state (synchronized with selected product card)
-  const [selectedItem, setSelectedItem] = useState<CustomMenuItem | null>(() => {
-    const first =
-      getMergedMenu(data.menu).find((m) => m.name.toLowerCase() === 'cappuccino') ??
-      getMergedMenu(data.menu)[0] ??
-      null;
-    return first;
-  });
+  const [selectedItem, setSelectedItem] = useState<CustomMenuItem | null>(null);
   const [bottomQuantity, setBottomQuantity] = useState<string>('1');
-  const [bottomCode, setBottomCode] = useState<string>(() => selectedItem?.code ?? 'ITM-001');
-  const [bottomName, setBottomName] = useState<string>(() => selectedItem?.name ?? 'Cappuccino');
-  const [bottomRate, setBottomRate] = useState<string>(() =>
-    selectedItem ? formatRate(selectedItem.price) : '140.00'
-  );
+  const [bottomCode, setBottomCode] = useState<string>('');
+  const [bottomName, setBottomName] = useState<string>('');
+  const [bottomRate, setBottomRate] = useState<string>('');
 
   // Listeners for updates from Settings and Masters
   useEffect(() => {
@@ -310,8 +272,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
 
   useEffect(() => {
     requestAnimationFrame(() => {
-      codeInputRef.current?.focus();
-      codeInputRef.current?.select();
+      searchInputRef.current?.focus();
     });
   }, []);
 

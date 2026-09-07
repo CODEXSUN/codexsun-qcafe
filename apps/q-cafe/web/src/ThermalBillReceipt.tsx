@@ -128,27 +128,27 @@ export function ThermalBillReceipt({
         padding: '3mm 2mm',
         backgroundColor: '#ffffff',
         color: '#000000',
-        fontSize: '11px',
+        fontSize: '11.5px',
         boxSizing: 'border-box',
       }}
     >
       {/* Hotel / Restaurant Header */}
       <div className="text-center space-y-0.5 pb-1">
-        <h1 className="text-[17px] font-black uppercase tracking-wider leading-none text-black">
+        <h1 className="text-[18px] font-black uppercase tracking-wider leading-none text-black">
           {settings.restaurantName || 'Q CAFE'}
         </h1>
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-black">
+        <p className="text-[10.5px] font-semibold uppercase tracking-wide text-black">
           {settings.receiptHeader || 'Artisanal Coffee & Kitchen'}
         </p>
-        <p className="text-[9px] text-black leading-tight">
+        <p className="text-[10px] text-black leading-tight">
           {settings.address || '12/4 North Boulevard, Anna Nagar, Chennai - 600040'}
         </p>
-        <p className="text-[9px] text-black">
+        <p className="text-[10px] text-black">
           Ph: {settings.contactNumber || '+91 98765 43210'} | {settings.branchName || 'Main Floor'}
         </p>
-        <div className="pt-0.5 space-y-0.5 text-[9px] font-semibold text-black">
+        <div className="pt-0.5 space-y-0.5 text-[10px] font-semibold text-black">
           <p>GSTIN: {settings.gstin || '33AAAAA0000A1Z5'}</p>
-          <p className="font-normal text-[8.5px]">FSSAI Lic: {settings.fssai || '12423001000456'}</p>
+          <p className="font-normal text-[9.5px]">FSSAI Lic: {settings.fssai || '12423001000456'}</p>
         </div>
       </div>
 
@@ -158,7 +158,7 @@ export function ThermalBillReceipt({
       </div>
 
       {/* Order Meta Info */}
-      <div className="grid grid-cols-2 text-[9.5px] gap-x-2 gap-y-0.5 py-0.5 text-black">
+      <div className="grid grid-cols-2 text-[10px] gap-x-2 gap-y-0.5 py-0.5 text-black">
         <div>
           <span className="font-bold">Bill No:</span> {generatedBillNo}
         </div>
@@ -177,7 +177,7 @@ export function ThermalBillReceipt({
       </div>
 
       {/* Items Table Header */}
-      <div className="border-t border-b border-dashed border-black py-1 my-1 text-[10px] font-bold uppercase text-black">
+      <div className="border-t border-b border-dashed border-black py-1 my-1 text-[10.5px] font-bold uppercase text-black">
         <div className="flex items-center">
           <span className="flex-1">Item Description</span>
           <span className="w-8 text-right">Qty</span>
@@ -189,7 +189,7 @@ export function ThermalBillReceipt({
       {/* Items List */}
       <div className="divide-y divide-dashed divide-black/30 py-0.5">
         {resolvedLines.map((line) => (
-          <div key={line.key} className="py-1 text-[10.5px] text-black">
+          <div key={line.key} className="py-1 text-[11px] text-black">
             <div className="flex items-start justify-between">
               <div className="flex-1 pr-1 font-semibold leading-tight">
                 <span>{line.name}</span>
@@ -203,18 +203,18 @@ export function ThermalBillReceipt({
           </div>
         ))}
         {resolvedLines.length === 0 && (
-          <div className="py-3 text-center text-[10px] italic text-black">No items in bill</div>
+          <div className="py-3 text-center text-[10.5px] italic text-black">No items in bill</div>
         )}
       </div>
 
       {/* Summary Counts */}
-      <div className="border-t border-dashed border-black pt-1 mt-1 text-[9.5px] flex justify-between text-black font-semibold">
+      <div className="border-t border-dashed border-black pt-1 mt-1 text-[10px] flex justify-between text-black font-semibold">
         <span>Total Items: {resolvedLines.length}</span>
         <span>Total Qty: {resolvedTotalQuantity}</span>
       </div>
 
       {/* Financial Breakdown */}
-      <div className="border-t border-dashed border-black pt-1 mt-1 space-y-0.5 text-[10px] text-black">
+      <div className="border-t border-dashed border-black pt-1 mt-1 space-y-0.5 text-[10.5px] text-black">
         <div className="flex justify-between">
           <span>Sub Total:</span>
           <span className="font-mono">₹{(resolvedSubtotal / 100).toFixed(2)}</span>
@@ -222,11 +222,11 @@ export function ThermalBillReceipt({
 
         {resolvedGstApplied && (
           <>
-            <div className="flex justify-between text-[9.5px]">
+            <div className="flex justify-between text-[10px]">
               <span>CGST @ 2.5%:</span>
               <span className="font-mono">₹{(cgst / 100).toFixed(2)}</span>
             </div>
-            <div className="flex justify-between text-[9.5px]">
+            <div className="flex justify-between text-[10px]">
               <span>SGST @ 2.5%:</span>
               <span className="font-mono">₹{(sgst / 100).toFixed(2)}</span>
             </div>
@@ -243,7 +243,7 @@ export function ThermalBillReceipt({
       {/* Bill Footer & Payment Info */}
       <div className="text-center pt-1.5 space-y-1 text-black">
         {resolvedPayment ? (
-          <div className="border border-dashed border-black py-1 px-1.5 text-left text-[9px] space-y-0.5 my-1">
+          <div className="border border-dashed border-black py-1 px-1.5 text-left text-[10px] space-y-0.5 my-1">
             <div className="flex justify-between font-bold">
               <span>SETTLED VIA:</span>
               <span className="uppercase">{resolvedPayment.mode}</span>
@@ -271,26 +271,26 @@ export function ThermalBillReceipt({
                 </div>
               </>
             )}
-            <div className="flex justify-between text-[8px] text-black/70 pt-0.5 border-t border-dotted border-black/50">
+            <div className="flex justify-between text-[9px] text-black/70 pt-0.5 border-t border-dotted border-black/50">
               <span>Time:</span>
               <span>{resolvedPayment.timestamp}</span>
             </div>
           </div>
         ) : (
-          <p className="text-[8.5px] uppercase font-semibold text-black">
+          <p className="text-[9.5px] uppercase font-semibold text-black">
             Mode: Cash / UPI (Bill Generated)
           </p>
         )}
-        <p className="text-[9.5px] font-bold text-black leading-tight pt-0.5">
+        <p className="text-[10px] font-bold text-black leading-tight pt-0.5">
           {settings.receiptFooter || 'Thank you for dining with us! Please visit again.'}
         </p>
-        <p className="text-[8px] text-black/80">
+        <p className="text-[9px] text-black/80">
           GST included where applicable • Goods once sold cannot be returned
         </p>
-        <div className="text-[9px] font-mono tracking-widest pt-2 text-black">
+        <div className="text-[10px] font-mono tracking-widest pt-2 text-black">
           - - - - - - - - - - - - - - - - - - - - - - - -
         </div>
-        <div className="text-[8px] uppercase font-mono tracking-widest text-black pb-1">
+        <div className="text-[9px] uppercase font-mono tracking-widest text-black pb-1">
           [ TEAR HERE / THANK YOU ]
         </div>
       </div>

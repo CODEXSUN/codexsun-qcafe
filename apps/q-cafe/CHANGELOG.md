@@ -1,5 +1,12 @@
 # Q Cafe changelog
 
+## 1.1.4 - 2026-09-07
+
+### Clear thermal receipts and empty POS startup
+
+- Replaced the prefilled POS-1 demonstration order with an empty new order and focused the catalog search field at startup.
+- Improved 80mm thermal bill and settlement prints with a clear, consistent print font and slightly larger receipt text.
+
 ## 1.1.3 - 2026-09-07
 
 ### Single Q Cafe version source
