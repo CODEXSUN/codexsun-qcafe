@@ -18,7 +18,6 @@ if (lock.version !== rootVersion) failures.push(`package-lock.json uses ${lock.v
 if (lock.packages?.[""]?.version !== rootVersion) failures.push("The package-lock root version differs.");
 
 checkTauriDesktop("apps/platform/core/desktop/src-tauri", "codexsun-desktop");
-checkTauriDesktop("apps/q-cafe/desktop/src-tauri", "q-cafe-desktop");
 
 const changelog = readFileSync(resolve(ROOT, "assist", "documentation", "CHANGELOG.md"), "utf8");
 for (const expected of [
@@ -35,7 +34,7 @@ if (failures.length) {
   for (const failure of failures) console.error(`- ${failure}`);
   process.exit(1);
 }
-console.log(`Version check passed for ${rootVersion}.`);
+console.log(`CODEXSUN OS version check passed for ${rootVersion}.`);
 
 function readJson(file) {
   return JSON.parse(readFileSync(file, "utf8"));

@@ -44,7 +44,7 @@ export function findWorkspacePackageFiles(root) {
       if (existsSync(file)) files.add(file);
     }
   }
-  return [...files].sort();
+  return [...files].filter((file) => !relative(root, file).replaceAll("\\", "/").startsWith("apps/q-cafe/")).sort();
 }
 
 export function bumpPatch(version) {
@@ -89,7 +89,6 @@ function updatePackageLock(root, packageFiles, version) {
 
 function updateDesktopVersion(root, version) {
   updateTauriDesktop(resolve(root, "apps", "platform", "core", "desktop", "src-tauri"), "codexsun-desktop", version);
-  updateTauriDesktop(resolve(root, "apps", "q-cafe", "desktop", "src-tauri"), "q-cafe-desktop", version);
 }
 
 function updateTauriDesktop(desktopRoot, packageName, version) {

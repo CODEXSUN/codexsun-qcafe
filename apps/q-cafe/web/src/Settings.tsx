@@ -126,7 +126,7 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
   const [verificationResult, setVerificationResult] = useState<StorageVerificationResult | null>(null);
   const [demoInstallNotice, setDemoInstallNotice] = useState('');
   const [availableUpdate, setAvailableUpdate] = useState<{ version: string; notes: string } | null>(null);
-  const [currentVersion, setCurrentVersion] = useState('1.1.2');
+  const [currentVersion, setCurrentVersion] = useState(__QCAFE_VERSION__);
   const [updateState, setUpdateState] = useState<'idle' | 'checking' | 'current' | 'available' | 'error'>('idle');
   const [updateBusy, setUpdateBusy] = useState(false);
   const [updateNotice, setUpdateNotice] = useState('');

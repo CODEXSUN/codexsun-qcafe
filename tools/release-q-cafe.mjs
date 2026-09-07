@@ -5,7 +5,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
-const version = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8")).version;
+const version = JSON.parse(readFileSync(resolve(root, "apps", "q-cafe", "version.json"), "utf8")).version;
 const tag = `qcafe-${version}`;
 const release = resolve(root, "apps", "q-cafe", "desktop", "release");
 const assets = [
@@ -18,6 +18,7 @@ const assets = [
 const publish = process.argv.includes("--publish");
 
 assertCleanSource();
+run("npm.cmd", ["run", "check:q-cafe:version"]);
 run("npm.cmd", ["run", "check"]);
 run("npm.cmd", ["run", "build:q-cafe:windows"]);
 for (const asset of assets) if (!existsSync(asset)) throw new Error(`Q Cafe release asset is missing: ${asset}`);

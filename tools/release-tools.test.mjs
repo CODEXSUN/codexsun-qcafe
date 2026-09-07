@@ -1,11 +1,17 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { formatChangelogCommitSubject, readLatestVersionedChangelogEntry } from "./changelog.mjs";
-import { bumpPatch } from "./version-bump.mjs";
+import { bumpPatch, findWorkspacePackageFiles } from "./version-bump.mjs";
 import { renderReviewBox } from "./github-helper.mjs";
 
 test("patch versions advance by one", () => {
   assert.equal(bumpPatch("0.1.0"), "0.1.1");
+});
+
+test("root versioning excludes the Q Cafe application", () => {
+  const root = new URL("..", import.meta.url).pathname.replace(/^\/(.:)/u, "$1");
+  const packages = findWorkspacePackageFiles(root).map((file) => file.replaceAll("\\", "/"));
+  assert.equal(packages.some((file) => file.includes("apps/q-cafe/")), false);
 });
 
 test("the Git subject follows the latest changelog entry", () => {

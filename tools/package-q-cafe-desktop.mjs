@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
-const version = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')).version;
+const version = JSON.parse(readFileSync(resolve(root, 'apps', 'q-cafe', 'version.json'), 'utf8')).version;
 const bundle = resolve(root, 'apps', 'q-cafe', 'desktop', 'src-tauri', 'target', 'release', 'bundle');
 const release = resolve(root, 'apps', 'q-cafe', 'desktop', 'release');
 

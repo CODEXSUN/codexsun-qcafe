@@ -68,7 +68,9 @@
     "zetro:knowledge:semantic": "docker compose -f packages/zetro/knowledge/docker/compose.json --profile semantic up -d",
     "zetro:knowledge:backup": "node tools/zetro-knowledge-backup.mjs backup",
     "zetro:knowledge:restore": "node tools/zetro-knowledge-backup.mjs restore",
-    "zetro:desk": "npm run desk -w @codexsun/zetro-local-runner -- --docker"
+    "zetro:desk": "npm run desk -w @codexsun/zetro-local-runner -- --docker",
+    "version:q-cafe": "node tools/q-cafe-version.mjs",
+    "check:q-cafe:version": "node tools/q-cafe-version.mjs --check"
   },
   "devDependencies": {
     "concurrently": "latest",

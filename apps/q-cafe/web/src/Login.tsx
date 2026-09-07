@@ -26,7 +26,7 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
   const [error, setError] = useState('');
   const [shake, setShake] = useState(false);
   const [setupBusy, setSetupBusy] = useState(false);
-  const [version, setVersion] = useState('1.0.6');
+  const [version, setVersion] = useState(__QCAFE_VERSION__);
 
   const ref0 = useRef<HTMLInputElement>(null);
   const ref1 = useRef<HTMLInputElement>(null);

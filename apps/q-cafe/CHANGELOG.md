@@ -1,5 +1,11 @@
 # Q Cafe changelog
 
+## 1.1.3 - 2026-09-07
+
+### Single Q Cafe version source
+
+- Q Cafe now uses apps/q-cafe/version.json as the single source for its API, web, desktop, updater, installer, and changelog version.
+
 ## 1.0.8 - 2026-09-06
 
 ### Windows installer process shutdown
