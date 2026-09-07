@@ -6,6 +6,7 @@ import { money, type MenuItem, type Snapshot } from './api';
 import { field } from './Workspaces';
 import { getMergedMenu, getMergedTables, type CustomMenuItem, type TableMasterConfig } from './mastersStore';
 import { ThermalBillReceipt } from './ThermalBillReceipt';
+import { outputReceipt } from './printReceipt';
 import { loadSettings, type CafeSettings } from './Settings';
 
 const tables = Array.from({ length: 12 }, (_, index) => `T${String(index + 1).padStart(2, '0')}`);
@@ -133,7 +134,7 @@ export function Pos({ data, busy, mutate, topology }: Props) {
       if (event.key !== 'F8') return;
       event.preventDefault();
       if (!lines.length) return;
-      window.print();
+      outputReceipt(cafeSettings, () => setShowReceiptPreview(true));
     };
     window.addEventListener('keydown', print);
     return () => window.removeEventListener('keydown', print);
@@ -581,7 +582,7 @@ export function Pos({ data, busy, mutate, topology }: Props) {
           <div className="flex items-center gap-2">
             <Button
               className="cursor-pointer gap-1.5"
-              onClick={() => setShowReceiptPreview(true)}
+              onClick={() => outputReceipt(cafeSettings, () => setShowReceiptPreview(true))}
               type="button"
               variant="outline"
               disabled={!lines.length}
@@ -592,7 +593,7 @@ export function Pos({ data, busy, mutate, topology }: Props) {
             </Button>
             <Button
               className="cursor-pointer"
-              onClick={() => window.print()}
+              onClick={() => outputReceipt(cafeSettings, () => setShowReceiptPreview(true))}
               type="button"
               variant="outline"
               disabled={!lines.length}

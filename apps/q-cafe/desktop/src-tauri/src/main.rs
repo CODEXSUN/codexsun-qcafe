@@ -112,6 +112,8 @@ fn prepare_api_runtime(data_dir: &PathBuf) -> Result<PathBuf, String> {
     write_api_file(&api_root, "migrations/003-sync-and-activity.sql", include_str!("../../../api/migrations/003-sync-and-activity.sql"))?;
     write_api_file(&api_root, "migrations/004-pos-billing.sql", include_str!("../../../api/migrations/004-pos-billing.sql"))?;
     write_api_file(&api_root, "migrations/005-staff-identity.sql", include_str!("../../../api/migrations/005-staff-identity.sql"))?;
+    write_api_file(&api_root, "migrations/006-customer-menu-catalog.sql", include_str!("../../../api/migrations/006-customer-menu-catalog.sql"))?;
+    write_api_file(&api_root, "migrations/007-numeric-menu-codes.sql", include_str!("../../../api/migrations/007-numeric-menu-codes.sql"))?;
     Ok(api_root)
 }
 

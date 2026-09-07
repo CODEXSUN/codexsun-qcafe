@@ -13,60 +13,72 @@ export type TableMasterConfig = {
   isActive: boolean;
 };
 
-export const DEMO_10_ITEMS = [
-  { code: 'ITM-001', name: 'Filter coffee', category: 'Hot Coffee', price: 4000, image: '/demo-images/filter-coffee.svg' },
-  { code: 'ITM-002', name: 'Cappuccino', category: 'Hot Coffee', price: 14000, image: '/demo-images/cappuccino.svg' },
-  { code: 'ITM-003', name: 'Iced latte', category: 'Cold Drinks', price: 16000, image: '/demo-images/iced-latte.svg' },
-  { code: 'ITM-004', name: 'Masala chai', category: 'Hot Tea', price: 6000, image: '/demo-images/masala-chai.svg' },
-  { code: 'ITM-005', name: 'Paneer sandwich', category: 'Snacks', price: 18000, image: '/demo-images/paneer-sandwich.svg' },
-  { code: 'ITM-006', name: 'Pesto pasta', category: 'Snacks', price: 26000, image: '/demo-images/pesto-pasta.svg' },
-  { code: 'ITM-007', name: 'Butter croissant', category: 'Dessert', price: 12000, image: '/demo-images/croissant.svg' },
-  { code: 'ITM-008', name: 'Chocolate brownie', category: 'Dessert', price: 15000, image: '/demo-images/brownie.svg' },
-  { code: 'ITM-009', name: 'Veg burger', category: 'Snacks', price: 19000, image: '/demo-images/burger.svg' },
-  { code: 'ITM-010', name: 'French fries', category: 'Snacks', price: 12000, image: '/demo-images/french-fries.svg' },
+export const DEMO_10_ITEMS: Array<CustomMenuItem & { image: string }> = [
+  { id: 1, code: '01', name: 'இட்லி (2)', category: 'இட்லி / தோசை வகைகள்', image: '', price: 4000 },
+  { id: 2, code: '02', name: 'சப்பாத்தி (1)', category: 'இட்லி / தோசை வகைகள்', image: '', price: 3500 },
+  { id: 3, code: '03', name: 'குழி பணியாரம்', category: 'இட்லி / தோசை வகைகள்', image: '', price: 5000 },
+  { id: 4, code: '04', name: 'தோசை', category: 'இட்லி / தோசை வகைகள்', image: '', price: 3500 },
+  { id: 5, code: '05', name: 'ஊத்தாப்பம் பிளைன்', category: 'இட்லி / தோசை வகைகள்', image: '', price: 3500 },
+  { id: 6, code: '06', name: 'ரோஸ்ட்', category: 'இட்லி / தோசை வகைகள்', image: '', price: 5000 },
+  { id: 7, code: '07', name: 'நெய் தோசை', category: 'இட்லி / தோசை வகைகள்', image: '', price: 7000 },
+  { id: 8, code: '08', name: 'பட்டர் தோசை', category: 'இட்லி / தோசை வகைகள்', image: '', price: 7000 },
+  { id: 9, code: '09', name: 'பொடி தோசை', category: 'இட்லி / தோசை வகைகள்', image: '', price: 7000 },
+  { id: 10, code: '10', name: 'பூண்டு தோசை', category: 'இட்லி / தோசை வகைகள்', image: '', price: 7000 },
+  { id: 11, code: '11', name: 'அடை தோசை', category: 'இட்லி / தோசை வகைகள்', image: '', price: 7000 },
+  { id: 12, code: '12', name: 'கம்பு தோசை', category: 'இட்லி / தோசை வகைகள்', image: '', price: 7000 },
+  { id: 13, code: '13', name: 'சோள தோசை', category: 'இட்லி / தோசை வகைகள்', image: '', price: 7000 },
+  { id: 14, code: '14', name: 'வெங்காய தோசை', category: 'இட்லி / தோசை வகைகள்', image: '', price: 7000 },
+  { id: 15, code: '15', name: 'இஞ்சி புதினா தோசை', category: 'இட்லி / தோசை வகைகள்', image: '', price: 7000 },
+  { id: 16, code: '16', name: 'முட்டை தோசை', category: 'இட்லி / தோசை வகைகள்', image: '', price: 7000 },
+  { id: 17, code: '17', name: 'தக்காளி தோசை', category: 'சிறப்பு தோசைகள்', image: '', price: 7000 },
+  { id: 18, code: '18', name: 'நெய் பொடி தோசை', category: 'சிறப்பு தோசைகள்', image: '', price: 8000 },
+  { id: 19, code: '19', name: 'பட்டர் பொடி தோசை', category: 'சிறப்பு தோசைகள்', image: '', price: 8000 },
+  { id: 20, code: '20', name: 'காளான் தோசை', category: 'சிறப்பு தோசைகள்', image: '', price: 8000 },
+  { id: 21, code: '21', name: 'பிரண்டை தோசை', category: 'சிறப்பு தோசைகள்', image: '', price: 8000 },
+  { id: 22, code: '22', name: 'மிளகாய் ரோஸ்ட்', category: 'சிறப்பு தோசைகள்', image: '', price: 8000 },
+  { id: 23, code: '23', name: 'பன்னீர் தோசை', category: 'சிறப்பு தோசைகள்', image: '', price: 9000 },
+  { id: 24, code: '24', name: 'வெங்காய நெய் / பட்டர் / பொடி தோசை', category: 'சிறப்பு தோசைகள்', image: '', price: 9000 },
+  { id: 25, code: '25', name: 'அரிசியும் பருப்பு அடை', category: 'சிறப்பு தோசைகள்', image: '', price: 8000 },
+  { id: 26, code: '26', name: 'தக்காளி சேவை', category: 'சிறப்பு தோசைகள்', image: '', price: 8000 },
+  { id: 27, code: '27', name: 'ஆப்பாயில்', category: 'சிறப்பு தோசைகள்', image: '', price: 1500 },
+  { id: 28, code: '28', name: 'புல்லாயில்', category: 'சிறப்பு தோசைகள்', image: '', price: 1500 },
+  { id: 29, code: '29', name: 'ஆம்லெட்', category: 'சிறப்பு தோசைகள்', image: '', price: 2000 },
+  { id: 30, code: '30', name: 'முட்டை பொரியல்', category: 'சிறப்பு தோசைகள்', image: '', price: 3000 },
+  { id: 31, code: '31', name: 'கலக்கி', category: 'சிறப்பு தோசைகள்', image: '', price: 3000 },
+  { id: 32, code: '32', name: 'முட்டை சேவை', category: 'சேவை / கறி வகைகள்', image: '', price: 12000 },
+  { id: 33, code: '33', name: 'காளான் சேவை', category: 'சேவை / கறி வகைகள்', image: '', price: 16000 },
+  { id: 34, code: '34', name: 'பூண்டு சேவை', category: 'சேவை / கறி வகைகள்', image: '', price: 16000 },
+  { id: 35, code: '35', name: 'இஞ்சி புதினா சேவை', category: 'சேவை / கறி வகைகள்', image: '', price: 16000 },
+  { id: 36, code: '36', name: 'லாலிபாப் (1)', category: 'சேவை / கறி வகைகள்', image: '', price: 4500 },
+  { id: 37, code: '37', name: 'பள்ளிப்பாளையம் தோசை', category: 'சேவை / கறி வகைகள்', image: '', price: 16000 },
+  { id: 38, code: '38', name: 'பிச்சுப்போட்ட கறிதோசை', category: 'சேவை / கறி வகைகள்', image: '', price: 16000 },
+  { id: 39, code: '39', name: 'சிக்கன் கறி (எலும்பு) தோசை (எலும்பில்லாமல்)', category: 'சேவை / கறி வகைகள்', image: '', price: 16000 },
+  { id: 40, code: '40', name: 'பள்ளிப்பாளையம் (போன்லெஸ்)', category: 'சேவை / கறி வகைகள்', image: '', price: 16000 },
+  { id: 41, code: '41', name: 'பிச்சுப்போட்ட கறி (போன்லெஸ்)', category: 'சேவை / கறி வகைகள்', image: '', price: 16000 },
+  { id: 42, code: '42', name: 'சிக்கன் சேவை', category: 'சேவை / கறி வகைகள்', image: '', price: 22000 },
+  { id: 43, code: '43', name: 'பள்ளிப்பாளையம் சேவை', category: 'சேவை / கறி வகைகள்', image: '', price: 22000 },
+  { id: 44, code: '44', name: 'இளநீர் பாயாசம்', category: 'சேவை / கறி வகைகள்', image: '', price: 9000 },
+  { id: 45, code: '45', name: 'இட்லி', category: 'காலை உணவு & கறி', image: '', price: 1500 },
+  { id: 46, code: '46', name: 'இடியாப்பம்', category: 'காலை உணவு & கறி', image: '', price: 2500 },
+  { id: 47, code: '47', name: 'முட்டை தோசை', category: 'காலை உணவு & கறி', image: '', price: 5000 },
+  { id: 48, code: '48', name: 'நெய் தோசை', category: 'காலை உணவு & கறி', image: '', price: 5000 },
+  { id: 49, code: '49', name: 'ஈசல் தோசை', category: 'காலை உணவு & கறி', image: '', price: 5000 },
+  { id: 50, code: '50', name: 'இஞ்சி பூண்டு, முட்டை குழம்பு', category: 'காலை உணவு & கறி', image: '', price: 20000 },
+  { id: 51, code: '51', name: 'மட்டன் வறுவல்', category: 'காலை உணவு & கறி', image: '', price: 25000 },
+  { id: 52, code: '52', name: 'நாட்டுக்கோழி வறுவல்', category: 'காலை உணவு & கறி', image: '', price: 25000 },
+  { id: 53, code: '53', name: 'தனா கறி', category: 'காலை உணவு & கறி', image: '', price: 25000 },
+  { id: 54, code: '54', name: 'மீன் குழம்பு', category: 'காலை உணவு & கறி', image: '', price: 25000 },
+  { id: 55, code: '55', name: 'சுக்கா கறி', category: 'காலை உணவு & கறி', image: '', price: 25000 },
+  { id: 56, code: '56', name: 'ஈரல் வறுவல்', category: 'காலை உணவு & கறி', image: '', price: 25000 },
+  { id: 57, code: '57', name: 'சுடுகறி', category: 'காலை உணவு & கறி', image: '', price: 25000 },
+  { id: 58, code: '58', name: 'சிக்கன் கறி', category: 'காலை உணவு & கறி', image: '', price: 8000 },
+  { id: 59, code: '59', name: 'முட்டை', category: 'காலை உணவு & கறி', image: '', price: 1500 },
+  { id: 60, code: '60', name: 'இறால் குழம்பு', category: 'காலை உணவு & கறி', image: '', price: 9000 },
 ];
 
-export const DEFAULT_ITEM_IMAGES: Record<string, string> = {
-  'ITM-001': '/demo-images/filter-coffee.svg',
-  'ITM-002': '/demo-images/cappuccino.svg',
-  'ITM-003': '/demo-images/iced-latte.svg',
-  'ITM-004': '/demo-images/masala-chai.svg',
-  'ITM-005': '/demo-images/paneer-sandwich.svg',
-  'ITM-006': '/demo-images/pesto-pasta.svg',
-  'ITM-007': '/demo-images/croissant.svg',
-  'ITM-008': '/demo-images/brownie.svg',
-  'ITM-009': '/demo-images/burger.svg',
-  'ITM-010': '/demo-images/french-fries.svg',
-  'ITM-011': 'https://images.unsplash.com/photo-1534778101976-62847782c213?auto=format&fit=crop&w=300&q=80',
-  'ITM-012': 'https://images.unsplash.com/photo-1536256263959-770b48d82b0a?auto=format&fit=crop&w=300&q=80',
-  'ITM-013': 'https://images.unsplash.com/photo-1586985289688-ca3cf47d3e6e?auto=format&fit=crop&w=300&q=80',
-  'ITM-014': 'https://images.unsplash.com/photo-1528736235302-52922df5c122?auto=format&fit=crop&w=300&q=80',
-  'ITM-015': '/demo-images/burger.svg',
-  'ITM-016': '/demo-images/french-fries.svg',
-  'ITM-017': 'https://images.unsplash.com/photo-1619535860434-ba1d8fa12536?auto=format&fit=crop&w=300&q=80',
-  'ITM-018': 'https://images.unsplash.com/photo-1567234669003-dce7a7a88821?auto=format&fit=crop&w=300&q=80',
-  'ITM-019': 'https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?auto=format&fit=crop&w=300&q=80',
-};
+export const DEFAULT_ITEM_IMAGES: Record<string, string> = {};
 
-export const DEFAULT_PRESET_MENU: CustomMenuItem[] = [
-  { id: 1, code: 'ITM-001', name: 'Filter coffee', category: 'Hot Coffee', price: 4000, image: '/demo-images/filter-coffee.svg' },
-  { id: 2, code: 'ITM-002', name: 'Cappuccino', category: 'Hot Coffee', price: 14000, image: '/demo-images/cappuccino.svg' },
-  { id: 3, code: 'ITM-003', name: 'Iced latte', category: 'Cold Drinks', price: 16000, image: '/demo-images/iced-latte.svg' },
-  { id: 4, code: 'ITM-004', name: 'Masala chai', category: 'Hot Tea', price: 6000, image: '/demo-images/masala-chai.svg' },
-  { id: 5, code: 'ITM-005', name: 'Paneer sandwich', category: 'Snacks', price: 18000, image: '/demo-images/paneer-sandwich.svg' },
-  { id: 6, code: 'ITM-006', name: 'Pesto pasta', category: 'Snacks', price: 26000, image: '/demo-images/pesto-pasta.svg' },
-  { id: 7, code: 'ITM-007', name: 'Butter croissant', category: 'Dessert', price: 12000, image: '/demo-images/croissant.svg' },
-  { id: 8, code: 'ITM-008', name: 'Chocolate brownie', category: 'Dessert', price: 15000, image: '/demo-images/brownie.svg' },
-  { id: 9, code: 'ITM-009', name: 'Veg burger', category: 'Snacks', price: 19000, image: '/demo-images/burger.svg' },
-  { id: 10, code: 'ITM-010', name: 'French fries', category: 'Snacks', price: 12000, image: '/demo-images/french-fries.svg' },
-  { id: 11, code: 'ITM-011', name: 'Cafe mocha', category: 'Hot Coffee', price: 15000 },
-  { id: 12, code: 'ITM-012', name: 'Latte', category: 'Hot Coffee', price: 14000 },
-  { id: 13, code: 'ITM-013', name: 'Blueberry muffin', category: 'Dessert', price: 12000 },
-  { id: 14, code: 'ITM-014', name: 'Cheese sandwich', category: 'Snacks', price: 17000 },
-  { id: 17, code: 'ITM-017', name: 'Garlic bread', category: 'Snacks', price: 11000 },
-  { id: 18, code: 'ITM-018', name: 'Club sandwich', category: 'Snacks', price: 22000 },
-  { id: 19, code: 'ITM-019', name: 'Tiramisu', category: 'Dessert', price: 18000 },
-];
+export const DEFAULT_PRESET_MENU: CustomMenuItem[] = DEMO_10_ITEMS.map((item) => ({ ...item }));
 
 export const PRESET_FOOD_IMAGES = [
   { label: 'Filter Coffee', url: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=300&q=80' },
@@ -83,11 +95,26 @@ export const PRESET_FOOD_IMAGES = [
   { label: 'Cheesecake', url: 'https://images.unsplash.com/photo-1533134242443-d4fd215305ad?auto=format&fit=crop&w=300&q=80' },
 ];
 
+const CUSTOMER_CATALOG_REVISION = '2026-09-07-tamil-menu-numeric-codes';
+const CUSTOMER_CATALOG_KEY = 'q-cafe-customer-catalog-revision';
 const CUSTOM_MENU_KEY = 'q-cafe-custom-menu';
 const ITEM_IMAGES_KEY = 'q-cafe-item-images';
+const CATEGORY_RENAMES_KEY = 'q-cafe-category-renames';
 const TABLE_CONFIG_KEY = 'q-cafe-table-config';
 
+function resetLegacyCatalogStorage(): void {
+  try {
+    if (localStorage.getItem(CUSTOMER_CATALOG_KEY) === CUSTOMER_CATALOG_REVISION) return;
+    localStorage.removeItem(CUSTOM_MENU_KEY);
+    localStorage.removeItem(ITEM_IMAGES_KEY);
+    localStorage.setItem(CUSTOMER_CATALOG_KEY, CUSTOMER_CATALOG_REVISION);
+  } catch {
+    // Storage can be unavailable in restricted browser contexts.
+  }
+}
+
 export function getCustomMenuItems(): CustomMenuItem[] {
+  resetLegacyCatalogStorage();
   try {
     const raw = localStorage.getItem(CUSTOM_MENU_KEY);
     return raw ? JSON.parse(raw) : [];
@@ -105,9 +132,40 @@ export function getItemImages(): Record<string, string> {
   }
 }
 
+export function getCategoryRenames(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(CATEGORY_RENAMES_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function resolvedCategory(category: string, renames: Record<string, string>): string {
+  return renames[category] || category || 'Uncategorized';
+}
+
+export function renameMenuCategory(currentName: string, nextName: string): { success: boolean; error?: string } {
+  const current = currentName.trim();
+  const next = nextName.trim();
+  if (!current || !next) return { success: false, error: 'Category name is required.' };
+  if (current === next) return { success: true };
+  const renames = getCategoryRenames();
+  for (const [name, value] of Object.entries(renames)) {
+    if (value === current) renames[name] = next;
+  }
+  renames[current] = next;
+  if (!safeSetItem(CATEGORY_RENAMES_KEY, JSON.stringify(renames))) {
+    return { success: false, error: 'Category name could not be saved.' };
+  }
+  window.dispatchEvent(new CustomEvent('q-cafe-menu-updated'));
+  return { success: true };
+}
+
 export function getMergedMenu(apiMenu: MenuItem[] = []): CustomMenuItem[] {
   const customItems = getCustomMenuItems();
   const imageMap = getItemImages();
+  const categoryRenames = getCategoryRenames();
 
   // Create merged list starting with API items
   const itemMap = new Map<string, CustomMenuItem>();
@@ -123,10 +181,10 @@ export function getMergedMenu(apiMenu: MenuItem[] = []): CustomMenuItem[] {
     });
   }
 
-  // Supplement with preset items from design reference if not present in API items
-  for (const preset of DEFAULT_PRESET_MENU) {
-    const code = preset.code.trim().toUpperCase();
-    if (!itemMap.has(code)) {
+  // Use the packaged customer catalog only while the local API is unavailable.
+  if (itemMap.size === 0) {
+    for (const preset of DEFAULT_PRESET_MENU) {
+      const code = preset.code.trim().toUpperCase();
       itemMap.set(code, {
         ...preset,
         image: imageMap[code] || DEFAULT_ITEM_IMAGES[code],
@@ -135,7 +193,7 @@ export function getMergedMenu(apiMenu: MenuItem[] = []): CustomMenuItem[] {
     }
   }
 
-  // Overlay custom items saved by user
+  // Overlay custom items saved by the operator after the customer catalog is installed.
   for (const custom of customItems) {
     const code = custom.code.trim().toUpperCase();
     const existing = itemMap.get(code);
@@ -147,7 +205,10 @@ export function getMergedMenu(apiMenu: MenuItem[] = []): CustomMenuItem[] {
     });
   }
 
-  return Array.from(itemMap.values());
+  return Array.from(itemMap.values()).map((item) => ({
+    ...item,
+    category: resolvedCategory(item.category, categoryRenames),
+  }));
 }
 
 function safeSetItem(key: string, value: string): boolean {

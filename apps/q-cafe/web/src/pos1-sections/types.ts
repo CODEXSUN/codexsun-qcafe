@@ -1,7 +1,6 @@
 import type { RefObject } from 'react';
 import type { InterfaceTopologyController } from '@codexsun/devkit-ito';
 import type { CustomMenuItem, TableMasterConfig } from '../mastersStore';
-import type { CafeSettings } from '../Settings';
 
 export type EntryLine = {
   key: string;
@@ -25,6 +24,14 @@ export type PaymentRecord = {
   denominations?: Record<number, number>;
   machineNo?: string; // e.g. "POS Machine 1"
   referenceNo?: string; // e.g. "49201" or "-"
+};
+
+export type PreviousBill = {
+  billNo: string;
+  tableNo: string;
+  total: number;
+  collectedAt: string;
+  paidWithCash: boolean;
 };
 
 export type OrderTab = {
@@ -59,6 +66,12 @@ export interface Pos1HeaderSectionProps {
   onTogglePaymentCollector?: () => void;
   showOrderTabs?: boolean;
   showKitchenButton?: boolean;
+  onClearUnsavedOrder: () => void;
+  previousBillsVisible: boolean;
+  previousBillPage: number;
+  previousBillPageCount: number;
+  onPreviousBillPage: () => void;
+  onNextBillPage: () => void;
 }
 
 export interface Pos1ProductSectionProps {
@@ -68,10 +81,7 @@ export interface Pos1ProductSectionProps {
   onSelectItem: (item: CustomMenuItem) => void;
   selectedCategory: string;
   onSelectCategory: (category: string) => void;
-  standardCategories: string[];
-  moreCategories: string[];
-  showMoreCategories: boolean;
-  onToggleShowMoreCategories: (show: boolean) => void;
+  categories: string[];
 }
 
 export interface Pos1BillingSectionProps {
@@ -81,11 +91,7 @@ export interface Pos1BillingSectionProps {
   lines: EntryLine[];
   subtotal: number;
   totalQuantity: number;
-  gstApplied: boolean;
-  gstAmount: number;
   total: number;
-  cafeSettings: CafeSettings;
-  onToggleGst: () => void;
   onIncrementLine: (lineKey: string) => void;
   onDecrementLine: (lineKey: string) => void;
   onRemoveLine: (lineKey: string) => void;
@@ -94,10 +100,13 @@ export interface Pos1BillingSectionProps {
   onClearPayment?: () => void;
   collectorRef?: RefObject<HTMLDivElement | null>;
   showPaymentCollector?: boolean;
-  onTogglePaymentCollector?: () => void;
   onClosePaymentCollector?: () => void;
   onNextOrder?: () => void;
   nextButtonRef?: RefObject<HTMLButtonElement | null>;
+  previousBills: PreviousBill[];
+  showCollectedBills: boolean;
+  previousBillPage: number;
+  previousBillPageCount: number;
 }
 
 export interface Pos1ManualEntrySectionProps {

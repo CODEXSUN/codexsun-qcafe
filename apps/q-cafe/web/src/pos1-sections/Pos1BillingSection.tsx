@@ -1,4 +1,4 @@
-import { ArrowRight, CheckCircle2, Minus, Plus, ReceiptText, Trash2 } from 'lucide-react';
+import { ArrowRight, Minus, Plus, Trash2 } from 'lucide-react';
 import { TopologyMarker } from '@codexsun/devkit-ito';
 import { money } from '../api';
 import type { Pos1BillingSectionProps } from './types';
@@ -11,11 +11,7 @@ export function Pos1BillingSection({
   lines,
   subtotal,
   totalQuantity,
-  gstApplied,
-  gstAmount,
   total,
-  cafeSettings,
-  onToggleGst,
   onIncrementLine,
   onDecrementLine,
   onRemoveLine,
@@ -24,17 +20,22 @@ export function Pos1BillingSection({
   onClearPayment,
   collectorRef,
   showPaymentCollector,
-  onTogglePaymentCollector,
   onClosePaymentCollector,
   onNextOrder,
   nextButtonRef,
+  previousBills,
+  showCollectedBills,
+  previousBillPage,
+  previousBillPageCount,
 }: Pos1BillingSectionProps) {
+  const collectedBillsTotal = previousBills.reduce((sum, bill) => sum + bill.total, 0);
+  const hasCashPayment = previousBills.some((bill) => bill.paidWithCash);
+  const footerTotal = showCollectedBills ? collectedBillsTotal : total;
+
   return (
     <div
-      className={`ito-region relative flex flex-col w-[410px] lg:w-[440px] shrink-0 rounded-2xl bg-card overflow-hidden transition-all duration-300 ${
-        activeTab.payment
-          ? 'border-2 border-emerald-500 shadow-xl shadow-emerald-500/20 ring-4 ring-emerald-500/10'
-          : 'border border-border shadow-sm'
+      className={`ito-region relative flex w-[410px] shrink-0 flex-col overflow-hidden rounded-2xl bg-card shadow-sm lg:w-[440px] ${
+        showCollectedBills ? 'border-2 border-emerald-500' : 'border border-border'
       }`}
       {...topology.regionProps('q12.3')}
     >
@@ -64,81 +65,70 @@ export function Pos1BillingSection({
 
       {/* Cart Table Container */}
       <div className="flex-1 min-h-0 overflow-y-auto scrollbar-slim">
-        <table className="w-full text-left text-xs border-collapse">
-          <thead className="sticky top-0 bg-card z-10 border-b border-border/80 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-            <tr>
-              <th className="py-2.5 px-2.5 w-7 text-center">#</th>
-              <th className="py-2.5 px-2.5">Item Name</th>
-              <th className="py-2.5 px-1.5 w-24 text-center">Qty</th>
-              <th className="py-2.5 px-1.5 w-16 text-right">Rate</th>
-              <th className="py-2.5 px-2.5 w-20 text-right">Amount</th>
-              <th className="py-2.5 px-2 w-8 text-right"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border/60">
-            {lines.map((line, index) => (
-              <tr key={line.key} className="hover:bg-muted/30 transition-colors">
-                <td className="py-2.5 px-2.5 text-muted-foreground font-mono text-center">{index + 1}</td>
-                <td className="py-2.5 px-2.5 min-w-0">
-                  <div className="font-semibold text-foreground truncate" title={line.name}>
-                    {line.name}
-                  </div>
-                  <div className="text-[10px] text-muted-foreground font-mono whitespace-nowrap mt-0.5">
-                    {line.code} {line.chair ? `• Seat ${formatChair(tableName, line.chair)}` : ''}
-                  </div>
-                </td>
-                <td className="py-2.5 px-1.5 text-center">
-                  {/* Quantity Stepper: [-] QTY [+] */}
-                  <div className="inline-flex items-center justify-center rounded-lg border border-border bg-background px-1 py-0.5 gap-1.5 shadow-2xs">
-                    <button
-                      type="button"
-                      onClick={() => onDecrementLine(line.key)}
-                      className="grid size-5 place-items-center rounded hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-                      aria-label="Decrease quantity"
-                    >
-                      <Minus size={11} />
-                    </button>
-                    <span className="w-4 text-center font-bold text-foreground text-xs select-none">
-                      {line.quantity}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => onIncrementLine(line.key)}
-                      className="grid size-5 place-items-center rounded hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-                      aria-label="Increase quantity"
-                    >
-                      <Plus size={11} />
-                    </button>
-                  </div>
-                </td>
-                <td className="py-2.5 px-1.5 text-right font-medium text-muted-foreground whitespace-nowrap">
-                  {money(line.price)}
-                </td>
-                <td className="py-2.5 px-2.5 text-right font-bold text-foreground whitespace-nowrap">
-                  {money(line.price * line.quantity)}
-                </td>
-                <td className="py-2.5 px-2 text-right">
-                  <button
-                    type="button"
-                    onClick={() => onRemoveLine(line.key)}
-                    className="grid size-6 place-items-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive cursor-pointer transition-colors"
-                    aria-label={`Remove ${line.name}`}
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </td>
-              </tr>
-            ))}
-
-            {lines.length === 0 && (
+        {lines.length > 0 ? (
+          <table className="w-full text-left text-xs border-collapse">
+            <thead className="sticky top-0 bg-card z-10 border-b border-border/80 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
               <tr>
-                <td colSpan={6} className="py-12 text-center text-muted-foreground">
-                  Cart is empty. Click items from the catalog or add below.
-                </td>
+                <th className="py-2.5 px-2.5 w-7 text-center">#</th>
+                <th className="py-2.5 px-2.5">Item Name</th>
+                <th className="py-2.5 px-1.5 w-24 text-center">Qty</th>
+                <th className="py-2.5 px-1.5 w-16 text-right">Rate</th>
+                <th className="py-2.5 px-2.5 w-20 text-right">Amount</th>
+                <th className="py-2.5 px-2 w-8 text-right" />
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-border/60">
+              {lines.map((line, index) => (
+                <tr key={line.key} className="transition-colors hover:bg-muted/30">
+                  <td className="py-2.5 px-2.5 text-center font-mono text-muted-foreground">{index + 1}</td>
+                  <td className="min-w-0 py-2.5 px-2.5">
+                    <div className="truncate font-semibold text-foreground" title={line.name}>{line.name}</div>
+                    <div className="mt-0.5 whitespace-nowrap font-mono text-[10px] text-muted-foreground">
+                      {line.code} {line.chair ? `• Seat ${formatChair(tableName, line.chair)}` : ''}
+                    </div>
+                  </td>
+                  <td className="py-2.5 px-1.5 text-center">
+                    <div className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-background px-1 py-0.5 shadow-2xs">
+                      <button type="button" onClick={() => onDecrementLine(line.key)} className="grid size-5 cursor-pointer place-items-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" aria-label="Decrease quantity"><Minus size={11} /></button>
+                      <span className="w-4 select-none text-center text-xs font-bold text-foreground">{line.quantity}</span>
+                      <button type="button" onClick={() => onIncrementLine(line.key)} className="grid size-5 cursor-pointer place-items-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" aria-label="Increase quantity"><Plus size={11} /></button>
+                    </div>
+                  </td>
+                  <td className="whitespace-nowrap py-2.5 px-1.5 text-right font-medium text-muted-foreground">{money(line.price)}</td>
+                  <td className="whitespace-nowrap py-2.5 px-2.5 text-right font-bold text-foreground">{money(line.price * line.quantity)}</td>
+                  <td className="py-2.5 px-2 text-right">
+                    <button type="button" onClick={() => onRemoveLine(line.key)} className="grid size-6 cursor-pointer place-items-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive" aria-label={`Remove ${line.name}`}><Trash2 size={13} /></button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : showCollectedBills && previousBills.length > 0 ? (
+          <table className="w-full border-collapse text-left text-xs">
+            <thead className="sticky top-0 z-10 border-b border-border/80 bg-card text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <tr>
+                <th className="w-8 px-2.5 py-2.5 text-center">#</th>
+                <th className="px-2.5 py-2.5">Bill no.</th>
+                <th className="px-2.5 py-2.5">Table</th>
+                <th className="px-2.5 py-2.5">Collected</th>
+                <th className="w-24 px-2.5 py-2.5 text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/60">
+              {previousBills.map((bill, index) => (
+                <tr key={bill.billNo} className="transition-colors hover:bg-muted/30">
+                  <td className="px-2.5 py-3 text-center font-mono text-muted-foreground">
+                    {index + 1}
+                  </td>
+                  <td className="px-2.5 py-3 font-semibold text-foreground">{bill.billNo}</td>
+                  <td className="px-2.5 py-3 text-muted-foreground">{bill.tableNo}</td>
+                  <td className="px-2.5 py-3 text-muted-foreground">{bill.collectedAt}</td>
+                  <td className="whitespace-nowrap px-2.5 py-3 text-right font-bold text-foreground">{money(bill.total)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : <div className="min-h-40 flex-1" aria-label="Empty order" />}
       </div>
 
       {/* Dimmed backdrop when floating collector is open */}
@@ -185,66 +175,20 @@ export function Pos1BillingSection({
         </div>
       )}
 
-      {/* Cart Footer: GST + Settle Shortcut + Totals */}
-      <div className="relative z-20 border-t border-border bg-muted/20 p-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onToggleGst}
-            className={`flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-xs font-semibold transition-colors cursor-pointer ${
-              gstApplied
-                ? 'border-primary bg-primary/10 text-primary'
-                : 'border-border bg-card text-foreground hover:bg-muted'
-            }`}
-          >
-            {gstApplied ? <CheckCircle2 size={13} /> : <Plus size={13} />}
-            <span>{gstApplied ? `GST (${cafeSettings.defaultGstRate ?? 5}%)` : 'Add GST'}</span>
-          </button>
-
-          {/* Settle (F5) Button */}
-          <button
-            type="button"
-            onClick={onTogglePaymentCollector}
-            disabled={!lines.length}
-            aria-label={activeTab.payment ? `Paid via ${activeTab.payment.mode}` : 'Settle Bill (F5)'}
-            className={`flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-              activeTab.payment
-                ? 'border-emerald-500/60 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-                : showPaymentCollector
-                ? 'border-blue-600 bg-blue-600 text-white shadow-xs'
-                : 'border-border bg-card text-foreground hover:bg-muted'
-            }`}
-          >
-            {activeTab.payment ? (
-              <>
-                <CheckCircle2 size={13} className="text-emerald-600 dark:text-emerald-400" />
-                <span className="uppercase text-[11px] font-bold">{activeTab.payment.mode} Paid</span>
-              </>
-            ) : (
-              <>
-                <ReceiptText size={13} className={showPaymentCollector ? 'text-white' : 'text-muted-foreground'} />
-                <span>Settle</span>
-                <kbd
-                  className={`font-mono text-[10px] font-semibold px-1 py-0.5 rounded border select-none ${
-                    showPaymentCollector
-                      ? 'bg-white/20 text-white border-white/30'
-                      : 'bg-muted text-muted-foreground border-border'
-                  }`}
-                >
-                  F5
-                </kbd>
-              </>
-            )}
-          </button>
-        </div>
-
-        <div className="flex items-baseline gap-2">
-          <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-            TOTAL
-          </span>
-          <span className="text-2xl font-black tracking-tight text-blue-600 dark:text-blue-400">
-            {money(total)}
-          </span>
+      {/* Cart Footer: totals only. Settlement remains in the top action bar. */}
+      <div className="relative z-20 flex justify-end border-t border-border bg-muted/20 p-3">
+        <div className="flex w-full items-baseline justify-between gap-3">
+          {showCollectedBills && hasCashPayment ? (
+            <span className="rounded-md border-2 border-emerald-600 px-2 py-0.5 text-xs font-black tracking-[0.14em] text-emerald-700 dark:border-emerald-400 dark:text-emerald-300">
+              PAID · CASH
+            </span>
+          ) : <span />}
+          <div className="flex items-baseline gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">TOTAL</span>
+            <span className="text-2xl font-black tracking-tight text-blue-600 dark:text-blue-400">
+              {money(footerTotal)}
+            </span>
+          </div>
         </div>
       </div>
     </div>

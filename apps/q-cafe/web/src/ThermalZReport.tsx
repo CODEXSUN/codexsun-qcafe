@@ -52,6 +52,11 @@ export function ThermalZReport({
 
   const cgst = Math.round(gstTotal / 2);
   const sgst = gstTotal - cgst;
+  const restaurantName = settings.restaurantName.trim();
+  const receiptHeader = settings.receiptHeader.trim();
+  const address = settings.address?.trim();
+  const gstin = settings.gstin.trim();
+  const hasGst = gstTotal > 0;
 
   const noteList = [500, 200, 100, 50, 20, 10];
 
@@ -59,8 +64,8 @@ export function ThermalZReport({
     <div
       className={`thermal-receipt font-mono text-black leading-tight select-none ${className}`}
       style={{
-        width: '72mm',
-        maxWidth: '72mm',
+        width: '70mm',
+        maxWidth: '70mm',
         margin: '0 auto',
         padding: '3mm 2mm',
         backgroundColor: '#ffffff',
@@ -71,21 +76,10 @@ export function ThermalZReport({
     >
       {/* Hotel / Restaurant Header */}
       <div className="text-center space-y-0.5 pb-1">
-        <h1 className="text-[18px] font-black uppercase tracking-wider leading-none text-black">
-          {settings.restaurantName || 'Q CAFE'}
-        </h1>
-        <p className="text-[10.5px] font-semibold uppercase tracking-wide text-black">
-          {settings.receiptHeader || 'Artisanal Coffee & Kitchen'}
-        </p>
-        <p className="text-[10px] text-black leading-tight">
-          {settings.address || '12/4 North Boulevard, Anna Nagar, Chennai - 600040'}
-        </p>
-        <p className="text-[10px] text-black">
-          Ph: {settings.contactNumber || '+91 98765 43210'} | {settings.branchName || 'Main Floor'}
-        </p>
-        <div className="pt-0.5 space-y-0.5 text-[10px] font-semibold text-black">
-          <p>GSTIN: {settings.gstin || '33AAAAA0000A1Z5'}</p>
-        </div>
+        {restaurantName ? <h1 className="text-[18px] font-black uppercase tracking-wider leading-none text-black">{restaurantName}</h1> : null}
+        {receiptHeader ? <p className="text-[10.5px] font-semibold uppercase tracking-wide text-black">{receiptHeader}</p> : null}
+        {address ? <p className="text-[10px] text-black leading-tight">{address}</p> : null}
+        {hasGst && gstin ? <div className="pt-0.5 text-[10px] font-semibold text-black"><p>GSTIN: {gstin}</p></div> : null}
       </div>
 
       {/* Report Title */}
@@ -122,18 +116,20 @@ export function ThermalZReport({
           <span>Taxable Net Sales:</span>
           <span className="font-mono">₹{(taxableTotal / 100).toFixed(2)}</span>
         </div>
-        <div className="flex justify-between text-[10px]">
-          <span>CGST (2.5%):</span>
-          <span className="font-mono">₹{(cgst / 100).toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between text-[10px]">
-          <span>SGST (2.5%):</span>
-          <span className="font-mono">₹{(sgst / 100).toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between text-[10px]">
-          <span>Total GST Tax:</span>
-          <span className="font-mono">₹{(gstTotal / 100).toFixed(2)}</span>
-        </div>
+        {hasGst ? <>
+          <div className="flex justify-between text-[10px]">
+            <span>CGST (2.5%):</span>
+            <span className="font-mono">₹{(cgst / 100).toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between text-[10px]">
+            <span>SGST (2.5%):</span>
+            <span className="font-mono">₹{(sgst / 100).toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between text-[10px]">
+            <span>Total GST Tax:</span>
+            <span className="font-mono">₹{(gstTotal / 100).toFixed(2)}</span>
+          </div>
+        </> : null}
         <div className="border-t border-dashed border-black pt-1 mt-1 flex justify-between font-black text-[11.5px]">
           <span>GROSS REVENUE:</span>
           <span className="font-mono">₹{(grossTotal / 100).toFixed(2)}</span>

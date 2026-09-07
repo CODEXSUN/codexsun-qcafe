@@ -206,8 +206,8 @@ html.dark * {
 
   /* Thermal receipt layout */
   .thermal-receipt {
-    width: 72mm !important;
-    max-width: 72mm !important;
+    width: 70mm !important;
+    max-width: 70mm !important;
     margin: 0 auto !important;
     padding: 3mm 2mm !important;
     background: #ffffff !important;

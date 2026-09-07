@@ -62,7 +62,7 @@ test('migrations are repeatable, databases isolated, and orders survive reopenin
   try {
     const path = join(directory, 'cafe.sqlite');
     const first = new CafeStore(path); first.seed(); first.order({ table_name: 'Takeaway', lines: [{ menu_id: 1, item_code: 'ITM-001', name: 'Filter coffee', quantity: 1, price: 8000 }] }); first.db.close();
-    const second = new CafeStore(path); second.seed(); assert.equal(second.snapshot().orders.length, 1); assert.equal(second.snapshot().menu.length, 8); second.db.close();
+    const second = new CafeStore(path); second.seed(); assert.equal(second.snapshot().orders.length, 1); assert.equal(second.snapshot().menu.length, 60); second.db.close();
     const isolated = new CafeStore(':memory:'); assert.equal(isolated.snapshot().orders.length, 0); isolated.db.close();
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });

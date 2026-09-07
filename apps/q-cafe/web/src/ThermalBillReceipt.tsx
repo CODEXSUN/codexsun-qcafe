@@ -117,13 +117,19 @@ export function ThermalBillReceipt({
 
   const cgst = resolvedGstApplied ? Math.round(resolvedGstAmount / 2) : 0;
   const sgst = resolvedGstApplied ? resolvedGstAmount - cgst : 0;
+  const restaurantName = settings.restaurantName.trim();
+  const receiptHeader = settings.receiptHeader.trim();
+  const receiptLegalNote = settings.receiptLegalNote.trim();
+  const address = settings.address?.trim();
+  const gstin = settings.gstin.trim();
+  const fssai = settings.fssai?.trim();
 
   return (
     <div
       className={`thermal-receipt font-mono text-black leading-tight select-none ${className}`}
       style={{
-        width: '72mm',
-        maxWidth: '72mm',
+        width: '70mm',
+        maxWidth: '70mm',
         margin: '0 auto',
         padding: '3mm 2mm',
         backgroundColor: '#ffffff',
@@ -134,22 +140,15 @@ export function ThermalBillReceipt({
     >
       {/* Hotel / Restaurant Header */}
       <div className="text-center space-y-0.5 pb-1">
-        <h1 className="text-[18px] font-black uppercase tracking-wider leading-none text-black">
-          {settings.restaurantName || 'Q CAFE'}
-        </h1>
-        <p className="text-[10.5px] font-semibold uppercase tracking-wide text-black">
-          {settings.receiptHeader || 'Artisanal Coffee & Kitchen'}
-        </p>
-        <p className="text-[10px] text-black leading-tight">
-          {settings.address || '12/4 North Boulevard, Anna Nagar, Chennai - 600040'}
-        </p>
-        <p className="text-[10px] text-black">
-          Ph: {settings.contactNumber || '+91 98765 43210'} | {settings.branchName || 'Main Floor'}
-        </p>
-        <div className="pt-0.5 space-y-0.5 text-[10px] font-semibold text-black">
-          <p>GSTIN: {settings.gstin || '33AAAAA0000A1Z5'}</p>
-          <p className="font-normal text-[9.5px]">FSSAI Lic: {settings.fssai || '12423001000456'}</p>
-        </div>
+        {restaurantName ? <h1 className="text-[18px] font-black uppercase tracking-wider leading-none text-black">{restaurantName}</h1> : null}
+        {receiptHeader ? <p className="text-[10.5px] font-semibold uppercase tracking-wide text-black">{receiptHeader}</p> : null}
+        {address ? <p className="text-[10px] text-black leading-tight">{address}</p> : null}
+        {(resolvedGstApplied && gstin) || fssai ? (
+          <div className="pt-0.5 space-y-0.5 text-[10px] font-semibold text-black">
+            {resolvedGstApplied && gstin ? <p>GSTIN: {gstin}</p> : null}
+            {fssai ? <p className="font-normal text-[9.5px]">FSSAI Lic: {fssai}</p> : null}
+          </div>
+        ) : null}
       </div>
 
       {/* Bill Type Header */}
@@ -170,9 +169,6 @@ export function ThermalBillReceipt({
         </div>
         <div className="text-right">
           <span className="font-bold">Time:</span> {timeStr}
-        </div>
-        <div>
-          <span className="font-bold">Tab:</span> {tab?.name ?? 'Desk'}
         </div>
       </div>
 
@@ -276,17 +272,11 @@ export function ThermalBillReceipt({
               <span>{resolvedPayment.timestamp}</span>
             </div>
           </div>
-        ) : (
-          <p className="text-[9.5px] uppercase font-semibold text-black">
-            Mode: Cash / UPI (Bill Generated)
-          </p>
-        )}
+        ) : null}
         <p className="text-[10px] font-bold text-black leading-tight pt-0.5">
           {settings.receiptFooter || 'Thank you for dining with us! Please visit again.'}
         </p>
-        <p className="text-[9px] text-black/80">
-          GST included where applicable • Goods once sold cannot be returned
-        </p>
+        {receiptLegalNote ? <p className="text-[9px] text-black/80">{receiptLegalNote}</p> : null}
         <div className="text-[10px] font-mono tracking-widest pt-2 text-black">
           - - - - - - - - - - - - - - - - - - - - - - - -
         </div>

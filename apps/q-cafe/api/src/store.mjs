@@ -16,7 +16,11 @@ export class CafeStore {
     }
   }
   snapshot() {
-    return Object.fromEntries(['menu', 'restaurant_tables', 'pos', 'pos_items', 'receipts', 'receipt_transactions', 'orders', 'order_lines', 'inventory', 'bookings', 'activities', 'staff_users'].map(table => [table, this.db.prepare(`SELECT * FROM ${table}`).all()]));
+    const tables = ['restaurant_tables', 'pos', 'pos_items', 'receipts', 'receipt_transactions', 'orders', 'order_lines', 'inventory', 'bookings', 'activities', 'staff_users'];
+    return {
+      menu: this.db.prepare('SELECT * FROM menu WHERE is_active=1 ORDER BY category, code').all(),
+      ...Object.fromEntries(tables.map(table => [table, this.db.prepare(`SELECT * FROM ${table}`).all()])),
+    };
   }
   hasStaffUsers() { return Boolean(this.db.prepare('SELECT id FROM staff_users LIMIT 1').get()); }
   bootstrapOwner(pin) {
@@ -150,8 +154,7 @@ export class CafeStore {
   }
   seed() {
     this.transaction(() => {
-      if (!this.db.prepare('SELECT id FROM menu LIMIT 1').get()) {
-        for (const row of [[1,'Filter coffee','Beverages',8000,'ITM-001'],[2,'Cappuccino','Beverages',14000,'ITM-002'],[3,'Iced latte','Beverages',16000,'ITM-003'],[4,'Masala chai','Beverages',6000,'ITM-004'],[5,'Paneer sandwich','Kitchen',18000,'ITM-005'],[6,'Pesto pasta','Kitchen',26000,'ITM-006'],[7,'Butter croissant','Bakery',12000,'ITM-007'],[8,'Chocolate brownie','Bakery',15000,'ITM-008']]) this.db.prepare('INSERT INTO menu(id,name,category,price,code) VALUES (?,?,?,?,?)').run(...row);
+      if (!this.db.prepare('SELECT id FROM inventory LIMIT 1').get()) {
         for (const row of [[1,'Coffee beans','kg',4.5,2],[2,'Milk','litres',8,10],[3,'Paneer','kg',3,2],[4,'Croissants','pieces',18,12]]) this.db.prepare('INSERT INTO inventory(id,name,unit,quantity,minimum) VALUES (?,?,?,?,?)').run(...row);
       }
       for (const row of Array.from({ length: 12 }, (_, index) => [`T${String(index + 1).padStart(2, '0')}`, index < 8 ? 4 : 6])) this.db.prepare('INSERT OR IGNORE INTO restaurant_tables(table_no,chair_count) VALUES (?,?)').run(...row);

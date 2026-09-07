@@ -5,6 +5,7 @@ import { TopologyMarker, type InterfaceTopologyController } from '@codexsun/devk
 import type { Snapshot } from './api';
 import { getMergedMenu, getMergedTables, type CustomMenuItem, type TableMasterConfig } from './mastersStore';
 import { ThermalBillReceipt } from './ThermalBillReceipt';
+import { outputReceipt } from './printReceipt';
 import { loadSettings, type CafeSettings } from './Settings';
 import {
   Pos1HeaderSection,
@@ -14,6 +15,7 @@ import {
   type EntryLine,
   type OrderTab,
   type PaymentRecord,
+  type PreviousBill,
 } from './pos1-sections';
 
 type Props = {
@@ -95,9 +97,10 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
 
   // Section 1: Search and Category Filter state
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('All Items');
-  const [showMoreCategories, setShowMoreCategories] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [showPaymentCollector, setShowPaymentCollector] = useState(false);
+  const [previousBillPage, setPreviousBillPage] = useState(0);
+  const [showCollectedBills, setShowCollectedBills] = useState(false);
 
   // Section 4: Manual entry state (synchronized with selected product card)
   const [selectedItem, setSelectedItem] = useState<CustomMenuItem | null>(null);
@@ -295,19 +298,15 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
 
   const tableChairCount = currentTableConfig?.chairCount || 4;
 
-  // Filtered categories
-  const standardCategories = ['All Items', 'Hot Coffee', 'Cold Drinks', 'Snacks', 'Dessert'];
-  const allAvailableCategories = useMemo(() => {
-    const set = new Set<string>();
-    menuItems.forEach((item) => {
-      if (item.category) set.add(item.category);
-    });
-    return Array.from(set);
-  }, [menuItems]);
+  // POS categories always come from the current Item Master catalog.
+  const catalogCategories = useMemo(() => [
+    'All',
+    ...Array.from(new Set(menuItems.map((item) => item.category).filter(Boolean))).sort((left, right) => left.localeCompare(right)),
+  ], [menuItems]);
 
-  const moreCategories = useMemo(() => {
-    return allAvailableCategories.filter((c) => !standardCategories.includes(c));
-  }, [allAvailableCategories]);
+  useEffect(() => {
+    if (!catalogCategories.includes(selectedCategory)) setSelectedCategory('All');
+  }, [catalogCategories, selectedCategory]);
 
   // Filtered product items
   const filteredItems = useMemo(() => {
@@ -320,15 +319,40 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         item.category.toLowerCase().includes(q);
 
       const matchesCategory =
-        selectedCategory === 'All Items' ||
-        item.category.toLowerCase() === selectedCategory.toLowerCase() ||
-        (selectedCategory === 'Hot Coffee' &&
-          (item.category === 'Beverages' || item.category === 'Hot Coffee')) ||
-        (selectedCategory === 'Dessert' && item.category === 'Bakery');
+        selectedCategory === 'All' ||
+        item.category.toLowerCase() === selectedCategory.toLowerCase();
 
       return matchesSearch && matchesCategory;
     });
   }, [menuItems, searchQuery, selectedCategory]);
+
+  const previousBills = useMemo<PreviousBill[]>(() => {
+    const receiptPosIds = new Map(data.receipts.map((receipt) => [receipt.id, receipt.pos_id]));
+    const cashPaidPosIds = new Set(
+      data.receipt_transactions
+        .filter((transaction) => transaction.transaction_mode === 'cash')
+        .map((transaction) => receiptPosIds.get(transaction.receipt_id))
+        .filter((posId): posId is number => typeof posId === 'number')
+    );
+
+    return data.pos
+      .filter((bill) => bill.status === 'paid')
+      .sort((left, right) => right.created_at.localeCompare(left.created_at))
+      .map((bill) => ({
+        billNo: bill.bill_no,
+        tableNo: bill.table_no,
+        total: bill.grand_total,
+        collectedAt: new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(`${bill.created_at}Z`)),
+        paidWithCash: cashPaidPosIds.has(bill.id),
+      }));
+  }, [data.pos, data.receipt_transactions, data.receipts]);
+  const previousBillPageSize = 4;
+  const previousBillPageCount = Math.max(1, Math.ceil(previousBills.length / previousBillPageSize));
+  const activePreviousBillPage = Math.min(previousBillPage, previousBillPageCount - 1);
+  const visiblePreviousBills = previousBills.slice(
+    activePreviousBillPage * previousBillPageSize,
+    (activePreviousBillPage + 1) * previousBillPageSize
+  );
 
   // Cart financial calculations
   const subtotal = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
@@ -356,6 +380,29 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     updateActiveTab((tab) => ({
       lines: tab.lines.filter((l) => l.key !== lineKey),
     }));
+  }
+
+  function handleClearUnsavedOrder() {
+    updateActiveTab({ lines: [], payment: null, gstApplied: false });
+    setSelectedItem(null);
+    setBottomCode('');
+    setBottomName('');
+    setBottomQuantity('1');
+    setBottomRate('');
+    setShowPaymentCollector(false);
+    setShowCollectedBills(false);
+    requestAnimationFrame(() => {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    });
+  }
+
+  function showPreviousBillPage(offset: number) {
+    setShowCollectedBills(true);
+    setPreviousBillPage((current) => Math.min(
+      Math.max(current + offset, 0),
+      previousBillPageCount - 1
+    ));
   }
 
   // Section 2: Card selection & Add-to-cart
@@ -783,7 +830,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
       if (e.key === 'F7') {
         e.preventDefault();
         if (lines.length > 0) {
-          setShowReceiptPreview((v) => !v);
+          outputReceipt(cafeSettings, () => setShowReceiptPreview((visible) => !visible));
         }
       }
       // F8: confirm & print bill
@@ -843,7 +890,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         onCloseTab={closeTab}
         linesCount={lines.length}
         busy={busy}
-        onOpenReceiptPreview={() => setShowReceiptPreview(true)}
+        onOpenReceiptPreview={() => outputReceipt(cafeSettings, () => setShowReceiptPreview(true))}
         onPrintBill={handleConfirmOrder}
         onSendToKitchen={handleSendToKitchen}
         payment={activeTab.payment}
@@ -852,6 +899,12 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         onTogglePaymentCollector={handleTogglePaymentCollector}
         showOrderTabs={Boolean(cafeSettings.showOrderTabs)}
         showKitchenButton={Boolean(cafeSettings.showKitchenButton)}
+        onClearUnsavedOrder={handleClearUnsavedOrder}
+        previousBillsVisible={previousBills.length > 0}
+        previousBillPage={activePreviousBillPage}
+        previousBillPageCount={previousBillPageCount}
+        onPreviousBillPage={() => showPreviousBillPage(-1)}
+        onNextBillPage={() => showPreviousBillPage(1)}
       />
 
       {/* Main Content Area (Split: Left Catalog Column [Categories + Product Cards] + Right Billing Cart Panel) */}
@@ -864,10 +917,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
           onSelectItem={handleSelectAndAddCard}
           selectedCategory={selectedCategory}
           onSelectCategory={setSelectedCategory}
-          standardCategories={standardCategories}
-          moreCategories={moreCategories}
-          showMoreCategories={showMoreCategories}
-          onToggleShowMoreCategories={setShowMoreCategories}
+          categories={catalogCategories}
         />
 
         {/* Right Column: Billing Cart Panel (below header) */}
@@ -878,11 +928,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
           lines={lines}
           subtotal={subtotal}
           totalQuantity={totalQuantity}
-          gstApplied={gstApplied}
-          gstAmount={gstAmount}
           total={total}
-          cafeSettings={cafeSettings}
-          onToggleGst={() => updateActiveTab((tab) => ({ gstApplied: !tab.gstApplied }))}
           onIncrementLine={handleIncrementLine}
           onDecrementLine={handleDecrementLine}
           onRemoveLine={handleRemoveLine}
@@ -891,10 +937,13 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
           onClearPayment={handleClearPayment}
           collectorRef={collectorRef}
           showPaymentCollector={showPaymentCollector}
-          onTogglePaymentCollector={handleTogglePaymentCollector}
           onClosePaymentCollector={handleClosePaymentCollector}
           onNextOrder={handleNextOrder}
           nextButtonRef={nextButtonRef}
+          previousBills={showCollectedBills && lines.length === 0 ? visiblePreviousBills : []}
+          showCollectedBills={showCollectedBills && lines.length === 0}
+          previousBillPage={activePreviousBillPage}
+          previousBillPageCount={previousBillPageCount}
         />
       </div>
 

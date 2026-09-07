@@ -1,5 +1,24 @@
 # Q Cafe changelog
 
+## 1.1.17 - 2026-09-07
+
+### Master catalog, POS billing, and Windows delivery
+
+- Q Cafe uses `apps/q-cafe/version.json` as the single version source for its API, web app, Windows desktop app, updater, installer, and changelog.
+- Replaced the starter menu with the customer Tamil catalog, assigned simple sequential item codes, and added SQLite migrations that preserve existing business data.
+- POS-1 category filters now use the Item Master catalog. The new Categories tab changes a category once and updates every matching item and POS filter.
+- Kept an empty new order on load. Collected bills appear only when the cashier uses the page controls, in a table format with a single green outer status border, collected-page total, and green `PAID · CASH` stamp.
+- Kept Clear available at all times so cashiers can reset an unsaved order and return focus to item search.
+- Improved 70 mm thermal receipts, optional receipt details, Windows printer and direct-print controls, and the Windows installer shutdown flow.
+
+## 1.1.6 - 2026-09-07
+
+### Thermal receipts and printer controls
+
+- Printed receipts now omit GST details when GST is not applied, and omit the FSSAI license label when no license number is configured.
+- Added Windows default-printer and direct-print settings. Direct print skips the in-app receipt preview and opens the system print flow.
+- Removed phone and branch-counter lines from printed headers, hid empty restaurant fields, and simplified the POS-1 footer to totals only.
+
 ## 1.1.5 - 2026-09-07
 
 ### Open Windows desktop maximized

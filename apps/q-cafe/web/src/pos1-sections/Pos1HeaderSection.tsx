@@ -1,4 +1,4 @@
-import { CheckCircle2, Eye, Plus, Printer, ReceiptText, Search, Send, X } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, ChevronRight, Eye, Plus, Printer, ReceiptText, Search, Send, Trash2, X } from 'lucide-react';
 import { TopologyMarker } from '@codexsun/devkit-ito';
 import type { Pos1HeaderSectionProps } from './types';
 
@@ -24,6 +24,12 @@ export function Pos1HeaderSection({
   onTogglePaymentCollector,
   showOrderTabs = false,
   showKitchenButton = false,
+  onClearUnsavedOrder,
+  previousBillsVisible,
+  previousBillPage,
+  previousBillPageCount,
+  onPreviousBillPage,
+  onNextBillPage,
 }: Pos1HeaderSectionProps) {
   return (
     <header
@@ -165,6 +171,40 @@ export function Pos1HeaderSection({
 
       {/* Right: Action Buttons Row (Settle FIRST matching screenshot, Kitchen, Preview Eye, Print LAST) */}
       <div className="flex items-center gap-2 shrink-0">
+        <button
+          type="button"
+          onClick={onClearUnsavedOrder}
+          className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-semibold text-foreground shadow-xs transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label="Clear unsaved order"
+        >
+          <Trash2 size={13} className="text-muted-foreground" />
+          <span>Clear</span>
+        </button>
+
+        {previousBillsVisible && (
+          <div className="flex items-center gap-1 rounded-xl border border-border bg-background p-1">
+            <button
+              type="button"
+              onClick={onPreviousBillPage}
+              aria-label="Previous collected bills"
+              className="grid size-7 cursor-pointer place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <ChevronLeft size={15} />
+            </button>
+            <span className="min-w-9 text-center text-[11px] font-bold text-foreground">
+              {previousBillPage + 1}/{previousBillPageCount}
+            </span>
+            <button
+              type="button"
+              onClick={onNextBillPage}
+              aria-label="Next collected bills"
+              className="grid size-7 cursor-pointer place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <ChevronRight size={15} />
+            </button>
+          </div>
+        )}
+
         {/* 0. Settle / Pay Collector Button (FIRST in Action Buttons Row, matching the orange box in screenshot) */}
         <div className="relative group shrink-0">
           <button

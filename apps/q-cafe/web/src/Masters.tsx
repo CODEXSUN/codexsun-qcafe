@@ -13,6 +13,7 @@ import {
   Search,
   Sparkles,
   Table2,
+  Tags,
   Trash2,
   Upload,
   UtensilsCrossed,
@@ -29,6 +30,7 @@ import {
   PRESET_FOOD_IMAGES,
   saveCustomMenuItem,
   saveTableConfig,
+  renameMenuCategory,
   DEMO_10_ITEMS,
   getImageStorageSettings,
   installDemoItemsAndImages,
@@ -43,7 +45,7 @@ type Props = {
 };
 
 export function Masters({ data, topology, navigate }: Props) {
-  const [activeTab, setActiveTab] = useState<'items' | 'tables'>('items');
+  const [activeTab, setActiveTab] = useState<'items' | 'categories' | 'tables'>('items');
   const [menuItems, setMenuItems] = useState<CustomMenuItem[]>(() => getMergedMenu(data?.menu));
   const [tables, setTables] = useState<TableMasterConfig[]>(() => getMergedTables(data?.restaurant_tables));
 
@@ -102,6 +104,18 @@ export function Masters({ data, topology, navigate }: Props) {
           </button>
           <button
             type="button"
+            onClick={() => setActiveTab('categories')}
+            className={`flex cursor-pointer items-center gap-2 rounded-lg px-4 py-2 text-xs font-semibold transition-all ${
+              activeTab === 'categories'
+                ? 'border border-border bg-card text-foreground shadow-xs'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Tags size={15} />
+            <span>Categories</span>
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab('tables')}
             className={`flex cursor-pointer items-center gap-2 rounded-lg px-4 py-2 text-xs font-semibold transition-all ${
               activeTab === 'tables'
@@ -125,9 +139,13 @@ export function Masters({ data, topology, navigate }: Props) {
       </div>
 
       {/* Tab Panels */}
-      {activeTab === 'items' ? (
+      {activeTab === 'items' && (
         <ItemMasterSection menuItems={menuItems} onRefresh={() => setMenuItems(getMergedMenu(data?.menu))} />
-      ) : (
+      )}
+      {activeTab === 'categories' && (
+        <CategoryMasterSection menuItems={menuItems} onRefresh={() => setMenuItems(getMergedMenu(data?.menu))} />
+      )}
+      {activeTab === 'tables' && (
         <TableMasterSection tables={tables} onRefresh={() => setTables(getMergedTables(data?.restaurant_tables))} />
       )}
     </div>
@@ -170,7 +188,7 @@ function ItemMasterSection({
 
   function handleInstall10Demo() {
     const res = installDemoItemsAndImages();
-    setDemoNotice(`Installed ${res.count} demo items with offline images!`);
+    setDemoNotice(`Restored ${res.count} customer menu items.`);
     onRefresh();
     setTimeout(() => setDemoNotice(''), 4000);
   }
@@ -208,7 +226,7 @@ function ItemMasterSection({
     setEditingItem(null);
     setFormCode(suggestNextCode());
     setFormName('');
-    setFormCategory('Beverages');
+    setFormCategory(categories.find((category) => category !== 'All') ?? 'General');
     setFormPrice('');
     setFormImage('');
     setFormError('');
@@ -219,7 +237,7 @@ function ItemMasterSection({
     setEditingItem(item);
     setFormCode(item.code);
     setFormName(item.name);
-    setFormCategory(item.category || 'Beverages');
+    setFormCategory(item.category || 'General');
     setFormPrice(String(item.price / 100));
     setFormImage(item.image || '');
     setFormError('');
@@ -365,7 +383,7 @@ function ItemMasterSection({
             title="Populate catalog with 10 bundled offline demo food items and images"
           >
             <Sparkles size={13} />
-            <span>Install 10 Demo Items</span>
+            <span>Restore customer catalog</span>
           </Button>
         </div>
       </div>
@@ -517,18 +535,15 @@ function ItemMasterSection({
                   type="text"
                   list="category-suggestions"
                   className={`${field} w-full text-xs`}
-                  placeholder="e.g. Bakery, Beverages"
+                  placeholder="Choose or enter a category"
                   value={formCategory}
                   onChange={(e) => setFormCategory(e.target.value)}
                   required
                 />
                 <datalist id="category-suggestions">
-                  <option value="Beverages" />
-                  <option value="Kitchen" />
-                  <option value="Bakery" />
-                  <option value="Food" />
-                  <option value="Dessert" />
-                  <option value="Snacks" />
+                  {categories.filter((category) => category !== 'All').map((category) => (
+                    <option key={category} value={category} />
+                  ))}
                 </datalist>
               </div>
 
@@ -690,7 +705,74 @@ function ItemMasterSection({
 }
 
 // ---------------------------------------------------------------------------
-// 2. TABLE MASTER SECTION (Visual Tables & Seating Diagrams)
+// 2. CATEGORY MASTER SECTION
+// ---------------------------------------------------------------------------
+function CategoryMasterSection({
+  menuItems,
+  onRefresh,
+}: {
+  menuItems: CustomMenuItem[];
+  onRefresh: () => void;
+}) {
+  const categories = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of menuItems) counts.set(item.category, (counts.get(item.category) ?? 0) + 1);
+    return Array.from(counts.entries()).sort(([left], [right]) => left.localeCompare(right));
+  }, [menuItems]);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [notice, setNotice] = useState('');
+
+  function saveCategory(currentName: string) {
+    const result = renameMenuCategory(currentName, drafts[currentName] ?? currentName);
+    if (!result.success) {
+      setNotice(result.error ?? 'Category could not be saved.');
+      return;
+    }
+    setDrafts((current) => {
+      const next = { ...current };
+      delete next[currentName];
+      return next;
+    });
+    setNotice('Category updated across the menu.');
+    onRefresh();
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-2xl border border-border bg-card p-5 shadow-2xs">
+        <div className="flex items-start gap-3">
+          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Tags size={18} /></span>
+          <div>
+            <h3 className="text-base font-bold text-foreground">Category Master</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">Rename a category here to update every matching item and the POS-1 category bar.</p>
+          </div>
+        </div>
+        {notice && <p className="mt-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-700 dark:text-emerald-300">{notice}</p>}
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-2xs">
+        {categories.map(([category, itemCount]) => (
+          <div key={category} className="flex flex-col gap-3 border-b border-border p-4 last:border-b-0 sm:flex-row sm:items-center">
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-semibold text-foreground">{category}</div>
+              <div className="mt-0.5 text-xs text-muted-foreground">{itemCount} {itemCount === 1 ? 'item' : 'items'}</div>
+            </div>
+            <input
+              value={drafts[category] ?? category}
+              onChange={(event) => setDrafts((current) => ({ ...current, [category]: event.target.value }))}
+              className={`${field} w-full sm:w-72`}
+              aria-label={`Category name for ${category}`}
+            />
+            <Button type="button" variant="outline" onClick={() => saveCategory(category)} className="cursor-pointer sm:w-20">Save</Button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 3. TABLE MASTER SECTION (Visual Tables & Seating Diagrams)
 // ---------------------------------------------------------------------------
 function TableMasterSection({
   tables,

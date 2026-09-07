@@ -1,0 +1,67 @@
+-- Replaces the demonstration menu with the customer-approved Q Cafe catalog.
+-- Billed legacy rows remain available to preserve POS and receipt history.
+
+ALTER TABLE menu ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1));
+
+UPDATE menu SET is_active=0;
+
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('இட்லி (2)','இட்லி / தோசை வகைகள்',4000,'01',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('சப்பாத்தி (1)','இட்லி / தோசை வகைகள்',3500,'02',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('குழி பணியாரம்','இட்லி / தோசை வகைகள்',5000,'03',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('தோசை','இட்லி / தோசை வகைகள்',3500,'04',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('ஊத்தாப்பம் பிளைன்','இட்லி / தோசை வகைகள்',3500,'05',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('ரோஸ்ட்','இட்லி / தோசை வகைகள்',5000,'06',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('நெய் தோசை','இட்லி / தோசை வகைகள்',7000,'07',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('பட்டர் தோசை','இட்லி / தோசை வகைகள்',7000,'08',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('பொடி தோசை','இட்லி / தோசை வகைகள்',7000,'09',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('பூண்டு தோசை','இட்லி / தோசை வகைகள்',7000,'10',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('அடை தோசை','இட்லி / தோசை வகைகள்',7000,'11',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('கம்பு தோசை','இட்லி / தோசை வகைகள்',7000,'12',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('சோள தோசை','இட்லி / தோசை வகைகள்',7000,'13',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('வெங்காய தோசை','இட்லி / தோசை வகைகள்',7000,'14',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('இஞ்சி புதினா தோசை','இட்லி / தோசை வகைகள்',7000,'15',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('முட்டை தோசை','இட்லி / தோசை வகைகள்',7000,'16',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('தக்காளி தோசை','சிறப்பு தோசைகள்',7000,'17',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('நெய் பொடி தோசை','சிறப்பு தோசைகள்',8000,'18',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('பட்டர் பொடி தோசை','சிறப்பு தோசைகள்',8000,'19',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('காளான் தோசை','சிறப்பு தோசைகள்',8000,'20',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('பிரண்டை தோசை','சிறப்பு தோசைகள்',8000,'21',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('மிளகாய் ரோஸ்ட்','சிறப்பு தோசைகள்',8000,'22',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('பன்னீர் தோசை','சிறப்பு தோசைகள்',9000,'23',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('வெங்காய நெய் / பட்டர் / பொடி தோசை','சிறப்பு தோசைகள்',9000,'24',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('அரிசியும் பருப்பு அடை','சிறப்பு தோசைகள்',8000,'25',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('தக்காளி சேவை','சிறப்பு தோசைகள்',8000,'26',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('ஆப்பாயில்','சிறப்பு தோசைகள்',1500,'27',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('புல்லாயில்','சிறப்பு தோசைகள்',1500,'28',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('ஆம்லெட்','சிறப்பு தோசைகள்',2000,'29',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('முட்டை பொரியல்','சிறப்பு தோசைகள்',3000,'30',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('கலக்கி','சிறப்பு தோசைகள்',3000,'31',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('முட்டை சேவை','சேவை / கறி வகைகள்',12000,'32',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('காளான் சேவை','சேவை / கறி வகைகள்',16000,'33',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('பூண்டு சேவை','சேவை / கறி வகைகள்',16000,'34',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('இஞ்சி புதினா சேவை','சேவை / கறி வகைகள்',16000,'35',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('லாலிபாப் (1)','சேவை / கறி வகைகள்',4500,'36',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('பள்ளிப்பாளையம் தோசை','சேவை / கறி வகைகள்',16000,'37',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('பிச்சுப்போட்ட கறிதோசை','சேவை / கறி வகைகள்',16000,'38',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('சிக்கன் கறி (எலும்பு) தோசை (எலும்பில்லாமல்)','சேவை / கறி வகைகள்',16000,'39',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('பள்ளிப்பாளையம் (போன்லெஸ்)','சேவை / கறி வகைகள்',16000,'40',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('பிச்சுப்போட்ட கறி (போன்லெஸ்)','சேவை / கறி வகைகள்',16000,'41',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('சிக்கன் சேவை','சேவை / கறி வகைகள்',22000,'42',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('பள்ளிப்பாளையம் சேவை','சேவை / கறி வகைகள்',22000,'43',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('இளநீர் பாயாசம்','சேவை / கறி வகைகள்',9000,'44',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('இட்லி','காலை உணவு & கறி',1500,'45',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('இடியாப்பம்','காலை உணவு & கறி',2500,'46',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('முட்டை தோசை','காலை உணவு & கறி',5000,'47',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('நெய் தோசை','காலை உணவு & கறி',5000,'48',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('ஈசல் தோசை','காலை உணவு & கறி',5000,'49',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('இஞ்சி பூண்டு, முட்டை குழம்பு','காலை உணவு & கறி',20000,'50',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('மட்டன் வறுவல்','காலை உணவு & கறி',25000,'51',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('நாட்டுக்கோழி வறுவல்','காலை உணவு & கறி',25000,'52',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('தனா கறி','காலை உணவு & கறி',25000,'53',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('மீன் குழம்பு','காலை உணவு & கறி',25000,'54',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('சுக்கா கறி','காலை உணவு & கறி',25000,'55',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('ஈரல் வறுவல்','காலை உணவு & கறி',25000,'56',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('சுடுகறி','காலை உணவு & கறி',25000,'57',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('சிக்கன் கறி','காலை உணவு & கறி',8000,'58',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('முட்டை','காலை உணவு & கறி',1500,'59',1);
+INSERT INTO menu(name,category,price,code,is_active) VALUES ('இறால் குழம்பு','காலை உணவு & கறி',9000,'60',1);

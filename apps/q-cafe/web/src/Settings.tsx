@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Store, Receipt, Palette, Server, Check, RotateCcw, HardDrive, FlaskConical, CheckCircle2, AlertCircle, Sparkles, Sliders, Download, RefreshCw } from 'lucide-react';
+import { Store, Receipt, Palette, Server, Check, RotateCcw, HardDrive, FlaskConical, CheckCircle2, AlertCircle, Sparkles, Sliders, Download, RefreshCw, Printer } from 'lucide-react';
 import { Button } from '@codexsun/ui/components/ui/button';
 import type { InterfaceTopologyController } from '@codexsun/devkit-ito';
 import { type Snapshot } from './api';
@@ -20,11 +20,14 @@ export type CafeSettings = {
   fssai?: string;
   receiptHeader: string;
   receiptFooter: string;
+  receiptLegalNote: string;
   defaultServiceType: 'Dine-in' | 'Takeaway';
   defaultGstRate: number;
   gstin: string;
   currency: string;
   autoPrintBill: boolean;
+  printerTarget: 'system-default';
+  directPrint: boolean;
   theme: 'system' | 'light' | 'dark';
   showItoIcon: boolean;
   imageFolderPath?: string;
@@ -48,11 +51,14 @@ const DEFAULT_SETTINGS: CafeSettings = {
   fssai: '12423001000456',
   receiptHeader: 'Artisanal Coffee & Kitchen',
   receiptFooter: 'Thank you for dining with us! Please visit again.',
+  receiptLegalNote: '',
   defaultServiceType: 'Dine-in',
   defaultGstRate: 5,
   gstin: '33AAAAA0000A1Z5',
   currency: 'INR (₹)',
   autoPrintBill: false,
+  printerTarget: 'system-default',
+  directPrint: false,
   theme: 'system',
   showItoIcon: false,
   imageFolderPath: 'C:\\q-cafe\\images',
@@ -117,7 +123,7 @@ type Props = {
   onToggleItoIcon?: (show: boolean) => void;
 };
 
-type TabId = 'general' | 'features' | 'pos' | 'media' | 'appearance' | 'system';
+type TabId = 'general' | 'features' | 'pos' | 'printer' | 'media' | 'appearance' | 'system';
 
 export function Settings({ data, topology, onToggleItoIcon }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>('general');
@@ -150,6 +156,14 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
     if (key === 'theme') {
       applyTheme(value as CafeSettings['theme']);
     }
+  }
+
+  function handlePrinterChange<K extends 'printerTarget' | 'directPrint'>(key: K, value: CafeSettings[K]) {
+    const updated = { ...settings, [key]: value };
+    setSettings(updated);
+    saveSettings(updated);
+    window.dispatchEvent(new CustomEvent('q-cafe-settings-updated', { detail: updated }));
+    setSavedNotice(true);
   }
 
   function handleToggleFeature<K extends keyof CafeSettings>(key: K, visible: boolean) {
@@ -224,7 +238,7 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
 
   function handleInstallDemo() {
     const res = installDemoItemsAndImages();
-    setDemoInstallNotice(`Successfully installed ${res.count} demo menu items with high-resolution offline images!`);
+    setDemoInstallNotice(`Restored ${res.count} customer menu items.`);
     setTimeout(() => setDemoInstallNotice(''), 4000);
   }
 
@@ -270,6 +284,7 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
     { id: 'general', label: 'General & Profile', icon: Store },
     { id: 'features', label: 'Features & Toggles', icon: Sliders },
     { id: 'pos', label: 'POS & Billing', icon: Receipt },
+    { id: 'printer', label: 'Printer & Receipts', icon: Printer },
     { id: 'media', label: 'Image Storage & Media', icon: HardDrive },
     { id: 'appearance', label: 'Appearance', icon: Palette },
     { id: 'system', label: 'System & Runtime', icon: Server },
@@ -579,6 +594,61 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                 </div>
               )}
 
+              {activeTab === 'printer' && (
+                <div className="space-y-5">
+                  <div>
+                    <h2 className="text-lg font-semibold tracking-tight">Printer & Receipt Output</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Choose the Windows default printer and control whether Q Cafe opens the receipt preview.
+                    </p>
+                  </div>
+
+                  <label className="grid gap-1.5 text-sm font-medium">
+                    Default Printer
+                    <select
+                      className={`${field} cursor-pointer`}
+                      value={settings.printerTarget}
+                      onChange={(event) => handlePrinterChange('printerTarget', event.target.value as CafeSettings['printerTarget'])}
+                    >
+                      <option value="system-default">Windows system default printer</option>
+                    </select>
+                    <span className="text-xs font-normal text-muted-foreground">
+                      Set the actual device in Windows Settings. Q Cafe uses that printer for its desktop print flow.
+                    </span>
+                  </label>
+
+                  <label className="flex cursor-pointer items-start justify-between gap-4 rounded-xl border border-border bg-card p-4 transition-colors hover:bg-accent/40">
+                    <span className="space-y-1">
+                      <span className="block text-sm font-semibold text-foreground">Direct print</span>
+                      <span className="block text-sm text-muted-foreground">
+                        Skip the in-app receipt preview and open the system print flow immediately.
+                      </span>
+                    </span>
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      aria-label="Direct print"
+                      className="mt-0.5 size-5 cursor-pointer accent-primary"
+                      checked={settings.directPrint}
+                      onChange={(event) => handlePrinterChange('directPrint', event.target.checked)}
+                    />
+                  </label>
+
+                  <label className="grid gap-1.5 text-sm font-medium">
+                    Receipt notice (optional)
+                    <input
+                      className={field}
+                      value={settings.receiptLegalNote}
+                      onChange={(event) => handleChange('receiptLegalNote', event.target.value)}
+                      placeholder="e.g. Goods once sold cannot be returned"
+                    />
+                    <span className="text-xs font-normal text-muted-foreground">
+                      Leave blank to omit this line from the printed receipt.
+                    </span>
+                  </label>
+                </div>
+              )}
+
               {activeTab === 'media' && (
                 <div className="space-y-6">
                   <div>
@@ -704,16 +774,16 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                     </div>
                   </div>
 
-                  {/* Bundled Demo Media (10 Items) */}
+                  {/* Customer menu catalog */}
                   <div className="rounded-2xl border border-border bg-card p-5 shadow-xs space-y-4">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-border pb-3">
                       <div className="space-y-0.5">
                         <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
                           <Sparkles size={15} className="text-primary" />
-                          Bundled Offline Demo Images (10 Items)
+                          Customer menu catalog
                         </h3>
                         <p className="text-xs text-muted-foreground">
-                          Install 10 packaged cafe food & drink illustrations directly into your catalog so images show immediately without internet.
+                          Restore the packaged customer menu catalog when the local API is unavailable.
                         </p>
                       </div>
 
@@ -723,7 +793,7 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                         className="cursor-pointer gap-2 shrink-0 text-xs font-semibold h-9"
                       >
                         <Sparkles size={14} />
-                        <span>Install 10 Demo Items & Images</span>
+                        <span>Restore customer catalog</span>
                       </Button>
                     </div>
 

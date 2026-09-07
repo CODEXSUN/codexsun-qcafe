@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, Utensils } from 'lucide-react';
+import { Utensils } from 'lucide-react';
 import { TopologyMarker } from '@codexsun/devkit-ito';
 import { money } from '../api';
 import type { Pos1ProductSectionProps } from './types';
@@ -11,75 +11,31 @@ export function Pos1ProductSection({
   onSelectItem,
   selectedCategory,
   onSelectCategory,
-  standardCategories,
-  moreCategories,
-  showMoreCategories,
-  onToggleShowMoreCategories,
+  categories,
 }: Pos1ProductSectionProps) {
   const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
 
   return (
     <div className="flex flex-col flex-1 min-h-0 gap-3">
-      {/* Category Filter Pills */}
-      <div className="flex items-center gap-2 overflow-x-auto py-0.5 scrollbar-slim shrink-0">
-        {standardCategories.map((cat) => {
-          const isActive = selectedCategory === cat;
+      {/* Category Filter Pills from Item Master */}
+      <div className="flex shrink-0 items-center gap-2 overflow-x-auto py-0.5 scrollbar-slim">
+        {categories.map((category) => {
+          const isActive = selectedCategory === category;
           return (
             <button
-              key={cat}
+              key={category}
               type="button"
-              onClick={() => onSelectCategory(cat)}
-              className={`shrink-0 cursor-pointer select-none touch-manipulation rounded-xl px-4 py-2 text-xs font-semibold transition-all duration-150 active:scale-95 ${
+              onClick={() => onSelectCategory(category)}
+              className={`shrink-0 cursor-pointer select-none rounded-xl px-4 py-2 text-xs font-semibold transition-all duration-150 active:scale-95 ${
                 isActive
-                  ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 shadow-xs'
+                  ? 'bg-neutral-900 text-white shadow-xs dark:bg-neutral-100 dark:text-neutral-900'
                   : 'border border-border bg-card text-foreground hover:bg-muted/70'
               }`}
             >
-              {cat}
+              {category}
             </button>
           );
         })}
-
-        {moreCategories.length > 0 && (
-          <div className="relative shrink-0">
-            <button
-              type="button"
-              onClick={() => onToggleShowMoreCategories(!showMoreCategories)}
-              className={`flex cursor-pointer items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition-all ${
-                !standardCategories.includes(selectedCategory)
-                  ? 'border-primary bg-primary text-primary-foreground'
-                  : 'border-border bg-card text-foreground hover:bg-muted/70'
-              }`}
-            >
-              <span>
-                {!standardCategories.includes(selectedCategory) ? selectedCategory : 'More'}
-              </span>
-              <ChevronDown size={14} />
-            </button>
-
-            {showMoreCategories && (
-              <div
-                className="absolute left-0 top-full mt-1.5 z-30 min-w-36 rounded-xl border border-border bg-popover p-1.5 shadow-xl"
-                onClick={() => onToggleShowMoreCategories(false)}
-              >
-                {moreCategories.map((cat) => (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => onSelectCategory(cat)}
-                    className={`flex w-full cursor-pointer items-center rounded-lg px-3 py-1.5 text-left text-xs font-medium ${
-                      selectedCategory === cat
-                        ? 'bg-accent text-accent-foreground font-semibold'
-                        : 'hover:bg-muted'
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Product Cards Grid */}
@@ -121,6 +77,9 @@ export function Pos1ProductSection({
                       </span>
                     </div>
                   )}
+                  <span className="pointer-events-none absolute bottom-1.5 right-1.5 rounded-md bg-background/90 px-1.5 py-0.5 text-sm font-bold leading-none text-blue-600 shadow-xs dark:text-blue-400">
+                    {item.code}
+                  </span>
                 </div>
 
                 {/* Item Information */}
