@@ -20,12 +20,19 @@ export type FirstLoginSetup = {
   login: string;
 };
 
+export type PasswordResetSetup = {
+  code: string;
+  enabled: boolean;
+  expiresAt: string;
+};
+
 export class IdentityService implements IdentityTokenVerifier {
   constructor(
     private readonly repository: IdentityRepository,
     private readonly keys: IdentityTokenKeyResolver,
     private readonly events: IdentityEventPublisher,
     private readonly setup: FirstLoginSetup = { bootstrapPassword: "", code: "", enabled: false, expiresAt: "", login: "" },
+    private readonly passwordReset: PasswordResetSetup = { code: "", enabled: false, expiresAt: "" },
   ) {}
 
   async firstLoginAvailable(): Promise<boolean> {
@@ -44,8 +51,21 @@ export class IdentityService implements IdentityTokenVerifier {
     if (input.password.length < minimumPasswordLength || input.password.length > 1024 || input.password === this.setup.code) throw new Error("Choose a new password with at least 8 characters.");
     const account = await this.repository.findAccountByLogin(this.setup.login);
     if (!account || !account.permissions.includes("identity.admin") || !await verifyPassword(this.setup.bootstrapPassword, account.passwordHash)) throw new Error("Setup unavailable.");
-    const changed = await this.repository.replaceBootstrapPassword(account.id, account.passwordHash, await hashPassword(input.password));
+    const changed = await this.repository.replacePassword(account.id, account.passwordHash, await hashPassword(input.password));
     if (!changed) throw new Error("Setup already completed.");
+    return this.login({ login: input.login, password: input.password });
+  }
+
+  passwordResetAvailable(): boolean { return this.isPasswordResetActive(); }
+
+  passwordResetExpiresAt(): string | undefined { return this.isPasswordResetActive() ? this.passwordReset.expiresAt : undefined; }
+
+  async resetPassword(input: { code: string; login: string; password: string }): Promise<IdentityLoginResult> {
+    if (!this.isPasswordResetActive() || input.password.length < minimumPasswordLength || input.password.length > 1024 || !matchesSecret(input.code, this.passwordReset.code)) throw new Error("Password reset is unavailable.");
+    const account = await this.repository.findAccountByLogin(input.login);
+    if (!account || account.status === "suspended") throw new Error("Password reset is unavailable.");
+    const changed = await this.repository.replacePassword(account.id, account.passwordHash, await hashPassword(input.password));
+    if (!changed) throw new Error("Password reset is unavailable.");
     return this.login({ login: input.login, password: input.password });
   }
 
@@ -183,6 +203,11 @@ export class IdentityService implements IdentityTokenVerifier {
     return this.setup.enabled && this.setup.bootstrapPassword.length >= 8 && this.setup.code.length >= minimumSetupCodeLength && Number.isFinite(expiresAt) && expiresAt > Date.now();
   }
 
+  private isPasswordResetActive(): boolean {
+    const expiresAt = Date.parse(this.passwordReset.expiresAt);
+    return this.passwordReset.enabled && this.passwordReset.code.length >= minimumSetupCodeLength && Number.isFinite(expiresAt) && expiresAt > Date.now();
+  }
+
   private claims(account: IdentityAccount, sessionId: string, tokenId: string, type: IdentityClaims["type"]): IdentityClaims {
     return identityClaimsSchema.parse({
       appIds: account.applicationIds, aud: "codexsun-platform", iat: Math.floor(Date.now() / 1_000), iss: "codexsun-identity",
@@ -230,6 +255,12 @@ async function verifyPassword(password: string, encoded: string): Promise<boolea
   const expected = Buffer.from(stored, "base64url");
   const actual = await scrypt(password, salt, expected.length) as Buffer;
   return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+function matchesSecret(value: string, expected: string): boolean {
+  const supplied = Buffer.from(value);
+  const configured = Buffer.from(expected);
+  return supplied.length === configured.length && timingSafeEqual(supplied, configured);
 }
 
 function toManagedAccount(account: IdentityAccount): ManagedIdentityAccount {

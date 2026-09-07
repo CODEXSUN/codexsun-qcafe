@@ -26,3 +26,7 @@ The server stores a salted scrypt hash. An atomic password replacement revokes p
 Setup closes once the stored password differs from the bootstrap credential. It stays closed after a restart even if the environment switch remains true; the server treats it as false.
 This flow does not reset an account whose password has already changed. Seeds never overwrite existing passwords.
 Never publish the bootstrap password or setup code, or embed either in a web or desktop build.
+
+### Temporary password reset
+
+Set `OS_PASSWORD_RESET=true` in private `config/operator.env` to open the reset page. The VPS bootstrap script creates a 10-digit `OS_PASSWORD_RESET_CODE` and sets a 30-minute expiry when the code is missing or expired. The account holder enters their email, the temporary code, and a new password. The service changes the stored hash and revokes prior sessions. Disable the switch after the reset. This temporary code check will be replaced with email delivery later.

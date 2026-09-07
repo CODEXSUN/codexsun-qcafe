@@ -27,6 +27,9 @@ export function IdentityGate({ children, onAuthenticated, onSignedOut, baseUrl =
   const [setupAvailable, setSetupAvailable] = useState(false);
   const [setupExpiresAt, setSetupExpiresAt] = useState("");
   const [setupMode, setSetupMode] = useState(false);
+  const [resetMode, setResetMode] = useState(false);
+  const [resetAvailable, setResetAvailable] = useState(false);
+  const [resetExpiresAt, setResetExpiresAt] = useState("");
   const [code, setCode] = useState("");
   const [confirmation, setConfirmation] = useState("");
 
@@ -37,6 +40,17 @@ export function IdentityGate({ children, onAuthenticated, onSignedOut, baseUrl =
       const result = await response.json() as { available?: boolean; expiresAt?: string };
       setSetupAvailable(result.available === true);
       setSetupExpiresAt(result.expiresAt ?? "");
+      return result.available === true;
+    } catch { return false; }
+  }
+
+  async function loadPasswordResetStatus(): Promise<boolean> {
+    try {
+      const response = await fetch(`${baseUrl}/api/v1/identity/password-reset`, { cache: "no-store", credentials: "include" });
+      if (!response.ok) return false;
+      const result = await response.json() as { available?: boolean; expiresAt?: string };
+      setResetAvailable(result.available === true);
+      setResetExpiresAt(result.expiresAt ?? "");
       return result.available === true;
     } catch { return false; }
   }
@@ -89,6 +103,7 @@ export function IdentityGate({ children, onAuthenticated, onSignedOut, baseUrl =
   useEffect(() => {
     let disposed = false;
     void loadSetupStatus().catch(() => { if (!disposed) setSetupAvailable(false); });
+    void loadPasswordResetStatus().catch(() => { if (!disposed) setResetAvailable(false); });
     void refresh().catch(() => { if (!disposed) setError("Unable to reach CODEXSUN OS."); }).finally(() => { if (!disposed) setChecking(false); });
     const interval = setInterval(() => { void refresh().catch(() => setError("Connection lost. Reconnecting…")); }, 10 * 60 * 1000);
     return () => { disposed = true; clearInterval(interval); };
@@ -99,12 +114,14 @@ export function IdentityGate({ children, onAuthenticated, onSignedOut, baseUrl =
     setBusy(true);
     setError("");
     try {
-      if (setupMode && password !== confirmation) throw new Error("Passwords do not match.");
-      const response = await fetch(`${baseUrl}/api/v1/identity/${setupMode ? "setup" : "login"}`, { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ login, password, ...(setupMode ? { code } : {}) }) });
+      if ((setupMode || resetMode) && password !== confirmation) throw new Error("Passwords do not match.");
+      const endpoint = setupMode ? "setup" : resetMode ? "password-reset" : "login";
+      const response = await fetch(`${baseUrl}/api/v1/identity/${endpoint}`, { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ login, password, ...((setupMode || resetMode) ? { code } : {}) }) });
       if (!response.ok) {
         if (response.status === 429) throw new Error("Too many attempts. Try again shortly.");
         if (setupMode && !await loadSetupStatus()) throw new Error("Setup code expired or setup is already complete. Generate and synchronize a new code, then try again.");
-        throw new Error(setupMode ? "Setup code does not match this CODEXSUN OS installation." : "Sign-in failed. Check your email and password.");
+        if (resetMode && !await loadPasswordResetStatus()) throw new Error("The reset window expired. Ask an operator to create a new reset code.");
+        throw new Error(setupMode ? "Setup code does not match this CODEXSUN OS installation." : resetMode ? "The reset code or account is invalid." : "Sign-in failed. Check your email and password.");
       }
       const result = await response.json() as { accessToken: string; refreshToken: string };
       await completeAuthentication(result, login.trim().toLowerCase());
@@ -117,15 +134,19 @@ export function IdentityGate({ children, onAuthenticated, onSignedOut, baseUrl =
 
   if (checking) return <IdentityLoadingScreen />;
   if (ready) return <IdentitySessionContext.Provider value={{ profile, signedIn: true, signOut }}>{children}</IdentitySessionContext.Provider>;
+  const passwordChangeMode = setupMode || resetMode;
+  const heading = setupMode ? "Set your first password" : resetMode ? "Reset your password" : "Sign in to your workspace";
+  const resetHint = resetExpiresAt ? ` Reset window closes ${new Date(resetExpiresAt).toLocaleString()}.` : "";
   return <main className="grid min-h-screen place-items-center bg-background p-6 text-foreground"><form className="flex w-full max-w-sm flex-col gap-6" onSubmit={submit}>
-    <div><p className="text-sm text-muted-foreground">CODEXSUN OS</p><h1 className="mt-2 text-2xl font-semibold">{setupMode ? "Set your first password" : "Sign in to your workspace"}</h1></div>
+    <div><p className="text-sm text-muted-foreground">CODEXSUN OS</p><h1 className="mt-2 text-2xl font-semibold">{heading}</h1>{resetMode && <p className="mt-2 text-sm text-muted-foreground">Use the temporary reset code from your operator. Email delivery will replace this step later.{resetHint}</p>}</div>
     <label className="grid gap-2 text-sm">Email<input autoComplete="username" type="email" required value={login} onChange={event => setLogin(event.target.value)} className="rounded-lg border border-input bg-background p-3 outline-none focus:ring-2 focus:ring-ring" /></label>
-    {setupMode && <label className="grid gap-2 text-sm">One-time setup code<input autoComplete="off" type="password" required value={code} onChange={event => setCode(event.target.value)} className="rounded-lg border border-input bg-background p-3 outline-none focus:ring-2 focus:ring-ring" /><span className="text-xs text-muted-foreground">Use the setup code from the private operator environment.{setupExpiresAt && ` Expires ${new Date(setupExpiresAt).toLocaleString()}.`}</span></label>}
-    <label className="grid gap-2 text-sm">{setupMode ? "New password (at least 8 characters)" : "Password"}<input autoComplete={setupMode ? "new-password" : "current-password"} minLength={setupMode ? 8 : undefined} type="password" required value={password} onChange={event => setPassword(event.target.value)} className="rounded-lg border border-input bg-background p-3 outline-none focus:ring-2 focus:ring-ring" /></label>
-    {setupMode && <label className="grid gap-2 text-sm">Confirm password<input autoComplete="new-password" type="password" required value={confirmation} onChange={event => setConfirmation(event.target.value)} className="rounded-lg border border-input bg-background p-3 outline-none focus:ring-2 focus:ring-ring" /></label>}
+    {passwordChangeMode && <label className="grid gap-2 text-sm">{setupMode ? "One-time setup code" : "Temporary reset code"}<input autoComplete="off" type="password" required value={code} onChange={event => setCode(event.target.value)} className="rounded-lg border border-input bg-background p-3 outline-none focus:ring-2 focus:ring-ring" />{setupMode && <span className="text-xs text-muted-foreground">Use the setup code from the private operator environment.{setupExpiresAt && ` Expires ${new Date(setupExpiresAt).toLocaleString()}.`}</span>}</label>}
+    <label className="grid gap-2 text-sm">{passwordChangeMode ? "New password (at least 8 characters)" : "Password"}<input autoComplete={passwordChangeMode ? "new-password" : "current-password"} minLength={passwordChangeMode ? 8 : undefined} type="password" required value={password} onChange={event => setPassword(event.target.value)} className="rounded-lg border border-input bg-background p-3 outline-none focus:ring-2 focus:ring-ring" /></label>
+    {passwordChangeMode && <label className="grid gap-2 text-sm">Confirm password<input autoComplete="new-password" type="password" required value={confirmation} onChange={event => setConfirmation(event.target.value)} className="rounded-lg border border-input bg-background p-3 outline-none focus:ring-2 focus:ring-ring" /></label>}
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-    <Button className="cursor-pointer" disabled={busy} type="submit">{busy ? "Please wait…" : setupMode ? "Set password and sign in" : "Sign in"}</Button>
-    {setupAvailable && <Button variant="ghost" className="cursor-pointer" disabled={busy} type="button" onClick={() => { setSetupMode(!setupMode); setError(""); setPassword(""); setCode(""); setConfirmation(""); }}>{setupMode ? "Back to sign in" : "First-time password setup"}</Button>}
+    <Button className="cursor-pointer" disabled={busy} type="submit">{busy ? "Please wait…" : passwordChangeMode ? "Set password and sign in" : "Sign in"}</Button>
+    {setupAvailable && <Button variant="ghost" className="cursor-pointer" disabled={busy} type="button" onClick={() => { setSetupMode(!setupMode); setResetMode(false); setError(""); setPassword(""); setCode(""); setConfirmation(""); }}>{setupMode ? "Back to sign in" : "First-time password setup"}</Button>}
+    {resetAvailable && <Button variant="link" className="cursor-pointer self-start px-0" disabled={busy} type="button" onClick={() => { setResetMode(!resetMode); setSetupMode(false); setError(""); setPassword(""); setCode(""); setConfirmation(""); }}>{resetMode ? "Back to sign in" : "Forgot password?"}</Button>}
   </form></main>;
 }
 

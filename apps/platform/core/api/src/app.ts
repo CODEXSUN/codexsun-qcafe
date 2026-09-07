@@ -37,6 +37,10 @@ export function buildApp(options: {
       bootstrapPassword: (options.environment ?? process.env).OS_SUPER_ADMIN_PASSWORD ?? "",
       code: (options.environment ?? process.env).OS_FIRST_LOGIN_SETUP_CODE ?? "",
       expiresAt: (options.environment ?? process.env).OS_FIRST_LOGIN_SETUP_EXPIRES_AT ?? "",
+    }, {
+      enabled: (options.environment ?? process.env).OS_PASSWORD_RESET === "true",
+      code: (options.environment ?? process.env).OS_PASSWORD_RESET_CODE ?? "",
+      expiresAt: (options.environment ?? process.env).OS_PASSWORD_RESET_EXPIRES_AT ?? "",
     })
     : undefined);
   for (const manifest of [...platformManifests, ...applications]) {

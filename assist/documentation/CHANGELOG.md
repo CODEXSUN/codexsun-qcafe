@@ -14,7 +14,7 @@ Changelog label: v 1.1.2
 
 ## v-1.1.2
 
-### [v 1.1.2] 2026-09-07 7:40 a.m. - Make Q Cafe updates manual
+### [v 1.1.2] 2026-09-07 8:05 a.m. - Restore cloud sign-in, add temporary password reset, and make Q Cafe updates manual
 
 #### Database Changes
 
@@ -23,6 +23,11 @@ Changelog label: v 1.1.2
 #### App Codebase Changes
 
 - Bumped the workspace version to 1.1.2.
+- Restored the cloud operator credential hash and verified cloud sign-in.
+- Added a dedicated password reset page for web and Zetro Desk.
+- Added a short-lived operator reset-code flow that revokes old sessions.
+- Prepared the VPS bootstrap configuration for reset codes and expiry windows.
+- Connected the cloud Docs service to the MariaDB network.
 
 ## v-1.1.1
 

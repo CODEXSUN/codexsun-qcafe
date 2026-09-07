@@ -229,7 +229,7 @@
         "DOCS_API_HOST": "0.0.0.0",
         "OS_IDENTITY_URL": "http://platform:4100"
       },
-      "networks": ["internal"],
+      "networks": ["internal", "edge"],
       "depends_on": {
         "platform": {
           "condition": "service_healthy"

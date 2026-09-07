@@ -4,7 +4,7 @@ import type { PlatformDatabaseSchema } from "../../database/schema.js";
 
 export interface IdentityRepository {
   createAccount(account: IdentityAccount): Promise<void>;
-  replaceBootstrapPassword(id: string, expectedHash: string, passwordHash: string): Promise<boolean>;
+  replacePassword(id: string, expectedHash: string, passwordHash: string): Promise<boolean>;
   updateAccount(account: IdentityAccount): Promise<void>;
   revokeAccountSessions(accountId: string): Promise<void>;
   listAccounts(): Promise<IdentityAccount[]>;
@@ -27,7 +27,7 @@ export class MemoryIdentityRepository implements IdentityRepository {
     if (this.#accounts.has(account.login.toLowerCase())) throw new Error("Identity login already exists.");
     this.store(account);
   }
-  async replaceBootstrapPassword(id: string, expectedHash: string, passwordHash: string): Promise<boolean> {
+  async replacePassword(id: string, expectedHash: string, passwordHash: string): Promise<boolean> {
     const account = this.#accountsById.get(id);
     if (!account || account.passwordHash !== expectedHash) return false;
     account.passwordHash = passwordHash;
@@ -57,7 +57,7 @@ export class KyselyIdentityRepository implements IdentityRepository {
   async createAccount(account: IdentityAccount): Promise<void> {
     await this.database.insertInto("identity_accounts").values({ id: account.id, ...accountValues(account) }).execute();
   }
-  async replaceBootstrapPassword(id: string, expectedHash: string, passwordHash: string): Promise<boolean> {
+  async replacePassword(id: string, expectedHash: string, passwordHash: string): Promise<boolean> {
     return this.database.transaction().execute(async transaction => {
       const result = await transaction.updateTable("identity_accounts").set({ password_hash: passwordHash }).where("id", "=", id).where("password_hash", "=", expectedHash).executeTakeFirst();
       if (result.numUpdatedRows !== 1n) return false;

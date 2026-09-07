@@ -53,6 +53,9 @@ for key in ['OS_SUPER_ADMIN_EMAIL', 'OS_SUPER_ADMIN_PASSWORD']:
 settings['OS_FIRST_LOGIN_SETUP'] = operator.get('OS_FIRST_LOGIN_SETUP', settings.get('OS_FIRST_LOGIN_SETUP', 'false'))
 settings.setdefault('OS_FIRST_LOGIN_SETUP_CODE', '')
 settings.setdefault('OS_FIRST_LOGIN_SETUP_EXPIRES_AT', '')
+settings['OS_PASSWORD_RESET'] = operator.get('OS_PASSWORD_RESET', settings.get('OS_PASSWORD_RESET', 'false'))
+settings.setdefault('OS_PASSWORD_RESET_CODE', '')
+settings.setdefault('OS_PASSWORD_RESET_EXPIRES_AT', '')
 if settings['OS_FIRST_LOGIN_SETUP'] == 'true':
     expires_at = operator.get('OS_FIRST_LOGIN_SETUP_EXPIRES_AT', '')
     try:
@@ -65,11 +68,23 @@ if settings['OS_FIRST_LOGIN_SETUP'] == 'true':
         save_env(config / 'operator.env', operator)
     settings['OS_FIRST_LOGIN_SETUP_CODE'] = operator['OS_FIRST_LOGIN_SETUP_CODE']
     settings['OS_FIRST_LOGIN_SETUP_EXPIRES_AT'] = operator['OS_FIRST_LOGIN_SETUP_EXPIRES_AT']
+if settings['OS_PASSWORD_RESET'] == 'true':
+    expires_at = operator.get('OS_PASSWORD_RESET_EXPIRES_AT', '')
+    try:
+        expired = datetime.fromisoformat(expires_at.replace('Z', '+00:00')) <= datetime.now(timezone.utc)
+    except ValueError:
+        expired = True
+    if not re.fullmatch(r'\d{10}', operator.get('OS_PASSWORD_RESET_CODE', '')) or expired:
+        operator['OS_PASSWORD_RESET_CODE'] = ''.join(str(secrets.randbelow(10)) for _ in range(10))
+        operator['OS_PASSWORD_RESET_EXPIRES_AT'] = (datetime.now(timezone.utc) + timedelta(minutes=30)).isoformat().replace('+00:00', 'Z')
+        save_env(config / 'operator.env', operator)
+    settings['OS_PASSWORD_RESET_CODE'] = operator['OS_PASSWORD_RESET_CODE']
+    settings['OS_PASSWORD_RESET_EXPIRES_AT'] = operator['OS_PASSWORD_RESET_EXPIRES_AT']
 save_env(target, settings)
 settings.setdefault('ZXA_API_TOKEN', secrets.token_hex(32))
 save_env(target, settings)
 groups = {
-    'platform': ['NODE_ENV', 'OS_API_HOST', 'OS_DATABASE_REQUIRED', 'DATABASE_URL', 'OS_IDENTITY_TOKEN_SECRET', 'OS_SUPER_ADMIN_EMAIL', 'OS_SUPER_ADMIN_PASSWORD', 'OS_FIRST_LOGIN_SETUP', 'OS_FIRST_LOGIN_SETUP_CODE', 'OS_FIRST_LOGIN_SETUP_EXPIRES_AT', 'OS_COOKIE_AUTH', 'OS_REDIS_ENABLED', 'OS_REDIS_URL'],
+    'platform': ['NODE_ENV', 'OS_API_HOST', 'OS_DATABASE_REQUIRED', 'DATABASE_URL', 'OS_IDENTITY_TOKEN_SECRET', 'OS_SUPER_ADMIN_EMAIL', 'OS_SUPER_ADMIN_PASSWORD', 'OS_FIRST_LOGIN_SETUP', 'OS_FIRST_LOGIN_SETUP_CODE', 'OS_FIRST_LOGIN_SETUP_EXPIRES_AT', 'OS_PASSWORD_RESET', 'OS_PASSWORD_RESET_CODE', 'OS_PASSWORD_RESET_EXPIRES_AT', 'OS_COOKIE_AUTH', 'OS_REDIS_ENABLED', 'OS_REDIS_URL'],
     'chat': ['NODE_ENV', 'OS_IDENTITY_URL', 'CHAT_DATABASE_URL', 'OS_REDIS_ENABLED', 'OS_REDIS_URL', 'CHAT_API_HOST', 'CHAT_ALLOWED_ORIGINS'],
     'zetro': ['NODE_ENV', 'OS_IDENTITY_URL', 'ZETRO_API_HOST', 'ZETRO_WORKSPACE_DATABASE_FILE', 'ZETRO_DATABASE_FILE', 'AI_TASK_DATABASE_FILE', 'ZETRO_SETTINGS_FILE', 'ZETRO_PROJECTS_ROOT', 'ZETRO_AGENTS_FILE', 'ZXA_API_TOKEN'],
     'dcs': ['OS_IDENTITY_URL', 'DCS_ALLOWED_ORIGINS'],

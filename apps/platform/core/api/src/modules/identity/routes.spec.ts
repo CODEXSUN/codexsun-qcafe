@@ -48,3 +48,19 @@ it("lets an identity administrator manage accounts and revokes changed user sess
     await expect(service.verifyAccessToken(memberSession.accessToken)).rejects.toThrow(/revoked/u);
   } finally { await app.close(); }
 });
+
+it("resets a password only during an active reset window and revokes old sessions", async () => {
+  const account = { id: "a9cc22ba-bf1d-41a0-a803-0ebda105fb91", login: "member@example.com", passwordHash: await hashPassword("old-password"), applicationIds: [], permissions: [], scope: "single-client" as const };
+  const service = new IdentityService(new MemoryIdentityRepository([account]), staticTokenKeyResolver("test-secret"), new MemoryIdentityEventPublisher(), undefined, { code: "1234567890", enabled: true, expiresAt: new Date(Date.now() + 60_000).toISOString() });
+  const app = Fastify();
+  registerIdentityRoutes(app, service);
+  try {
+    const previous = await service.login({ login: account.login, password: "old-password" });
+    expect((await app.inject({ method: "GET", url: "/api/v1/identity/password-reset" })).json()).toMatchObject({ available: true });
+    expect((await app.inject({ method: "POST", url: "/api/v1/identity/password-reset", payload: { code: "wrong-code", login: account.login, password: "new-password" } })).statusCode).toBe(401);
+    expect((await app.inject({ method: "POST", url: "/api/v1/identity/password-reset", payload: { code: "1234567890", login: account.login, password: "new-password" } })).statusCode).toBe(201);
+    await expect(service.verifyAccessToken(previous.accessToken)).rejects.toThrow(/revoked/u);
+    await expect(service.login({ login: account.login, password: "old-password" })).rejects.toThrow();
+    await expect(service.login({ login: account.login, password: "new-password" })).resolves.toMatchObject({ accessToken: expect.any(String) });
+  } finally { await app.close(); }
+});

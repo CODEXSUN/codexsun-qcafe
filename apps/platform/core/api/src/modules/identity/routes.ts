@@ -5,6 +5,7 @@ import type { IdentityService } from "./service.js";
 import { clearBrowserSession, readRefreshCookie, setBrowserSession } from "./browser-session.js";
 
 const loginSchema = z.object({ login: z.string().trim().email().max(254), password: z.string().min(1).max(1024) });
+const passwordResetSchema = loginSchema.extend({ code: z.string().min(10).max(1024), password: z.string().min(8).max(1024) });
 const refreshSchema = z.object({ refreshToken: z.string().min(1) });
 const accountSchema = z.object({
   applicationIds: z.array(z.string().regex(/^app\.[a-z0-9-]+$/u)).max(50),
@@ -19,6 +20,7 @@ const accountSchema = z.object({
 
 export function registerIdentityRoutes(app: FastifyInstance, service: IdentityService): void {
   app.get("/api/v1/identity/setup", async (_request, reply) => reply.header("Cache-Control", "no-store").send({ available: await service.firstLoginAvailable(), expiresAt: service.firstLoginExpiresAt() }));
+  app.get("/api/v1/identity/password-reset", async (_request, reply) => reply.header("Cache-Control", "no-store").send({ available: service.passwordResetAvailable(), expiresAt: service.passwordResetExpiresAt() }));
   app.post("/api/v1/identity/setup", async (request, reply) => {
     const input = loginSchema.extend({ code: z.string().min(10).max(1024), password: z.string().min(8).max(1024) }).safeParse(request.body);
     if (!input.success) return reply.code(400).send({ error: "Enter your setup code and a password of at least 8 characters." });
@@ -30,6 +32,12 @@ export function registerIdentityRoutes(app: FastifyInstance, service: IdentitySe
     if (!input.success) return reply.code(400).send({ error: "Invalid login request." });
     try { const result = await service.login(input.data); setBrowserSession(reply, result); return reply.code(201).send(result); }
     catch { return reply.code(401).send({ error: "Invalid identity credentials." }); }
+  });
+  app.post("/api/v1/identity/password-reset", async (request, reply) => {
+    const input = passwordResetSchema.safeParse(request.body);
+    if (!input.success) return reply.code(400).send({ error: "Enter your email, reset code, and a password of at least 8 characters." });
+    try { const result = await service.resetPassword(input.data); setBrowserSession(reply, result); return reply.header("Cache-Control", "no-store").code(201).send(result); }
+    catch { return reply.code(401).send({ error: "The reset code, account, or reset window is invalid." }); }
   });
   app.post("/api/v1/identity/refresh", async (request, reply) => {
     const input = refreshSchema.safeParse(request.body ?? { refreshToken: readRefreshCookie(request.headers.cookie) });
