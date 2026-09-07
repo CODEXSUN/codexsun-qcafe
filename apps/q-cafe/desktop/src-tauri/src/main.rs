@@ -248,20 +248,6 @@ fn qcafe_install_update(process: tauri::State<'_, ApiProcess>) -> Result<(), Str
     std::process::exit(0);
 }
 
-fn notify_update_if_available(app: AppHandle) {
-    let Ok(Some(update)) = check_for_update() else { return; };
-    let message = format!("Q Cafe {} is available. {}\n\nDownload and install it now?", update.version, update.notes);
-    if MessageDialog::new().set_level(MessageLevel::Info).set_title("Q Cafe update available").set_description(&message).set_buttons(MessageButtons::YesNo).show() != MessageDialogResult::Yes { return; }
-    match download_verified_installer(&update) {
-        Ok(installer) => {
-            if stop_api(&app.state::<ApiProcess>()).is_err() { return; }
-            if launch_verified_installer(&installer).is_ok() { std::process::exit(0); }
-            let _ = MessageDialog::new().set_level(MessageLevel::Error).set_title("Q Cafe update").set_description("The verified installer could not start.").show();
-        }
-        Err(error) => { let _ = MessageDialog::new().set_level(MessageLevel::Error).set_title("Q Cafe update").set_description(&error).show(); }
-    }
-}
-
 fn start_api(app: &AppHandle) -> Result<Child, String> {
     let settings_dir = application_settings_dir(app);
     let mut storage = load_or_configure_storage(&settings_dir)?;
@@ -360,8 +346,6 @@ fn main() {
             }
             let child = start_api(app.handle())?;
             *app.state::<ApiProcess>().0.lock().expect("API process lock") = Some(child);
-            let handle = app.handle().clone();
-            std::thread::spawn(move || notify_update_if_available(handle));
             Ok(())
         })
         .on_window_event(|window, event| {

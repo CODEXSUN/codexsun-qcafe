@@ -2,15 +2,27 @@
 
 ## Version State
 
-Current version: 1.1.1
+Current version: 1.1.2
 
-Release tag: v-1.1.1
+Release tag: v-1.1.2
 
-Changelog label: v 1.1.1
+Changelog label: v 1.1.2
 
 ## Unreleased
 
 - No unreleased changes.
+
+## v-1.1.2
+
+### [v 1.1.2] 2026-09-07 7:40 a.m. - Make Q Cafe updates manual
+
+#### Database Changes
+
+- Database update: No.
+
+#### App Codebase Changes
+
+- Bumped the workspace version to 1.1.2.
 
 ## v-1.1.1
 

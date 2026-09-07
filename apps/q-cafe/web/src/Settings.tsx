@@ -126,7 +126,8 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
   const [verificationResult, setVerificationResult] = useState<StorageVerificationResult | null>(null);
   const [demoInstallNotice, setDemoInstallNotice] = useState('');
   const [availableUpdate, setAvailableUpdate] = useState<{ version: string; notes: string } | null>(null);
-  const [currentVersion, setCurrentVersion] = useState('1.0.9');
+  const [currentVersion, setCurrentVersion] = useState('1.1.2');
+  const [updateState, setUpdateState] = useState<'idle' | 'checking' | 'current' | 'available' | 'error'>('idle');
   const [updateBusy, setUpdateBusy] = useState(false);
   const [updateNotice, setUpdateNotice] = useState('');
 
@@ -833,19 +834,19 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                     </p>
                   </div>
 
-                  <div className={`rounded-xl border p-4 ${availableUpdate ? 'border-orange-500/60 bg-orange-500/10' : 'border-emerald-500/60 bg-emerald-500/5'}`}>
+                  <div className={`rounded-xl border p-4 ${updateState === 'available' ? 'border-orange-500/60 bg-orange-500/10' : updateState === 'current' ? 'border-emerald-500/60 bg-emerald-500/5' : updateState === 'error' ? 'border-destructive/40 bg-destructive/5' : 'border-border bg-muted/20'}`}>
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <h3 className="text-sm font-semibold text-foreground">Q Cafe updates</h3>
-                        <p className="mt-1 text-xs text-muted-foreground">Checks the verified stable release on GitHub before installation.</p>
-                        <p className={`mt-2 text-xs font-medium ${availableUpdate ? 'text-orange-700 dark:text-orange-300' : 'text-emerald-700 dark:text-emerald-300'}`}>
-                          {availableUpdate ? `Update available: v${availableUpdate.version}` : `Current version: v${currentVersion}`}
+                        <p className="mt-1 text-xs text-muted-foreground">Checks the verified stable release only when you select Check now.</p>
+                        <p className={`mt-2 text-xs font-medium ${updateState === 'available' ? 'text-orange-700 dark:text-orange-300' : updateState === 'current' ? 'text-emerald-700 dark:text-emerald-300' : updateState === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>
+                          {availableUpdate ? `Update available: v${availableUpdate.version}` : updateState === 'current' ? `Current version: v${currentVersion}` : `Installed version: v${currentVersion}`}
                         </p>
                       </div>
                       <div className="flex gap-2">
                         <Button type="button" variant="outline" size="sm" disabled={updateBusy} onClick={() => void checkForUpdate()} className="cursor-pointer gap-1.5 border-current/20 bg-background/70 hover:bg-background">
                           <RefreshCw size={14} className={updateBusy ? 'animate-spin' : ''} />
-                          Check for updates
+                          Check now
                         </Button>
                         {availableUpdate && <Button type="button" size="sm" disabled={updateBusy} onClick={() => void installUpdate()} className="cursor-pointer gap-1.5 bg-orange-600 text-white hover:bg-orange-700">
                           <Download size={14} />
@@ -853,7 +854,7 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                         </Button>}
                       </div>
                     </div>
-                    {updateNotice && <p className={`mt-3 text-xs ${availableUpdate ? 'text-orange-800 dark:text-orange-200' : 'text-emerald-800 dark:text-emerald-200'}`}>{updateNotice}</p>}
+                    {updateNotice && <p className={`mt-3 text-xs ${updateState === 'available' ? 'text-orange-800 dark:text-orange-200' : updateState === 'current' ? 'text-emerald-800 dark:text-emerald-200' : updateState === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>{updateNotice}</p>}
                   </div>
 
                   <div className="pt-2">
