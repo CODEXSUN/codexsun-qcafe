@@ -19,7 +19,8 @@ const publish = process.argv.includes("--publish");
 
 assertCleanSource();
 run("npm.cmd", ["run", "check:q-cafe:version"]);
-run("npm.cmd", ["run", "check"]);
+run("npm.cmd", ["run", "test", "-w", "@codexsun/q-cafe-api"]);
+run("npm.cmd", ["run", "build", "-w", "@codexsun/q-cafe-web"]);
 run("npm.cmd", ["run", "build:q-cafe:windows"]);
 for (const asset of assets) if (!existsSync(asset)) throw new Error(`Q Cafe release asset is missing: ${asset}`);
 if (!publish) { console.log(`Q Cafe ${version} release prepared. Run with --publish after review to create ${tag} and publish GitHub assets.`); process.exit(0); }

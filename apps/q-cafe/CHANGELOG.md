@@ -10,6 +10,7 @@
 - Uses simple incremental customer bill numbers and migrates existing POS bill numbers without altering business totals, receipts, or backup history.
 - Refines the 70 mm thermal layout, removes the hard-coded tear footer, and keeps blank optional receipt fields out of printed slips.
 - Moves Q Cafe update manifests, release assets, tags, and future updater checks to CODEXSUN/codexsun-qcafe.
+- Runs Q Cafe API tests, web build, version validation, and Windows packaging as its release gate without relying on unrelated platform workspaces.
 
 ## 1.1.17 - 2026-09-07
 
