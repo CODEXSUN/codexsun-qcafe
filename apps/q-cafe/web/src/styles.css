@@ -151,12 +151,12 @@ html.dark * {
 }
 
 /* -------------------------------------------------------------------------- */
-/* 3-Inch (80mm) Thermal Printer Styles for Hotel / Restaurant Bill Print     */
+/* 76mm paper with a 70mm printable receipt for hotel and restaurant bills. */
 /* -------------------------------------------------------------------------- */
 
 @media print {
   @page {
-    size: 80mm auto;
+    size: 76mm auto;
     margin: 0mm;
   }
 
@@ -170,9 +170,9 @@ html.dark * {
 
   html,
   body {
-    width: 80mm !important;
+    width: 76mm !important;
     min-width: 0 !important;
-    max-width: 80mm !important;
+    max-width: 76mm !important;
     margin: 0 auto !important;
     padding: 0 !important;
     background: #ffffff !important;
@@ -209,7 +209,7 @@ html.dark * {
     width: 70mm !important;
     max-width: 70mm !important;
     margin: 0 auto !important;
-    padding: 3mm 2mm !important;
+    padding: 2mm 1mm !important;
     background: #ffffff !important;
     color: #000000 !important;
     font-family: Arial, Helvetica, sans-serif !important;

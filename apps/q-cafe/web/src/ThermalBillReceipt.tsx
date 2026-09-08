@@ -105,12 +105,7 @@ export function ThermalBillReceipt({
     hour12: true,
   });
 
-  const generatedBillNo =
-    billNumber ??
-    bill?.bill_no ??
-    `QC-${billDate.getFullYear()}${String(billDate.getMonth() + 1).padStart(2, '0')}${String(
-      billDate.getDate()
-    ).padStart(2, '0')}-${tab?.id.replace(/\D/g, '') || '01'}`;
+  const generatedBillNo = billNumber ?? bill?.bill_no ?? '1';
 
   const isTakeaway = resolvedTableName.toLowerCase().includes('takeaway') || resolvedTableName.toLowerCase().includes('parcel');
   const serviceType = isTakeaway ? 'TAKEAWAY / PARCEL' : 'DINE-IN';
@@ -131,7 +126,7 @@ export function ThermalBillReceipt({
         width: '70mm',
         maxWidth: '70mm',
         margin: '0 auto',
-        padding: '3mm 2mm',
+        padding: '2mm 1mm',
         backgroundColor: '#ffffff',
         color: '#000000',
         fontSize: '11.5px',
@@ -277,12 +272,6 @@ export function ThermalBillReceipt({
           {settings.receiptFooter || 'Thank you for dining with us! Please visit again.'}
         </p>
         {receiptLegalNote ? <p className="text-[9px] text-black/80">{receiptLegalNote}</p> : null}
-        <div className="text-[10px] font-mono tracking-widest pt-2 text-black">
-          - - - - - - - - - - - - - - - - - - - - - - - -
-        </div>
-        <div className="text-[9px] uppercase font-mono tracking-widest text-black pb-1">
-          [ TEAR HERE / THANK YOU ]
-        </div>
       </div>
     </div>
   );

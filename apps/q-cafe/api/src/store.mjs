@@ -90,7 +90,7 @@ export class CafeStore {
       const taxableAmount = lines.reduce((sum, line) => sum + line.amount, 0);
       const gstAmount = Math.round(taxableAmount * gstPercent / 100);
       const grandTotal = taxableAmount + gstAmount;
-      const billNo = this.nextDocumentNumber('pos', 'bill_no', 'POS');
+      const billNo = this.nextPosBillNumber();
       const bill = this.db.prepare('INSERT INTO pos(bill_no,table_id,table_no,table_chairs,guest_count,taxable_amount,gst_percent,gst_amount,grand_total) VALUES (?,?,?,?,?,?,?,?,?)').run(billNo, table.id, table.no, table.chairs, guestCount, taxableAmount, gstPercent, gstAmount, grandTotal);
       for (const line of lines) this.db.prepare('INSERT INTO pos_items(pos_id,menu_id,item_code,item_name,quantity,rate,amount) VALUES (?,?,?,?,?,?,?)').run(bill.lastInsertRowid, line.menuId, line.code, line.name, line.quantity, line.rate, line.amount);
       if (table.id) this.db.prepare("UPDATE restaurant_tables SET status='occupied' WHERE id=?").run(table.id);
@@ -191,6 +191,9 @@ export class CafeStore {
   nextDocumentNumber(table, column, prefix) {
     const value = this.db.prepare(`SELECT COALESCE(MAX(CAST(SUBSTR(${column}, ?) AS INTEGER)),0)+1 AS next FROM ${table}`).get(prefix.length + 2).next;
     return `${prefix}-${String(value).padStart(6, '0')}`;
+  }
+  nextPosBillNumber() {
+    return String(this.db.prepare('SELECT COALESCE(MAX(id),0)+1 AS next FROM pos').get().next);
   }
 }
 function label(value) {

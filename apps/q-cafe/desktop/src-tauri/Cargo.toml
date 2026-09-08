@@ -1,6 +1,6 @@
 [package]
 name = "q-cafe-desktop"
-version = "1.1.17"
+version = "1.1.18"
 description = "Q Cafe Windows desktop application"
 authors = ["CODEXSUN"]
 edition = "2021"

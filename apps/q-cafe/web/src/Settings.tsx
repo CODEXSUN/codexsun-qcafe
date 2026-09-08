@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Store, Receipt, Palette, Server, Check, RotateCcw, HardDrive, FlaskConical, CheckCircle2, AlertCircle, Sparkles, Sliders, Download, RefreshCw, Printer } from 'lucide-react';
+import { Store, Receipt, Palette, Server, Check, RotateCcw, HardDrive, FlaskConical, CheckCircle2, AlertCircle, Sparkles, Sliders, Download, RefreshCw, Printer, LogOut } from 'lucide-react';
 import { Button } from '@codexsun/ui/components/ui/button';
 import type { InterfaceTopologyController } from '@codexsun/devkit-ito';
 import { type Snapshot } from './api';
@@ -136,6 +136,7 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
   const [updateState, setUpdateState] = useState<'idle' | 'checking' | 'current' | 'available' | 'error'>('idle');
   const [updateBusy, setUpdateBusy] = useState(false);
   const [updateNotice, setUpdateNotice] = useState('');
+  const [exitBusy, setExitBusy] = useState(false);
 
   useEffect(() => {
     if (!('__TAURI_INTERNALS__' in window)) return;
@@ -277,6 +278,18 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
     } catch (error) {
       setUpdateBusy(false);
       setUpdateNotice(updaterErrorMessage(error, 'Q Cafe could not install the update.'));
+    }
+  }
+
+  async function exitQCafe() {
+    if (!('__TAURI_INTERNALS__' in window) || exitBusy) return;
+    setExitBusy(true);
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('qcafe_exit_application');
+    } catch (error) {
+      setExitBusy(false);
+      setUpdateNotice(updaterErrorMessage(error, 'Q Cafe could not close.'));
     }
   }
 
@@ -621,7 +634,7 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                     <span className="space-y-1">
                       <span className="block text-sm font-semibold text-foreground">Direct print</span>
                       <span className="block text-sm text-muted-foreground">
-                        Skip the in-app receipt preview and open the system print flow immediately.
+                        When confirming a bill, open the Windows print flow immediately. Preview slip always stays inside Q Cafe.
                       </span>
                     </span>
                     <input
@@ -933,6 +946,25 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                       onToggle={handleToggleIto}
                     />
                   </div>
+
+                  {'__TAURI_INTERNALS__' in window && (
+                    <div className="flex flex-col gap-3 rounded-xl border border-border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="space-y-0.5">
+                        <h3 className="text-sm font-semibold text-foreground">Exit Q Cafe</h3>
+                        <p className="text-xs text-muted-foreground">Close the desktop application after completing cashier work.</p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={exitBusy}
+                        onClick={() => void exitQCafe()}
+                        className="cursor-pointer gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <LogOut size={14} />
+                        {exitBusy ? 'Closing…' : 'Exit Q Cafe'}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </ItoRegion>

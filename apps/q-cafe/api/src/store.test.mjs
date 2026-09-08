@@ -42,7 +42,7 @@ test('POS bills keep item, tax, table, receipt, and mixed-payment records separa
       { menu_id: 2, item_code: 'ITM-002', item_name: 'Cappuccino', quantity: 1, rate: 14000 }
     ]
   });
-  assert.deepEqual({ id: bill.id, bill_no: bill.bill_no, table_no: bill.table_no, table_chairs: bill.table_chairs, taxable_amount: bill.taxable_amount, gst_amount: bill.gst_amount, grand_total: bill.grand_total }, { id: 1, bill_no: 'POS-000001', table_no: 'T01', table_chairs: 4, taxable_amount: 30000, gst_amount: 1500, grand_total: 31500 });
+  assert.deepEqual({ id: bill.id, bill_no: bill.bill_no, table_no: bill.table_no, table_chairs: bill.table_chairs, taxable_amount: bill.taxable_amount, gst_amount: bill.gst_amount, grand_total: bill.grand_total }, { id: 1, bill_no: '1', table_no: 'T01', table_chairs: 4, taxable_amount: 30000, gst_amount: 1500, grand_total: 31500 });
   assert.equal(store.snapshot().pos_items.length, 2);
   assert.equal(store.snapshot().restaurant_tables[0].status, 'occupied');
   const receipt = store.recordReceipt({ pos_id: bill.id, transactions: [
@@ -55,6 +55,8 @@ test('POS bills keep item, tax, table, receipt, and mixed-payment records separa
   assert.equal(store.snapshot().restaurant_tables[0].status, 'available');
   assert.equal(store.pendingSync().pos.length, 1);
   assert.throws(() => store.recordReceipt({ pos_id: bill.id, transactions: [{ transaction_mode: 'cash', amount: 1, settlement_nature: 'collection' }] }));
+  const nextBill = store.createPos({ table_id: table.id, gst_percent: 0, lines: [{ menu_id: 1, item_code: '01', item_name: 'Filter coffee', quantity: 1, rate: 8000 }] });
+  assert.equal(nextBill.bill_no, '2');
   store.db.close();
 });
 test('migrations are repeatable, databases isolated, and orders survive reopening', () => {

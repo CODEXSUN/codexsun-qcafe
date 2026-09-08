@@ -25,7 +25,7 @@ for (const asset of assets) if (!existsSync(asset)) throw new Error(`Q Cafe rele
 if (!publish) { console.log(`Q Cafe ${version} release prepared. Run with --publish after review to create ${tag} and publish GitHub assets.`); process.exit(0); }
 run("git", ["tag", "-a", tag, "-m", `Q Cafe ${version} - ${releaseTitle()}`]);
 run("git", ["push", "origin", tag]);
-run("gh", ["release", "create", tag, ...assets, "--repo", "CODEXSUN/codexsun", "--title", `Q Cafe ${version}`, "--notes", releaseNotes()]);
+run("gh", ["release", "create", tag, ...assets, "--repo", "CODEXSUN/codexsun-qcafe", "--title", `Q Cafe ${version}`, "--notes", releaseNotes()]);
 console.log(`Published Q Cafe ${version}: ${tag}`);
 
 function assertCleanSource() {

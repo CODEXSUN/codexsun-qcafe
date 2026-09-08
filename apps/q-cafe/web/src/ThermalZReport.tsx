@@ -67,7 +67,7 @@ export function ThermalZReport({
         width: '70mm',
         maxWidth: '70mm',
         margin: '0 auto',
-        padding: '3mm 2mm',
+        padding: '2mm 1mm',
         backgroundColor: '#ffffff',
         color: '#000000',
         fontSize: '11.5px',

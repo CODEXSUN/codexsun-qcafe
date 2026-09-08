@@ -5,7 +5,6 @@ import { TopologyMarker, type InterfaceTopologyController } from '@codexsun/devk
 import type { Snapshot } from './api';
 import { getMergedMenu, getMergedTables, type CustomMenuItem, type TableMasterConfig } from './mastersStore';
 import { ThermalBillReceipt } from './ThermalBillReceipt';
-import { outputReceipt } from './printReceipt';
 import { loadSettings, type CafeSettings } from './Settings';
 import {
   Pos1HeaderSection,
@@ -58,6 +57,7 @@ function formatRate(priceInPaise: number) {
 export function Pos1({ data, busy, mutate, topology }: Props) {
   const [cafeSettings, setCafeSettings] = useState<CafeSettings>(() => loadSettings());
   const [showReceiptPreview, setShowReceiptPreview] = useState(false);
+  const [printBillNumber, setPrintBillNumber] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
   const tableInputRef = useRef<HTMLInputElement>(null);
   const chairInputRef = useRef<HTMLInputElement>(null);
@@ -88,6 +88,8 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
   const tableName = activeTab.tableName;
   const chair = activeTab.chair ?? '1';
   const gstApplied = activeTab.gstApplied ?? false;
+  const nextBillNumber = String(data.pos.reduce((highestId, bill) => Math.max(highestId, bill.id), 0) + 1);
+  const displayedBillNumber = printBillNumber || nextBillNumber;
 
   // Catalog and master data
   const [menuItems, setMenuItems] = useState<CustomMenuItem[]>(() => getMergedMenu(data.menu));
@@ -391,6 +393,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     setBottomRate('');
     setShowPaymentCollector(false);
     setShowCollectedBills(false);
+    setPrintBillNumber('');
     requestAnimationFrame(() => {
       searchInputRef.current?.focus();
       searchInputRef.current?.select();
@@ -663,6 +666,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     if (!createdBill || typeof createdBill !== 'object' || !('id' in createdBill)) {
       return;
     }
+    setPrintBillNumber(createdBill.bill_no);
 
     // 2. Post payment receipt (settles bill & automatically marks table as available)
     const payment = activeTab.payment;
@@ -683,8 +687,10 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
       ],
     });
 
-    // 3. Print thermal receipt
+    // 3. Wait for the saved bill number to render, then print the thermal receipt.
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     window.print();
+    setPrintBillNumber('');
 
     // 4. Advance to next order / reset tab
     if (tabs.length > 1) {
@@ -830,7 +836,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
       if (e.key === 'F7') {
         e.preventDefault();
         if (lines.length > 0) {
-          outputReceipt(cafeSettings, () => setShowReceiptPreview((visible) => !visible));
+          setShowReceiptPreview((visible) => !visible);
         }
       }
       // F8: confirm & print bill
@@ -890,7 +896,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         onCloseTab={closeTab}
         linesCount={lines.length}
         busy={busy}
-        onOpenReceiptPreview={() => outputReceipt(cafeSettings, () => setShowReceiptPreview(true))}
+        onOpenReceiptPreview={() => setShowReceiptPreview(true)}
         onPrintBill={handleConfirmOrder}
         onSendToKitchen={handleSendToKitchen}
         payment={activeTab.payment}
@@ -983,12 +989,12 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
           onClick={() => setShowReceiptPreview(false)}
         >
           <div
-            className="relative flex max-h-[90vh] flex-col rounded-2xl border border-border bg-white text-black shadow-2xl overflow-hidden"
+            className="relative flex max-h-[90vh] w-[min(100%,24rem)] flex-col overflow-hidden rounded-2xl border border-border bg-white text-black shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-border bg-muted/40 px-4 py-2.5">
               <span className="text-xs font-semibold text-foreground">
-                3-Inch Hotel Thermal Receipt Slip
+                Receipt preview
               </span>
               <button
                 type="button"
@@ -1011,6 +1017,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
                 gstAmount={gstAmount}
                 total={total}
                 payment={activeTab.payment}
+                billNumber={displayedBillNumber}
               />
             </div>
 
@@ -1044,6 +1051,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         gstAmount={gstAmount}
         total={total}
         payment={activeTab.payment}
+        billNumber={displayedBillNumber}
         className="hidden print:block thermal-receipt"
       />
     </div>

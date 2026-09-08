@@ -1,5 +1,16 @@
 # Q Cafe changelog
 
+## 1.1.18 - 2026-09-08
+
+### Receipt preview and desktop safety
+
+- Q Cafe now uses apps/q-cafe/version.json as the single source for its API, web, desktop, updater, installer, and changelog version.
+- Keeps receipt preview inside a compact Q Cafe dialog. Preview never opens the Windows print dialog.
+- Blocks title-bar close requests and provides a deliberate Exit Q Cafe action in System & Runtime.
+- Uses simple incremental customer bill numbers and migrates existing POS bill numbers without altering business totals, receipts, or backup history.
+- Refines the 70 mm thermal layout, removes the hard-coded tear footer, and keeps blank optional receipt fields out of printed slips.
+- Moves Q Cafe update manifests, release assets, tags, and future updater checks to CODEXSUN/codexsun-qcafe.
+
 ## 1.1.17 - 2026-09-07
 
 ### Master catalog, POS billing, and Windows delivery

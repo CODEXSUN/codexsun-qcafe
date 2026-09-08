@@ -114,6 +114,7 @@ fn prepare_api_runtime(data_dir: &PathBuf) -> Result<PathBuf, String> {
     write_api_file(&api_root, "migrations/005-staff-identity.sql", include_str!("../../../api/migrations/005-staff-identity.sql"))?;
     write_api_file(&api_root, "migrations/006-customer-menu-catalog.sql", include_str!("../../../api/migrations/006-customer-menu-catalog.sql"))?;
     write_api_file(&api_root, "migrations/007-numeric-menu-codes.sql", include_str!("../../../api/migrations/007-numeric-menu-codes.sql"))?;
+    write_api_file(&api_root, "migrations/008-simple-pos-bill-numbers.sql", include_str!("../../../api/migrations/008-simple-pos-bill-numbers.sql"))?;
     Ok(api_root)
 }
 
@@ -170,7 +171,7 @@ struct UpdateManifest {
 }
 
 fn update_manifest_url() -> String {
-    env::var("QCAFE_UPDATE_MANIFEST_URL").unwrap_or_else(|_| "https://github.com/CODEXSUN/codexsun/releases/latest/download/qcafe-update.json".to_string())
+    env::var("QCAFE_UPDATE_MANIFEST_URL").unwrap_or_else(|_| "https://github.com/CODEXSUN/codexsun-qcafe/releases/latest/download/qcafe-update.json".to_string())
 }
 
 fn check_for_update() -> Result<Option<UpdateManifest>, String> {
@@ -248,6 +249,11 @@ fn qcafe_install_update(process: tauri::State<'_, ApiProcess>) -> Result<(), Str
     stop_api(&process)?;
     launch_verified_installer(&installer)?;
     std::process::exit(0);
+}
+
+#[tauri::command]
+fn qcafe_exit_application(app: AppHandle) {
+    app.exit(0);
 }
 
 fn start_api(app: &AppHandle) -> Result<Child, String> {
@@ -341,7 +347,7 @@ fn qcafe_clear_first_time_data(app: AppHandle, process: tauri::State<'_, ApiProc
 fn main() {
     tauri::Builder::default()
         .manage(ApiProcess(Mutex::new(None)))
-        .invoke_handler(tauri::generate_handler![qcafe_check_for_update, qcafe_install_update, qcafe_select_data_directory, qcafe_clear_first_time_data])
+        .invoke_handler(tauri::generate_handler![qcafe_check_for_update, qcafe_install_update, qcafe_exit_application, qcafe_select_data_directory, qcafe_clear_first_time_data])
         .setup(|app| {
             if cfg!(debug_assertions) {
                 return Ok(());
@@ -351,6 +357,10 @@ fn main() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                return;
+            }
             if !matches!(event, tauri::WindowEvent::Destroyed) { return; }
             if let Some(child) = window.app_handle().state::<ApiProcess>().0.lock().expect("API process lock").as_mut() {
                 let _ = child.kill();
