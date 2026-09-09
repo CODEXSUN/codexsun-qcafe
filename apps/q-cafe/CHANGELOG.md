@@ -1,5 +1,13 @@
 # Q Cafe changelog
 
+## 1.1.21 - 2026-09-09
+
+### Clearer safe-exit confirmation
+
+- Raises the floating Exit and version controls above the Windows taskbar.
+- Uses a clear exit question, preserves the local-database safety explanation, and makes the final Exit Q Cafe action red.
+- Publishes version metadata through apps/q-cafe/version.json for the API, web app, desktop app, updater, installer, and changelog.
+
 ## 1.1.20 - 2026-09-09
 
 ### Responsive login and reliable Windows updates

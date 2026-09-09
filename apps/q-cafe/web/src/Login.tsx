@@ -416,7 +416,7 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
       </div>
 
       {createPortal(
-        <ItoRegion id="q1.6" topology={topology} className="fixed bottom-5 right-6 z-[100] flex flex-col items-end gap-3">
+        <ItoRegion id="q1.6" topology={topology} className="fixed bottom-24 right-6 z-[100] flex flex-col items-end gap-3">
           {'__TAURI_INTERNALS__' in window ? (
             <Button
               type="button"
@@ -442,7 +442,7 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Exit Q Cafe?</AlertDialogTitle>
+            <AlertDialogTitle>Are you sure you want to exit Q Cafe?</AlertDialogTitle>
             <AlertDialogDescription>
               Q Cafe will finish its current local database work and then close.
             </AlertDialogDescription>
@@ -451,6 +451,7 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
             <AlertDialogCancel disabled={exitBusy}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               disabled={exitBusy}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={(event) => {
                 event.preventDefault();
                 void exitQCafe();
