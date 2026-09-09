@@ -3,7 +3,7 @@ import { Armchair, Coffee, LayoutDashboard, CookingPot, Package, CalendarDays, R
 import { Button } from '@codexsun/ui/components/ui/button';
 import { InterfaceTopologyDrawer, TopologyInspectionControl, TopologyMarker } from '@codexsun/devkit-ito';
 import { useInterfaceTopologyOverlay } from '@codexsun/devkit-ito/use-interface-topology-overlay';
-import { request, signIn, type ActionResult, type Snapshot } from './api';
+import { request, signIn, type ActionResult, type CafeUser, type Snapshot } from './api';
 import { Dashboard } from './Dashboard';
 import { Kitchen, Inventory, Bookings, field } from './Workspaces';
 import { Pos } from './Pos';
@@ -26,8 +26,20 @@ const pages = [
   { name: 'Dashboard', icon: LayoutDashboard },
   { name: 'Settings', icon: SettingsIcon },
 ];
+
+function loadCachedUser(): CafeUser | null {
+  try {
+    const raw = sessionStorage.getItem('q-cafe-session-user');
+    return raw ? JSON.parse(raw) as CafeUser : null;
+  } catch {
+    return null;
+  }
+}
+
 export function App() {
+  const [user, setUser] = useState<CafeUser | null>(() => loadCachedUser());
   const [page, setPage] = useState(() => {
+    if (user?.access === 'cashier') return 'POS';
     const hash = location.hash.replace('#', '');
     if (hash === 'POS-1' || hash === 'POS') return 'POS';
     if (hash === 'Tables' || hash === 'Guests' || hash === 'Floor') return 'Tables';
@@ -77,8 +89,33 @@ export function App() {
     return () => window.removeEventListener('q-cafe-settings-updated', handleSettingsUpdate);
   }, []);
 
-  function navigate(next: string) { location.hash = next; setPage(next); }
-  async function refresh() { try { setData(await request<Snapshot>(token)); setError(''); } catch (error) { setError(String(error)); } }
+  function navigate(next: string) {
+    const destination = user?.access === 'cashier' ? 'POS' : next;
+    location.hash = destination;
+    setPage(destination);
+  }
+
+  function signOut() {
+    sessionStorage.removeItem('q-cafe-session');
+    sessionStorage.removeItem('q-cafe-session-user');
+    setToken('');
+    setUser(null);
+    setData(undefined);
+    setCommandPanel(null);
+  }
+  async function refresh() {
+    try {
+      const snapshot = await request<Snapshot>(token);
+      setData(snapshot);
+      if (snapshot.user) {
+        setUser(snapshot.user);
+        sessionStorage.setItem('q-cafe-session-user', JSON.stringify(snapshot.user));
+      }
+      setError('');
+    } catch (error) {
+      setError(String(error));
+    }
+  }
   useEffect(() => { if (token) void refresh(); }, [token]);
   useEffect(() => {
     const handle = () => {
@@ -92,12 +129,26 @@ export function App() {
         setPage('Tables');
         return;
       }
-      setPage(pages.find(page => `#${page.name}` === location.hash)?.name ?? 'POS');
+      setPage(user?.access === 'cashier' ? 'POS' : pages.find(page => `#${page.name}` === location.hash)?.name ?? 'POS');
     };
     window.addEventListener('hashchange', handle);
     return () => window.removeEventListener('hashchange', handle);
-  }, []);
-  useEffect(() => { const handle = (event: KeyboardEvent) => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); setCommandPanel('search'); } }; window.addEventListener('keydown', handle); return () => window.removeEventListener('keydown', handle); }, []);
+  }, [user?.access]);
+  useEffect(() => {
+    const handle = (event: KeyboardEvent) => {
+      if (event.key === 'F12') {
+        event.preventDefault();
+        signOut();
+        return;
+      }
+      if (user?.access !== 'cashier' && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setCommandPanel('search');
+      }
+    };
+    window.addEventListener('keydown', handle);
+    return () => window.removeEventListener('keydown', handle);
+  }, [user?.access]);
   async function mutate(path: string, body: unknown) { setBusy(true); try { const response = await request<ActionResult<unknown>>(token,path,body); await refresh(); return response.result; } catch (error) { setError(String(error)); return false; } finally { setBusy(false); } }
   if (!data) {
     return (
@@ -105,7 +156,9 @@ export function App() {
         topology={topology}
         showItoIcon={showItoIcon}
         onSuccess={session => {
-          setToken(session);
+          setToken(session.access_token);
+          setUser(session.user);
+          navigate('POS');
           setError('');
         }}
       />
@@ -118,7 +171,23 @@ export function App() {
     {commandPanel && <div className="fixed inset-0 z-40 bg-black/25 backdrop-blur-[2px] print:hidden" onClick={() => setCommandPanel(null)} />}
 {commandPanel === 'search' && <section role="dialog" aria-label="Global search" className="fixed left-1/2 top-[18vh] z-50 w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 overflow-hidden rounded-2xl border border-border bg-popover text-popover-foreground shadow-2xl print:hidden"><div className="flex items-center gap-3 border-b border-border px-4 py-3"><Search size={20} className="shrink-0 text-muted-foreground"/><input autoFocus aria-label="Search applications and commands" className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground" placeholder="Search applications and commands" value={searchQuery} onChange={event => setSearchQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') setCommandPanel(null); }}/><button type="button" onClick={() => setCommandPanel(null)} aria-label="Close global search" className="grid size-8 cursor-pointer place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground"><X size={16}/></button></div><div className="space-y-1 p-2"><button type="button" onClick={() => { navigate('POS'); setCommandPanel(null); }} className="flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-left text-sm hover:bg-accent hover:text-accent-foreground"><LayoutGrid className="size-4 text-muted-foreground"/>Open Point of Sale (Visual)</button><button type="button" onClick={() => { navigate('Tables'); setCommandPanel(null); }} className="flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-left text-sm hover:bg-accent hover:text-accent-foreground"><Armchair className="size-4 text-muted-foreground"/>Open Tables (Floor & Touch Desk)</button><button type="button" onClick={() => { navigate('Overview'); setCommandPanel(null); }} className="flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-left text-sm hover:bg-accent hover:text-accent-foreground"><TrendingUp className="size-4 text-muted-foreground"/>Open Overview (Bills & Settlements)</button><button type="button" onClick={() => { navigate('Masters'); setCommandPanel(null); }} className="flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-left text-sm hover:bg-accent hover:text-accent-foreground"><UtensilsCrossed className="size-4 text-muted-foreground"/>Open Masters (Items & Tables)</button><button type="button" onClick={() => { navigate('Settings'); setCommandPanel(null); }} className="flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-left text-sm hover:bg-accent hover:text-accent-foreground"><SettingsIcon className="size-4 text-muted-foreground"/>Open Settings</button><button type="button" onClick={() => setCommandPanel('notifications')} className="flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-left text-sm hover:bg-accent hover:text-accent-foreground"><Bell className="size-4 text-muted-foreground"/>Open Notifications</button><button type="button" onClick={() => setCommandPanel('user')} className="flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-left text-sm hover:bg-accent hover:text-accent-foreground"><UserRound className="size-4 text-muted-foreground"/>Open User Menu</button></div></section>}
 {commandPanel === 'notifications' && <section role="dialog" aria-label="Notifications" className="fixed right-4 top-16 z-50 w-72 rounded-2xl border border-border bg-popover p-3 text-popover-foreground shadow-xl print:hidden"><div className="flex items-center justify-between px-2 py-2"><span className="text-sm font-semibold">Notifications</span><button type="button" aria-label="Close notifications" onClick={() => setCommandPanel(null)} className="grid size-7 cursor-pointer place-items-center rounded-md hover:bg-accent"><X size={15}/></button></div><div className="rounded-xl bg-muted px-3 py-5 text-sm text-muted-foreground">No new restaurant activity.</div></section>}
-{commandPanel === 'user' && <section role="dialog" aria-label="User menu" className="fixed right-4 top-16 z-50 w-64 rounded-3xl border border-border bg-popover p-3 text-popover-foreground shadow-xl print:hidden"><div className="flex flex-col items-center gap-2 px-3 py-3"><span className="grid size-14 place-items-center rounded-full border border-border bg-muted text-lg font-medium">C</span><span className="text-sm font-semibold">Q Cafe cashier</span><span className="text-xs text-muted-foreground">Local workspace</span></div><div className="my-2 h-px bg-border"/><button type="button" onClick={() => { navigate('Masters'); setCommandPanel(null); }} className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"><UtensilsCrossed size={16}/>Restaurant masters</button><button type="button" onClick={() => { navigate('Settings'); setCommandPanel(null); }} className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"><SettingsIcon size={16}/>Restaurant settings</button><button type="button" onClick={() => { navigate('Settings'); setCommandPanel(null); }} className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"><Sun size={16}/>Appearance</button><div className="my-2 h-px bg-border"/><button type="button" onClick={() => { sessionStorage.removeItem('q-cafe-session'); setToken(''); setData(undefined); setCommandPanel(null); }} className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"><LogOut size={16}/>Sign out</button></section>}<div className={`grid min-h-[calc(100vh-56px)] ${page === 'POS' || page === 'Overview' || page === 'Tables' ? 'lg:h-[calc(100vh-56px)] lg:max-h-[calc(100vh-56px)]' : ''} transition-[grid-template-columns] duration-200 ${posWorkspace ? 'grid-cols-1' : sideCarOpen ? 'lg:grid-cols-[228px_1fr]' : 'lg:grid-cols-[56px_1fr]'} print:block print:min-h-0`}>{!posWorkspace && <aside className="ito-region group relative border-b border-border bg-card lg:min-h-[calc(100vh-56px)] lg:border-r print:hidden" {...topology.regionProps('q3')}><TopologyMarker id="q3" topology={topology}/><div className={`flex flex-col h-full overflow-hidden ${sideCarOpen ? 'p-3' : 'py-3 px-1.5 items-center'}`}>{sideCarOpen && <p className="px-3 pb-3 pt-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Restaurant</p>}<ItoRegion id="q3.1" topology={topology} tag="section" className={sideCarOpen ? 'w-full' : ''}><nav className={`flex flex-wrap gap-1 lg:flex-col ${sideCarOpen ? 'w-full' : 'items-center'}`}>{pages.filter(p => p.name !== 'Settings').filter(p => {
+{commandPanel === 'user' && (
+  <section role="dialog" aria-label="User menu" className="fixed right-4 top-16 z-50 w-64 rounded-3xl border border-border bg-popover p-3 text-popover-foreground shadow-xl print:hidden">
+    <div className="flex flex-col items-center gap-2 px-3 py-3">
+      <span className="grid size-14 place-items-center rounded-full border border-border bg-muted text-lg font-medium">{user?.name.slice(0, 1).toUpperCase() ?? 'C'}</span>
+      <span className="text-sm font-semibold">{user?.name ?? 'Q Cafe cashier'}</span>
+      <span className="text-xs text-muted-foreground">{user?.access === 'cashier' ? 'POS billing access' : 'Administrator access'}</span>
+    </div>
+    {user?.access !== 'cashier' && <>
+      <div className="my-2 h-px bg-border"/>
+      <button type="button" onClick={() => { navigate('Masters'); setCommandPanel(null); }} className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"><UtensilsCrossed size={16}/>Restaurant masters</button>
+      <button type="button" onClick={() => { navigate('Settings'); setCommandPanel(null); }} className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"><SettingsIcon size={16}/>Restaurant settings</button>
+      <button type="button" onClick={() => { navigate('Settings'); setCommandPanel(null); }} className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"><Sun size={16}/>Appearance</button>
+    </>}
+    <div className="my-2 h-px bg-border"/>
+    <button type="button" onClick={signOut} className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"><LogOut size={16}/>Sign out</button>
+  </section>
+)}<div className={`grid min-h-[calc(100vh-56px)] ${page === 'POS' || page === 'Overview' || page === 'Tables' ? 'lg:h-[calc(100vh-56px)] lg:max-h-[calc(100vh-56px)]' : ''} transition-[grid-template-columns] duration-200 ${posWorkspace ? 'grid-cols-1' : sideCarOpen ? 'lg:grid-cols-[228px_1fr]' : 'lg:grid-cols-[56px_1fr]'} print:block print:min-h-0`}>{!posWorkspace && <aside className="ito-region group relative border-b border-border bg-card lg:min-h-[calc(100vh-56px)] lg:border-r print:hidden" {...topology.regionProps('q3')}><TopologyMarker id="q3" topology={topology}/><div className={`flex flex-col h-full overflow-hidden ${sideCarOpen ? 'p-3' : 'py-3 px-1.5 items-center'}`}>{sideCarOpen && <p className="px-3 pb-3 pt-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Restaurant</p>}<ItoRegion id="q3.1" topology={topology} tag="section" className={sideCarOpen ? 'w-full' : ''}><nav className={`flex flex-wrap gap-1 lg:flex-col ${sideCarOpen ? 'w-full' : 'items-center'}`}>{pages.filter(p => p.name !== 'Settings').filter(p => {
   if (p.name === 'Kitchen') return Boolean(settings.showNavKitchen);
   if (p.name === 'Inventory') return Boolean(settings.showNavInventory);
   if (p.name === 'Bookings') return Boolean(settings.showNavBookings);
@@ -126,7 +195,7 @@ export function App() {
   if (p.name === 'Masters') return Boolean(settings.showNavMasters);
   return true;
 }).map(({name,icon: Icon}, index) => <ItoRegion id={`q3.1.${index + 1}`} topology={topology} key={name}><button key={name} onClick={() => navigate(name)} aria-current={page === name ? 'page' : undefined} title={name} aria-label={name} className={`flex cursor-pointer items-center rounded-lg text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring ${sideCarOpen ? 'w-full gap-3 px-3 py-2.5' : 'size-10 justify-center'} ${page === name ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'}`}><Icon size={19} className="shrink-0"/>{sideCarOpen && <span className="truncate">{name}</span>}</button></ItoRegion>)}</nav></ItoRegion><div className={`mt-auto w-full pt-2 ${sideCarOpen ? '' : 'flex flex-col items-center'}`}><div className="my-2 h-px w-full bg-border" /><ItoRegion id="q3.1.6" topology={topology} className={sideCarOpen ? 'w-full' : ''}><button type="button" onClick={() => navigate('Settings')} aria-current={page === 'Settings' ? 'page' : undefined} title="Settings" aria-label="Settings" className={`flex cursor-pointer items-center rounded-lg text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring ${sideCarOpen ? 'w-full gap-3 px-3 py-2.5' : 'size-10 justify-center'} ${page === 'Settings' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'}`}><SettingsIcon size={19} className="shrink-0"/>{sideCarOpen && <span className="truncate">Settings</span>}</button></ItoRegion></div></div><div style={{ position: 'absolute', bottom: '8.5rem', right: '-14px', zIndex: 20 }} className="hidden lg:block opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"><ItoRegion id="q3.3" topology={topology}><button type="button" onClick={() => setSideCarOpen(open => !open)} aria-label={sideCarOpen ? 'Collapse Q Cafe navigation' : 'Expand Q Cafe navigation'} title={sideCarOpen ? 'Collapse navigation' : 'Expand navigation'} className="grid size-7 cursor-pointer place-items-center rounded-full border border-border bg-card text-muted-foreground shadow-md transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{sideCarOpen ? <PanelLeftClose size={14}/> : <PanelLeftOpen size={14}/>}</button></ItoRegion></div></aside>}
-    <main className={`min-w-0 flex flex-col ${page === 'POS' ? 'h-full min-h-0 flex-1 overflow-hidden' : page === 'Overview' || page === 'Tables' ? 'h-full min-h-0 p-2.5 flex-1 overflow-hidden' : 'space-y-5 p-6 lg:px-10 lg:py-8'} print:block print:p-0 print:m-0 print:overflow-visible`}>{page !== 'POS' && page !== 'Overview' && page !== 'Tables' && <div className="ito-region flex items-center justify-between gap-4 print:hidden" {...topology.regionProps('q4')}><TopologyMarker id="q4" topology={topology}/><h1 className="text-3xl font-semibold tracking-tight">{page === 'Dashboard' ? 'Service overview' : page}</h1><div className="flex gap-3"><ItoRegion id="q4.1" topology={topology}><Button aria-label="Refresh workspace" title="Refresh workspace" variant="outline" className="cursor-pointer" onClick={() => void refresh()}><RefreshCw size={16}/></Button></ItoRegion><ItoRegion id="q4.2" topology={topology}><Button className="cursor-pointer" onClick={() => navigate('POS')}>+ New order</Button></ItoRegion></div></div>}
+    <main className={`min-w-0 flex flex-col ${page === 'POS' ? 'h-full min-h-0 flex-1 overflow-hidden' : page === 'Overview' || page === 'Tables' ? 'h-full min-h-0 p-2.5 flex-1 overflow-hidden' : 'space-y-5 p-6 lg:px-10 lg:py-8'} print:block print:p-0 print:m-0 print:overflow-visible`}>{page !== 'POS' && page !== 'Overview' && page !== 'Tables' && page !== 'Masters' && <div className="ito-region flex items-center justify-between gap-4 print:hidden" {...topology.regionProps('q4')}><TopologyMarker id="q4" topology={topology}/><h1 className="text-3xl font-semibold tracking-tight">{page === 'Dashboard' ? 'Service overview' : page}</h1><div className="flex gap-3"><ItoRegion id="q4.1" topology={topology}><Button aria-label="Refresh workspace" title="Refresh workspace" variant="outline" className="cursor-pointer" onClick={() => void refresh()}><RefreshCw size={16}/></Button></ItoRegion><ItoRegion id="q4.2" topology={topology}><Button className="cursor-pointer" onClick={() => navigate('POS')}>+ New order</Button></ItoRegion></div></div>}
     {error && <ItoRegion id="q4.3" topology={topology}><p role="alert" className="rounded-lg border border-destructive p-4 text-destructive print:hidden">{error}</p></ItoRegion>}<div className={`ito-region ${page === 'POS' || page === 'Overview' || page === 'Tables' ? 'flex-1 flex flex-col min-h-0' : ''} print:block print:min-h-0 print:overflow-visible`} {...topology.regionProps('q5')}><TopologyMarker id="q5" topology={topology}/>{page === 'Dashboard' && <Dashboard data={data} navigate={navigate} topology={topology}/>} {page === 'POS' && <Pos1 {...props} topology={topology}/>} {page === 'Tables' && <Tables data={data} navigate={navigate} topology={topology}/>} {page === 'Overview' && <Overview {...props} topology={topology} navigate={navigate} />} {page === 'Kitchen' && <Kitchen {...props} topology={topology}/>} {page === 'Inventory' && <Inventory {...props} topology={topology}/>} {page === 'Bookings' && <Bookings {...props} topology={topology}/>} {page === 'Masters' && <Masters data={data} topology={topology} navigate={navigate}/>} {page === 'Settings' && <Settings data={data} topology={topology} showItoIcon={showItoIcon} onToggleItoIcon={setShowItoIcon}/>}</div></main></div>{showItoIcon && <TopologyInspectionControl topology={topology}/>}{showItoIcon && <InterfaceTopologyDrawer topology={topology}/>}</div>;
 
 }

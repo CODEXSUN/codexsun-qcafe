@@ -18,6 +18,7 @@ type Props = {
   total: number;
   payment?: PaymentRecord | null;
   showPaymentCollector: boolean;
+  cashReceiptRequest: number;
   onOpenPaymentCollector: () => void;
   onClosePaymentCollector: () => void;
   onRecordPayment: (payment: PaymentRecord) => void;
@@ -32,6 +33,7 @@ export function Pos1BillsDrawer({
   total,
   payment,
   showPaymentCollector,
+  cashReceiptRequest,
   onOpenPaymentCollector,
   onClosePaymentCollector,
   onRecordPayment,
@@ -72,6 +74,7 @@ export function Pos1BillsDrawer({
             <Pos1PaymentCollector
               total={total}
               payment={payment}
+              cashReceiptRequest={cashReceiptRequest}
               onRecordPayment={onRecordPayment}
               onClearPayment={onClearPayment}
               onClose={onClosePaymentCollector}
@@ -83,7 +86,7 @@ export function Pos1BillsDrawer({
               className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
             >
               <ReceiptText size={16} /> Settle current order
-              <kbd className="rounded border border-primary-foreground/30 bg-primary-foreground/10 px-1.5 py-0.5 font-mono text-[10px]">F5</kbd>
+              <kbd className="rounded border border-primary-foreground/30 bg-primary-foreground/10 px-1.5 py-0.5 font-mono text-[10px]">F6</kbd>
             </button>
           )}
         </section>

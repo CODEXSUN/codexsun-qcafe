@@ -32,6 +32,7 @@ function getDenominationsForAmount(rupees: number): Record<number, number> {
 export interface Pos1PaymentCollectorProps {
   total: number; // in paise
   payment?: PaymentRecord | null;
+  cashReceiptRequest?: number;
   onRecordPayment?: (record: PaymentRecord) => void;
   onClearPayment?: () => void;
   containerRef?: RefObject<HTMLDivElement | null>;
@@ -41,6 +42,7 @@ export interface Pos1PaymentCollectorProps {
 export function Pos1PaymentCollector({
   total,
   payment,
+  cashReceiptRequest,
   onRecordPayment,
   onClearPayment,
   containerRef,
@@ -60,6 +62,12 @@ export function Pos1PaymentCollector({
       setCustomTendered(formatTenderRupees(total));
     }
   }, [total]);
+
+  useEffect(() => {
+    if (cashReceiptRequest && !payment) {
+      setSelectedMode('cash');
+    }
+  }, [cashReceiptRequest, payment]);
 
   // Focus and select amount input when cash mode is active
   useEffect(() => {

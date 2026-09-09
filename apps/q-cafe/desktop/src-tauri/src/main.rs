@@ -40,14 +40,18 @@ fn node_binary(application_directory: &PathBuf) -> PathBuf {
     application_directory.join("node.exe")
 }
 
-fn default_data_directory() -> PathBuf { PathBuf::from(r"D:\Q Cafe Data") }
+fn default_data_directory(settings_dir: &Path) -> PathBuf {
+    settings_dir.join("data")
+}
 
 fn settings_path(settings_dir: &Path) -> PathBuf {
     settings_dir.join("settings.json")
 }
 
 fn choose_data_directory() -> Result<PathBuf, String> {
-    let default = default_data_directory();
+    let default = env::var_os("USERPROFILE")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(r"C:\\"));
     rfd::FileDialog::new()
         .set_title("Choose Q Cafe data folder")
         .set_directory(&default)
@@ -58,9 +62,6 @@ fn choose_data_directory() -> Result<PathBuf, String> {
 fn validate_data_directory(path: &Path) -> Result<(), String> {
     if path.as_os_str().is_empty() || path.parent().is_none() {
         return Err("Choose a folder for Q Cafe data, not a drive root.".to_string());
-    }
-    if !path.to_string_lossy().to_ascii_lowercase().starts_with("d:\\") {
-        return Err("Choose a Q Cafe data folder on the mapped D: drive.".to_string());
     }
     fs::create_dir_all(path).map_err(|error| format!("Q Cafe data folder is unavailable: {error}"))?;
     let probe = path.join(".q-cafe-write-probe");
@@ -76,11 +77,11 @@ fn save_storage_settings(settings_dir: &Path, settings: &StorageSettings) -> Res
 
 fn load_or_configure_storage(settings_dir: &Path) -> Result<StorageSettings, String> {
     let path = settings_path(settings_dir);
-    let settings = if path.is_file() {
+    let mut settings = if path.is_file() {
         serde_json::from_str::<StorageSettings>(&fs::read_to_string(&path).map_err(|error| error.to_string())?)
             .map_err(|error| format!("Q Cafe storage settings are invalid: {error}"))?
     } else {
-        let data_directory = choose_data_directory()?;
+        let data_directory = default_data_directory(settings_dir);
         StorageSettings {
             backup_directory: data_directory.join("backups"),
             data_directory,
@@ -88,6 +89,11 @@ fn load_or_configure_storage(settings_dir: &Path) -> Result<StorageSettings, Str
             schema_version: 1,
         }
     };
+    if validate_data_directory(&settings.data_directory).is_err() {
+        settings.data_directory = default_data_directory(settings_dir);
+        settings.backup_directory = settings.data_directory.join("backups");
+        settings.last_backup_date = None;
+    }
     validate_data_directory(&settings.data_directory)?;
     fs::create_dir_all(&settings.backup_directory).map_err(|error| format!("Q Cafe backup folder is unavailable: {error}"))?;
     save_storage_settings(settings_dir, &settings)?;
@@ -107,6 +113,7 @@ fn prepare_api_runtime(data_dir: &PathBuf) -> Result<PathBuf, String> {
     write_api_file(&api_root, "src/store.mjs", include_str!("../../../api/src/store.mjs"))?;
     write_api_file(&api_root, "src/backup.mjs", include_str!("../../../api/src/backup.mjs"))?;
     write_api_file(&api_root, "src/staff-auth.mjs", include_str!("../../../api/src/staff-auth.mjs"))?;
+    write_api_file(&api_root, "src/hardcoded-access.mjs", include_str!("../../../api/src/hardcoded-access.mjs"))?;
     write_api_file(&api_root, "migrations/001-restaurant.sql", include_str!("../../../api/migrations/001-restaurant.sql"))?;
     write_api_file(&api_root, "migrations/002-editable-order-lines.sql", include_str!("../../../api/migrations/002-editable-order-lines.sql"))?;
     write_api_file(&api_root, "migrations/003-sync-and-activity.sql", include_str!("../../../api/migrations/003-sync-and-activity.sql"))?;

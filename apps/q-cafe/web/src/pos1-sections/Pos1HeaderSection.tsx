@@ -38,7 +38,7 @@ export function Pos1HeaderSection({
               type="text"
               aria-label="Search items or scan barcode (F2)"
               className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
-              placeholder="Search items (e.g. Cappuccino) or scan..."
+              placeholder="Search items or scan..."
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
               onFocus={(e) => e.currentTarget.select()}
@@ -141,7 +141,7 @@ export function Pos1HeaderSection({
               <button
                 type="button"
                 onClick={onCreateTab}
-                aria-label="New order tab (F9)"
+            aria-label="New order tab"
                 className="flex h-7 cursor-pointer items-center gap-1 rounded-xl border border-dashed border-border px-2.5 text-xs font-medium text-muted-foreground hover:border-primary hover:bg-accent hover:text-foreground transition-colors"
               >
                 <Plus size={13} />
@@ -149,9 +149,6 @@ export function Pos1HeaderSection({
               </button>
               <div className="pointer-events-none absolute left-0 top-[calc(100%+0.35rem)] z-50 whitespace-nowrap rounded-lg border border-border bg-popover px-2.5 py-1 text-[11px] font-medium text-popover-foreground opacity-0 shadow-lg transition-all duration-150 group-hover:opacity-100 flex items-center gap-1.5">
                 <span>New order tab</span>
-                <kbd className="font-mono text-[10px] font-semibold bg-muted text-muted-foreground px-1.5 py-0.5 rounded border border-border">
-                  F9
-                </kbd>
               </div>
             </div>
           </div>
@@ -160,27 +157,21 @@ export function Pos1HeaderSection({
 
       {/* Right: Current-order actions. Collected bills and settlement are in the right drawer. */}
       <div className="flex items-center gap-2 shrink-0">
-        {/* 1. Kitchen Button (with Kitchen label, Send icon, and F4 shortcut key) */}
+        {/* Kitchen Button */}
         {Boolean(showKitchenButton) && (
           <div className="relative group shrink-0">
             <button
               type="button"
               onClick={onSendToKitchen}
               disabled={!linesCount || busy}
-              aria-label="Send to kitchen (F4)"
+              aria-label="Send to kitchen"
               className="flex items-center gap-1.5 rounded-xl bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 px-3 py-1.5 text-xs font-semibold shadow-xs hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
             >
               <Send size={13} />
               <span>Kitchen</span>
-              <kbd className="font-mono text-[10px] font-semibold bg-white/20 text-white dark:bg-black/20 dark:text-neutral-900 px-1.5 py-0.5 rounded select-none">
-                F4
-              </kbd>
             </button>
             <div className="pointer-events-none absolute right-0 top-[calc(100%+0.35rem)] z-50 whitespace-nowrap rounded-lg border border-border bg-popover px-2.5 py-1 text-[11px] font-medium text-popover-foreground opacity-0 shadow-lg transition-all duration-150 group-hover:opacity-100 group-focus-within:opacity-100 flex items-center gap-1.5">
               <span>Send order to kitchen</span>
-              <kbd className="font-mono text-[10px] font-semibold bg-muted text-muted-foreground px-1.5 py-0.5 rounded border border-border">
-                F4
-              </kbd>
             </div>
           </div>
         )}

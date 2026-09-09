@@ -1,16 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Store, Receipt, Palette, Server, Check, RotateCcw, HardDrive, FlaskConical, CheckCircle2, AlertCircle, Sparkles, Sliders, Download, RefreshCw, Printer, LogOut } from 'lucide-react';
+import { Store, Receipt, Palette, Server, Check, RotateCcw, HardDrive, FlaskConical, CheckCircle2, AlertCircle, Sliders, Download, RefreshCw, Printer, LogOut } from 'lucide-react';
 import { Button } from '@codexsun/ui/components/ui/button';
 import type { InterfaceTopologyController } from '@codexsun/devkit-ito';
 import { type Snapshot } from './api';
 import { field } from './Workspaces';
 import { ItoRegion } from './ItoRegion';
-import {
-  DEMO_10_ITEMS,
-  installDemoItemsAndImages,
-  verifyImageStorageFolder,
-  type StorageVerificationResult,
-} from './mastersStore';
+import { verifyImageStorageFolder, type StorageVerificationResult } from './mastersStore';
 
 export type CafeSettings = {
   restaurantName: string;
@@ -130,7 +125,6 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
   const [settings, setSettings] = useState<CafeSettings>(() => loadSettings());
   const [savedNotice, setSavedNotice] = useState(false);
   const [verificationResult, setVerificationResult] = useState<StorageVerificationResult | null>(null);
-  const [demoInstallNotice, setDemoInstallNotice] = useState('');
   const [availableUpdate, setAvailableUpdate] = useState<{ version: string; notes: string } | null>(null);
   const [currentVersion, setCurrentVersion] = useState(__QCAFE_VERSION__);
   const [updateState, setUpdateState] = useState<'idle' | 'checking' | 'current' | 'available' | 'error'>('idle');
@@ -235,12 +229,6 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
       Boolean(settings.imageWriteProtection)
     );
     setVerificationResult(result);
-  }
-
-  function handleInstallDemo() {
-    const res = installDemoItemsAndImages();
-    setDemoInstallNotice(`Restored ${res.count} customer menu items.`);
-    setTimeout(() => setDemoInstallNotice(''), 4000);
   }
 
   function updaterErrorMessage(error: unknown, fallback: string) {
@@ -672,7 +660,7 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                       Image Storage & File Permissions
                     </h2>
                     <p className="text-sm text-muted-foreground mt-0.5">
-                      Configure your system image directory, manage write protection locks, and install bundled demo photos for offline use.
+                      Configure your system image directory and manage write protection locks.
                     </p>
                   </div>
 
@@ -787,51 +775,6 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                     </div>
                   </div>
 
-                  {/* Customer menu catalog */}
-                  <div className="rounded-2xl border border-border bg-card p-5 shadow-xs space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-border pb-3">
-                      <div className="space-y-0.5">
-                        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                          <Sparkles size={15} className="text-primary" />
-                          Customer menu catalog
-                        </h3>
-                        <p className="text-xs text-muted-foreground">
-                          Restore the packaged customer menu catalog when the local API is unavailable.
-                        </p>
-                      </div>
-
-                      <Button
-                        type="button"
-                        onClick={handleInstallDemo}
-                        className="cursor-pointer gap-2 shrink-0 text-xs font-semibold h-9"
-                      >
-                        <Sparkles size={14} />
-                        <span>Restore customer catalog</span>
-                      </Button>
-                    </div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-1">
-                      {DEMO_10_ITEMS.map((item) => (
-                        <div
-                          key={item.code}
-                          className="flex flex-col rounded-xl border border-border bg-muted/30 p-2 text-center overflow-hidden hover:border-primary/40 transition-colors"
-                        >
-                          <div className="aspect-video w-full rounded-lg bg-black/10 overflow-hidden mb-1.5 border border-border/40">
-                            <img src={item.image} alt={item.name} className="size-full object-cover" />
-                          </div>
-                          <span className="text-[11px] font-bold text-foreground truncate">{item.name}</span>
-                          <span className="text-[10px] text-muted-foreground font-mono">{item.code} · ₹{(item.price / 100).toFixed(0)}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {demoInstallNotice && (
-                      <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-800 dark:text-emerald-200 font-medium flex items-center gap-2">
-                        <CheckCircle2 size={15} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
-                        <span>{demoInstallNotice}</span>
-                      </div>
-                    )}
-                  </div>
                 </div>
               )}
 

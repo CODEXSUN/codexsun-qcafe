@@ -5,18 +5,15 @@ import {
   Coffee,
   Edit3,
   Filter,
-  FolderCheck,
   Image as ImageIcon,
   LayoutGrid,
   Plus,
   RefreshCw,
   Search,
-  Sparkles,
   Table2,
   Tags,
   Trash2,
   Upload,
-  UtensilsCrossed,
   X,
 } from 'lucide-react';
 import { Button } from '@codexsun/ui/components/ui/button';
@@ -31,9 +28,7 @@ import {
   saveCustomMenuItem,
   saveTableConfig,
   renameMenuCategory,
-  DEMO_10_ITEMS,
   getImageStorageSettings,
-  installDemoItemsAndImages,
   type CustomMenuItem,
   type TableMasterConfig,
 } from './mastersStore';
@@ -65,21 +60,7 @@ export function Masters({ data, topology, navigate }: Props) {
     <div className="space-y-6" {...topology.regionProps('q8')}>
       <TopologyMarker id="q8" topology={topology} />
 
-      {/* Top Header & Tabs Bar */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-4">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            <span className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
-              <UtensilsCrossed size={20} />
-            </span>
-            Restaurant Masters
-          </h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Manage your menu item catalog with photos and visual table seating configurations.
-          </p>
-        </div>
-
-        {/* Tab Switcher */}
+      <div className="flex flex-wrap justify-end border-b border-border pb-4">
         <div className="flex items-center rounded-xl border border-border bg-muted/40 p-1">
           <button
             type="button"
@@ -167,31 +148,22 @@ function ItemMasterSection({
   const [showForm, setShowForm] = useState(false);
   const [editingItem, setEditingItem] = useState<CustomMenuItem | null>(null);
   const [storageSettings, setStorageSettings] = useState(() => getImageStorageSettings());
-  const [demoNotice, setDemoNotice] = useState('');
 
   // Form states
   const [formCode, setFormCode] = useState('');
   const [formName, setFormName] = useState('');
-  const [formCategory, setFormCategory] = useState('Beverages');
   const [formPrice, setFormPrice] = useState('');
   const [formImage, setFormImage] = useState('');
   const [formError, setFormError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const handleSettingsUpdate = () => {
+    const handleSettingsUpdate = (event: Event) => {
       setStorageSettings(getImageStorageSettings());
     };
     window.addEventListener('q-cafe-settings-updated', handleSettingsUpdate);
     return () => window.removeEventListener('q-cafe-settings-updated', handleSettingsUpdate);
   }, []);
-
-  function handleInstall10Demo() {
-    const res = installDemoItemsAndImages();
-    setDemoNotice(`Restored ${res.count} customer menu items.`);
-    onRefresh();
-    setTimeout(() => setDemoNotice(''), 4000);
-  }
 
   const categories = useMemo(() => {
     const set = new Set(menuItems.map((i) => i.category).filter(Boolean));
@@ -226,7 +198,6 @@ function ItemMasterSection({
     setEditingItem(null);
     setFormCode(suggestNextCode());
     setFormName('');
-    setFormCategory(categories.find((category) => category !== 'All') ?? 'General');
     setFormPrice('');
     setFormImage('');
     setFormError('');
@@ -237,7 +208,6 @@ function ItemMasterSection({
     setEditingItem(item);
     setFormCode(item.code);
     setFormName(item.name);
-    setFormCategory(item.category || 'General');
     setFormPrice(String(item.price / 100));
     setFormImage(item.image || '');
     setFormError('');
@@ -318,7 +288,7 @@ function ItemMasterSection({
         id,
         code: formCode.trim().toUpperCase(),
         name: formName.trim(),
-        category: formCategory.trim() || 'General',
+        category: editingItem?.category || 'General',
         price: priceInPaise,
         image: formImage || undefined,
         isCustom: true,
@@ -348,46 +318,6 @@ function ItemMasterSection({
 
   return (
     <div className="space-y-5">
-      {/* Image Storage Folder & Write Protection Status Banner */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-3.5 shadow-2xs">
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <span className="font-semibold text-foreground flex items-center gap-1.5">
-            <FolderCheck size={15} className="text-primary" />
-            Image Storage Folder:
-          </span>
-          <code className="rounded-md bg-muted px-2 py-0.5 font-mono text-[11px] font-semibold text-foreground border border-border">
-            {storageSettings.imageFolderPath}
-          </code>
-          <span
-            className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-              storageSettings.imageWriteProtection
-                ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30'
-                : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
-            }`}
-          >
-            {storageSettings.imageWriteProtection ? 'Write Protected (Locked)' : 'Writable (Read/Write)'}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {demoNotice && (
-            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-              ✓ {demoNotice}
-            </span>
-          )}
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleInstall10Demo}
-            className="cursor-pointer gap-1.5 text-xs h-8 px-3 border-primary/30 text-primary hover:bg-primary/5 font-semibold"
-            title="Populate catalog with 10 bundled offline demo food items and images"
-          >
-            <Sparkles size={13} />
-            <span>Restore customer catalog</span>
-          </Button>
-        </div>
-      </div>
-
       {/* Action Strip: Search, Filters, Stats & Add Button */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between rounded-xl border border-border bg-card p-3 shadow-2xs">
         <div className="flex flex-1 flex-wrap items-center gap-2">
@@ -454,19 +384,25 @@ function ItemMasterSection({
                 {editingItem ? `Edit Item (${editingItem.code})` : 'Add New Menu Item'}
               </h3>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Set item code, name, category, price, and upload an enticing photo.
+                Set the item rate and upload an item photo.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowForm(false)}
-              className="grid size-8 cursor-pointer place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground"
-            >
-              <X size={16} />
-            </button>
+            <div className="flex items-center gap-2">
+              <Button type="submit" form="menu-item-form" className="cursor-pointer text-xs">
+                Save Item
+              </Button>
+              <button
+                type="button"
+                onClick={() => setShowForm(false)}
+                className="grid size-8 cursor-pointer place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground"
+                aria-label="Close item editor"
+              >
+                <X size={16} />
+              </button>
+            </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form id="menu-item-form" onSubmit={handleSubmit} className="space-y-4">
             {formError && (
               <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive">
                 {formError}
@@ -526,32 +462,9 @@ function ItemMasterSection({
                 </div>
               </div>
 
-              {/* Category */}
-              <div>
-                <label className="block text-xs font-semibold text-foreground mb-1">
-                  Category <span className="text-destructive">*</span>
-                </label>
-                <input
-                  type="text"
-                  list="category-suggestions"
-                  className={`${field} w-full text-xs`}
-                  placeholder="Choose or enter a category"
-                  value={formCategory}
-                  onChange={(e) => setFormCategory(e.target.value)}
-                  required
-                />
-                <datalist id="category-suggestions">
-                  {categories.filter((category) => category !== 'All').map((category) => (
-                    <option key={category} value={category} />
-                  ))}
-                </datalist>
-              </div>
-
               {/* Image Upload Area */}
               <div className="md:col-span-2 lg:col-span-3">
-                <label className="block text-xs font-semibold text-foreground mb-1">
-                  Item Image (Upload File or Select Preset)
-                </label>
+                <label className="block text-xs font-semibold text-foreground mb-1">Item Image</label>
                 <div className="flex flex-wrap items-center gap-3">
                   {/* Image Preview / Fallback Box */}
                   <div className="relative size-16 shrink-0 overflow-hidden rounded-xl border border-border bg-muted/40 shadow-xs">
@@ -592,45 +505,16 @@ function ItemMasterSection({
                     <span>Upload photo</span>
                   </Button>
 
-                  <span className="text-xs text-muted-foreground">or select a bundled demo photo:</span>
-
-                  {/* Preset quick buttons */}
-                  <div className="flex flex-wrap items-center gap-1 max-w-lg">
-                    {DEMO_10_ITEMS.map((demo) => (
-                      <button
-                        key={demo.code}
-                        type="button"
-                        onClick={() => setFormImage(demo.image)}
-                        className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground hover:border-primary hover:bg-accent hover:text-foreground"
-                      >
-                        <Sparkles size={10} className="text-primary" />
-                        {demo.name}
-                      </button>
-                    ))}
-                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 border-t border-border pt-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowForm(false)}
-                className="cursor-pointer text-xs"
-              >
-                Cancel
-              </Button>
-              <Button type="submit" className="cursor-pointer text-xs">
-                {editingItem ? 'Save Changes' : 'Create Item'}
-              </Button>
-            </div>
           </form>
         </div>
       )}
 
       {/* Items Grid Catalog */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
         {filteredItems.map((item) => (
           <div
             key={item.code}

@@ -1,5 +1,15 @@
 # Q Cafe changelog
 
+## 1.1.22 - 2026-09-09
+
+### POS access, startup repair, and keyboard workflow
+
+- Adds fixed PIN access for Super admin, Admin, and Cashier. Cashiers can use POS billing only.
+- Starts the packaged API with its required access module and falls back to Q Cafe app data when a saved data drive is unavailable.
+- Restores a single normal item rate and normal item-code search. Removes special rates and special-prefix search.
+- Shows six Item Master cards across on wide screens.
+- Uses F2 for search, F3 for manual item code, F6 for cash receipt, F7 for previous bills, F8 for save, and F12 for sign out.
+
 ## 1.1.21 - 2026-09-09
 
 ### Clearer safe-exit confirmation

@@ -102,6 +102,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [showPaymentCollector, setShowPaymentCollector] = useState(false);
   const [showBillsDrawer, setShowBillsDrawer] = useState(false);
+  const [cashReceiptRequest, setCashReceiptRequest] = useState(0);
 
   // Section 4: Manual entry state (synchronized with selected product card)
   const [selectedItem, setSelectedItem] = useState<CustomMenuItem | null>(null);
@@ -306,6 +307,8 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     ...Array.from(new Set(menuItems.map((item) => item.category).filter(Boolean))).sort((left, right) => left.localeCompare(right)),
   ], [menuItems]);
 
+  const manualEntryItems = menuItems;
+
   useEffect(() => {
     if (!catalogCategories.includes(selectedCategory)) setSelectedCategory('All');
   }, [catalogCategories, selectedCategory]);
@@ -453,11 +456,9 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     const qty = parseQuantity(bottomQuantity);
     const finalQty = qty > 0 ? qty : 1;
     const prc = parsePrice(bottomRate);
-    const matchedItem = menuItems.find(
-      (m) =>
-        (cleanCode && m.code.toLowerCase() === cleanCode.toLowerCase()) ||
-        (cleanName && m.name.toLowerCase() === cleanName.toLowerCase())
-    );
+    const matchedItem =
+      menuItems.find((item) => item.code.toLowerCase() === cleanCode.toLowerCase()) ??
+      manualEntryItems.find((item) => cleanName && item.name.toLowerCase() === cleanName.toLowerCase());
     const finalPrice = prc > 0 ? prc : (matchedItem?.price ?? 10000);
     const finalCode = cleanCode || matchedItem?.code || 'ITM-000';
     const finalName = cleanName || matchedItem?.name || 'Custom Item';
@@ -512,7 +513,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
   // Section 4: Field updates with auto-lookup
   function handleItemCodeChange(val: string) {
     setBottomCode(val);
-    const matched = menuItems.find((m) => m.code.toLowerCase() === val.trim().toLowerCase());
+    const matched = menuItems.find((item) => item.code.toLowerCase() === val.trim().toLowerCase());
     if (matched) {
       setSelectedItem(matched);
       setBottomName(matched.name);
@@ -591,6 +592,13 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
 
   function handleFocusPayment() {
     if (!lines.length) return;
+    setShowBillsDrawer(true);
+    setShowPaymentCollector(true);
+  }
+
+  function handleCashReceipt() {
+    if (!lines.length) return;
+    setCashReceiptRequest((request) => request + 1);
     setShowBillsDrawer(true);
     setShowPaymentCollector(true);
   }
@@ -732,7 +740,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     }
   }, [activeTab.payment, showPaymentCollector]);
 
-  // Global Keyboard Shortcuts (F1: order mode, F2: search, F4: kitchen, F5: settle, F6: item code, F7: bills, F8: save & print, F9: new order)
+  // Global Keyboard Shortcuts (F1: order mode, F2: search, F3: item code, F6: cash receipt, F7: previous bills, F8: save)
   useEffect(() => {
     const handleKeyDown = (e: globalThis.KeyboardEvent) => {
       // Enter on paid order -> Next Order / Confirm
@@ -768,18 +776,24 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         searchInputRef.current?.focus();
         searchInputRef.current?.select();
       }
-      // F5: open settlement in the bills drawer
-      if (e.key === 'F5') {
+      // F3: focus Item Code.
+      if (e.key === 'F3') {
         e.preventDefault();
-        handleFocusPayment();
+        codeInputRef.current?.focus();
+        codeInputRef.current?.select();
       }
-      // F7: open passed bills and settlement drawer.
+      // F6: open the cash receipt form in the right-side drawer.
+      if (e.key === 'F6') {
+        e.preventDefault();
+        handleCashReceipt();
+      }
+      // F7: open previous bills.
       if (e.key === 'F7') {
         e.preventDefault();
         setShowBillsDrawer(true);
       }
-      // F6 or Alt+I: focus Item Code
-      if (e.key === 'F6' || (e.altKey && e.key.toLowerCase() === 'i')) {
+      // Alt+I is an alternate Item Code shortcut.
+      if (e.altKey && e.key.toLowerCase() === 'i') {
         e.preventDefault();
         codeInputRef.current?.focus();
         codeInputRef.current?.select();
@@ -790,8 +804,8 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         quantityInputRef.current?.focus();
         quantityInputRef.current?.select();
       }
-      // F4 or Ctrl+Enter: send to kitchen
-      if (e.key === 'F4' || ((e.ctrlKey || e.metaKey) && e.key === 'Enter')) {
+      // Ctrl+Enter: send to kitchen
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();
         if (lines.length > 0 && !busy) {
           void handleSendToKitchen();
@@ -804,8 +818,8 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
           void handleConfirmOrder();
         }
       }
-      // F9 or Alt+N: new order tab
-      if (e.key === 'F9' || (e.altKey && e.key.toLowerCase() === 'n')) {
+      // Alt+N: new order tab
+      if (e.altKey && e.key.toLowerCase() === 'n') {
         e.preventDefault();
         createTab();
       }
@@ -902,6 +916,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         total={total}
         payment={activeTab.payment}
         showPaymentCollector={showPaymentCollector}
+        cashReceiptRequest={cashReceiptRequest}
         onOpenPaymentCollector={handleFocusPayment}
         onClosePaymentCollector={handleClosePaymentCollector}
         onRecordPayment={handleRecordPayment}
@@ -914,7 +929,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         itemCode={bottomCode}
         itemName={bottomName}
         quantity={bottomQuantity}
-        menuItems={menuItems}
+        menuItems={manualEntryItems}
         onChangeItemCode={handleItemCodeChange}
         onChangeQuantity={setBottomQuantity}
         onApplyItem={handleApplyItem}

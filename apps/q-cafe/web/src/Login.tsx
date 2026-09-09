@@ -18,13 +18,13 @@ import {
   TopologyMarker,
   type InterfaceTopologyController,
 } from '@codexsun/devkit-ito';
-import { signIn, signInWithCredentials, setupOwner } from './api';
+import { signIn, signInWithCredentials, type SignInResult } from './api';
 import { ItoRegion } from './ItoRegion';
 
 type Props = {
   topology: InterfaceTopologyController;
   showItoIcon: boolean;
-  onSuccess: (session: string) => void;
+  onSuccess: (session: SignInResult) => void;
 };
 
 export function Login({ topology, showItoIcon, onSuccess }: Props) {
@@ -96,12 +96,13 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
     setBusy(true);
     setError('');
     try {
-      const session = authMode === 'setup' ? await setupOwner(pinString) : await signIn(pinString);
-      sessionStorage.setItem('q-cafe-session', session);
+      const session = await signIn(pinString);
+      sessionStorage.setItem('q-cafe-session', session.access_token);
+      sessionStorage.setItem('q-cafe-session-user', JSON.stringify(session.user));
       onSuccess(session);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Incorrect PIN.';
-      if (message.includes('First setup required')) { setAuthMode('setup'); setError('Create the first owner PIN.'); } else setError(message);
+      setError(message);
       setShake(true);
       setTimeout(() => setShake(false), 500);
       setPin(['', '', '', '']);
@@ -207,7 +208,8 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
     setError('');
     try {
       const session = await signInWithCredentials(username.trim(), password);
-      sessionStorage.setItem('q-cafe-session', session);
+      sessionStorage.setItem('q-cafe-session', session.access_token);
+      sessionStorage.setItem('q-cafe-session-user', JSON.stringify(session.user));
       onSuccess(session);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to sign in.');
@@ -242,7 +244,7 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
             Q Cafe
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground">
-            {authMode === 'setup' ? 'Create the first four-digit owner PIN.' : authMode === 'pin' ? 'Enter your four-digit cashier PIN.' : 'Sign in with your username and password.'}
+            {authMode === 'pin' ? 'Enter your four-digit access PIN.' : 'Sign in with your username and password.'}
           </p>
         </div>
 
@@ -313,20 +315,9 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
               </ItoRegion>
             )}
 
-            {/* Switch to username login text */}
+            {/* Fixed local access PINs are the current sign-in method. */}
             <ItoRegion id="q1.4" topology={topology} className="pt-2 text-center border-t border-border/60">
-              {authMode === 'setup' && <div className="mb-3 flex justify-center gap-2">
-                <Button type="button" variant="outline" size="sm" disabled={setupBusy} onClick={() => void runFirstTimeAction('qcafe_select_data_directory')} className="cursor-pointer gap-1.5"><Database size={14}/>Select database</Button>
-                <Button type="button" variant="outline" size="sm" disabled={setupBusy} onClick={() => void runFirstTimeAction('qcafe_clear_first_time_data')} className="cursor-pointer gap-1.5"><RotateCcw size={14}/>Clear data</Button>
-              </div>}
-              <button
-                type="button"
-                onClick={() => { if (authMode === 'setup') return; setError(''); setAuthMode('username'); }}
-                className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-medium text-muted-foreground hover:text-foreground cursor-pointer transition-colors hover:underline"
-              >
-                <UserRound size={14} />
-                <span>{authMode === 'setup' ? 'Owner setup is required' : 'Sign in with username'}</span>
-              </button>
+              <p className="text-xs text-muted-foreground">Access is based on the assigned four-digit PIN.</p>
             </ItoRegion>
           </form>
         ) : (
@@ -444,7 +435,7 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure you want to exit Q Cafe?</AlertDialogTitle>
             <AlertDialogDescription>
-              Q Cafe will finish its current local database work and then close.
+              Q Cafe will finish its current work and then close.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

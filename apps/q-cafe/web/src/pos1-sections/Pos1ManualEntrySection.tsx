@@ -25,7 +25,7 @@ export function Pos1ManualEntrySection({
 }: Pos1ManualEntrySectionProps) {
   const codeOptions: AutocompleteOption<CustomMenuItem>[] = useMemo(
     () => menuItems.map((item) => ({
-      id: item.id,
+      id: item.code,
       label: item.code,
       sublabel: item.name,
       badge: item.category,
@@ -35,9 +35,7 @@ export function Pos1ManualEntrySection({
   );
 
   function handleCodeEnter() {
-    const item = menuItems.find(
-      (candidate) => candidate.code.toLowerCase() === itemCode.trim().toLowerCase()
-    );
+    const item = menuItems.find((candidate) => candidate.code.toLowerCase() === itemCode.trim().toLowerCase());
     if (item) {
       onApplyItem(item);
       focusAndSelect(quantityInputRef);
@@ -84,7 +82,7 @@ export function Pos1ManualEntrySection({
                 }}
                 onEnter={handleCodeEnter}
                 minWidth="w-72"
-                shortcut="F6"
+                shortcut="F3"
                 icon={<Barcode className="size-4 shrink-0 text-muted-foreground" />}
               />
             </div>

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { CafeStore } from './store.mjs';
+import { hardcodedUserForPin } from './hardcoded-access.mjs';
 
 const path = process.env.QCAFE_DATABASE_PATH ?? '/data/q-cafe.sqlite';
 mkdirSync(dirname(path), { recursive: true });
@@ -26,7 +27,6 @@ const server = createServer(async (request, response) => {
     setTimeout(shutdown, 0);
     return;
   }
-  if (request.url === '/api/v1/q-cafe/auth/setup' && request.method === 'POST') return setupOwner(request, send);
   if ((request.url === '/api/v1/q-cafe/auth/pin' || request.url === '/api/v1/q-cafe/auth/login') && request.method === 'POST') return signIn(request, send);
   const identity = isAuthorized(request); if (!identity) return send(401, { error: 'Q Cafe sign-in required.' });
   if (request.url === '/api/v1/q-cafe' && request.method === 'GET') return send(200, { ...store.snapshot(), demo: process.env.QCAFE_DEMO === 'true', user: identity });
@@ -53,8 +53,16 @@ function shutdown() {
   }, 5_000).unref();
 }
 
-async function setupOwner(request, send) { try { const input = await body(request, 2048); const owner = store.setupOwner(input); return session(owner, send); } catch (error) { return send(400, { error: error instanceof Error ? error.message : 'Owner setup failed.' }); } }
-async function signIn(request, send) { try { if (!store.hasStaffUsers()) return send(428, { error: 'First setup required. Create the Q Cafe owner PIN.' }); const input = await body(request, 2048); return session(store.signInStaff(input?.username ?? 'owner', input?.pin ?? input?.password), send); } catch (error) { return send(401, { error: error instanceof Error ? error.message : 'Unable to sign in.' }); } }
+async function signIn(request, send) {
+  try {
+    const input = await body(request, 2048);
+    const user = hardcodedUserForPin(input?.pin ?? input?.password);
+    if (!user) return send(401, { error: 'Incorrect access PIN.' });
+    return session(user, send);
+  } catch (error) {
+    return send(401, { error: error instanceof Error ? error.message : 'Unable to sign in.' });
+  }
+}
 function session(user, send) { const accessToken = randomUUID(); sessions.set(accessToken, { ...user, expiresAt: Date.now() + 12 * 60 * 60 * 1000 }); return send(200, { access_token: accessToken, expires_in: 12 * 60 * 60, user }); }
 async function body(request, limit) { let value = ''; for await (const chunk of request) { value += chunk; if (value.length > limit) throw new Error('Request too large.'); } const input = JSON.parse(value); if (!input || typeof input !== 'object') throw new Error('Invalid request.'); return input; }
 function isAuthorized(request) { if (request.headers.authorization === `Bearer ${token}`) return { id: 0, login: 'operator', name: 'Technical operator', role: 'owner' }; const key = request.headers.authorization?.replace(/^Bearer /u, ''); const session = key ? sessions.get(key) : undefined; if (!session || session.expiresAt <= Date.now()) { if (key) sessions.delete(key); return null; } return session; }
