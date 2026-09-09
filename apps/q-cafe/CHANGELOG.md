@@ -1,5 +1,14 @@
 # Q Cafe changelog
 
+## 1.1.20 - 2026-09-09
+
+### Responsive login and reliable Windows updates
+
+- Keeps the sign-in screen within one responsive viewport, with the login card centered independently of the floating Exit and version controls.
+- Makes the Exit control easier to see and asks for confirmation before safely closing the local API and SQLite connection.
+- Makes the Windows installer close Q Cafe and its bundled Node sidecar by its installed path before replacing node.exe during an update.
+- Publishes version metadata through apps/q-cafe/version.json for the API, web app, desktop app, updater, installer, and changelog.
+
 ## 1.1.19 - 2026-09-09
 
 ### POS workflow, receipt clarity, and safe desktop exit

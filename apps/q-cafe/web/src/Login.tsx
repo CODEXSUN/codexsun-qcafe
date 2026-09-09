@@ -1,6 +1,17 @@
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Coffee, UserRound, Lock, KeyRound, Database, Power, RotateCcw } from 'lucide-react';
 import { Button } from '@codexsun/ui/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@codexsun/ui/components/ui/alert-dialog';
 import {
   InterfaceTopologyDrawer,
   TopologyInspectionControl,
@@ -27,6 +38,7 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
   const [shake, setShake] = useState(false);
   const [setupBusy, setSetupBusy] = useState(false);
   const [exitBusy, setExitBusy] = useState(false);
+  const [exitConfirmationOpen, setExitConfirmationOpen] = useState(false);
   const [version, setVersion] = useState(__QCAFE_VERSION__);
 
   const ref0 = useRef<HTMLInputElement>(null);
@@ -44,6 +56,11 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
   useEffect(() => {
     if (!('__TAURI_INTERNALS__' in window)) return;
     void import('@tauri-apps/api/app').then(({ getVersion }) => getVersion()).then(setVersion).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.classList.add('q-cafe-login-active');
+    return () => document.documentElement.classList.remove('q-cafe-login-active');
   }, []);
 
   async function runFirstTimeAction(command: 'qcafe_select_data_directory' | 'qcafe_clear_first_time_data') {
@@ -201,7 +218,7 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
 
   return (
     <main
-      className="grid min-h-screen place-items-center bg-background text-foreground p-4"
+      className="h-[100dvh] w-screen overflow-hidden bg-background text-foreground"
       {...topology.rootAttributes}
     >
       <style>{`
@@ -215,7 +232,8 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
         }
       `}</style>
 
-      <div className="w-full max-w-sm rounded-3xl border border-border bg-card p-7 sm:p-8 shadow-xl">
+      <div className="fixed inset-0 grid place-items-center overflow-hidden p-4">
+        <div className="w-full max-w-sm rounded-3xl border border-border bg-card p-7 shadow-xl sm:p-8">
         <div className="text-center space-y-2 mb-6">
           <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-primary/10 text-primary shadow-xs">
             <Coffee size={32} />
@@ -394,24 +412,55 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
             </ItoRegion>
           </form>
         )}
+        </div>
       </div>
 
-      <ItoRegion id="q1.6" topology={topology} className="fixed bottom-4 right-5 flex items-center gap-2">
-        {'__TAURI_INTERNALS__' in window ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={exitBusy}
-            onClick={() => void exitQCafe()}
-            className="h-7 cursor-pointer gap-1.5 px-2 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-          >
-            <Power size={13} />
-            {exitBusy ? 'Closing…' : 'Exit'}
-          </Button>
-        ) : null}
-        <p className="text-xs text-muted-foreground">v{version}</p>
-      </ItoRegion>
+      {createPortal(
+        <ItoRegion id="q1.6" topology={topology} className="fixed bottom-5 right-6 z-[100] flex flex-col items-end gap-3">
+          {'__TAURI_INTERNALS__' in window ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={exitBusy}
+              onClick={() => setExitConfirmationOpen(true)}
+              className="h-10 cursor-pointer gap-2 px-4 text-sm font-semibold shadow-sm"
+            >
+              <Power size={16} />
+              {exitBusy ? 'Closing…' : 'Exit'}
+            </Button>
+          ) : null}
+          <p className="text-sm font-medium text-muted-foreground">v{version}</p>
+        </ItoRegion>,
+        document.body,
+      )}
+
+      <AlertDialog
+        open={exitConfirmationOpen}
+        onOpenChange={(open) => {
+          if (!exitBusy) setExitConfirmationOpen(open);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Exit Q Cafe?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Q Cafe will finish its current local database work and then close.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={exitBusy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={exitBusy}
+              onClick={(event) => {
+                event.preventDefault();
+                void exitQCafe();
+              }}
+            >
+              {exitBusy ? 'Closing…' : 'Exit Q Cafe'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {showItoIcon && <TopologyInspectionControl topology={topology} />}
       {showItoIcon && <InterfaceTopologyDrawer topology={topology} />}

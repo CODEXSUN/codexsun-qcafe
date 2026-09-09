@@ -56,6 +56,14 @@ html.hide-ito-icon .topology-inspection-control.floating {
   display: none !important;
 }
 
+html.q-cafe-login-active,
+html.q-cafe-login-active body,
+html.q-cafe-login-active #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Slimmest & Smallest Custom Scrollbars                                     */
 /* -------------------------------------------------------------------------- */
