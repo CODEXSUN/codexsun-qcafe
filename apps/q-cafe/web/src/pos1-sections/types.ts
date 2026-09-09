@@ -28,11 +28,19 @@ export type PaymentRecord = {
 };
 
 export type PreviousBill = {
+  id: number;
   billNo: string;
   tableNo: string;
   total: number;
   collectedAt: string;
   paidWithCash: boolean;
+  paymentMode: string;
+  items: Array<{
+    name: string;
+    quantity: number;
+    rate: number;
+    amount: number;
+  }>;
 };
 
 export type OrderTab = {

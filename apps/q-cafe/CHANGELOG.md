@@ -1,5 +1,14 @@
 # Q Cafe changelog
 
+## 1.1.23 - 2026-09-09
+
+### Separate cash settlement and previous invoices
+
+- Splits Cash receipt and Previous invoice into separate right-side drawers.
+- F6 opens Cash receipt directly and keeps the Cash payment mode selected.
+- F7 opens the latest paid invoice as a single green-bordered invoice view.
+- Page Up and Page Down move through older and newer paid invoices without showing a bill list.
+
 ## 1.1.22 - 2026-09-09
 
 ### POS access, startup repair, and keyboard workflow

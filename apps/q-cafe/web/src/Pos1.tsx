@@ -8,7 +8,8 @@ import {
   Pos1HeaderSection,
   Pos1ProductSection,
   Pos1BillingSection,
-  Pos1BillsDrawer,
+  Pos1CashDrawer,
+  Pos1PreviousInvoiceDrawer,
   Pos1ManualEntrySection,
   type EntryLine,
   type OrderTab,
@@ -100,8 +101,9 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
   // Section 1: Search and Category Filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  const [showPaymentCollector, setShowPaymentCollector] = useState(false);
-  const [showBillsDrawer, setShowBillsDrawer] = useState(false);
+  const [showCashDrawer, setShowCashDrawer] = useState(false);
+  const [showPreviousInvoiceDrawer, setShowPreviousInvoiceDrawer] = useState(false);
+  const [previousInvoiceIndex, setPreviousInvoiceIndex] = useState(0);
   const [cashReceiptRequest, setCashReceiptRequest] = useState(0);
 
   // Section 4: Manual entry state (synchronized with selected product card)
@@ -269,7 +271,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     };
     setTabs((current) => [...current, newTab]);
     setActiveTabId(newId);
-    setShowPaymentCollector(false);
+    setShowCashDrawer(false);
     requestAnimationFrame(() => {
       codeInputRef.current?.focus();
       codeInputRef.current?.select();
@@ -284,7 +286,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
 
   function closeTab(idToClose: string) {
     if (tabs.length <= 1) return;
-    setShowPaymentCollector(false);
+    setShowCashDrawer(false);
     setTabs((current) => {
       const filtered = current.filter((t) => t.id !== idToClose);
       if (activeTabId === idToClose) {
@@ -337,24 +339,29 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
 
   const previousBills = useMemo<PreviousBill[]>(() => {
     const receiptPosIds = new Map(data.receipts.map((receipt) => [receipt.id, receipt.pos_id]));
-    const cashPaidPosIds = new Set(
-      data.receipt_transactions
-        .filter((transaction) => transaction.transaction_mode === 'cash')
-        .map((transaction) => receiptPosIds.get(transaction.receipt_id))
-        .filter((posId): posId is number => typeof posId === 'number')
+    const paymentModes = new Map(
+      data.receipt_transactions.map((transaction) => [receiptPosIds.get(transaction.receipt_id), transaction.transaction_mode])
     );
+    const itemsByBill = new Map<number, typeof data.pos_items>();
+    for (const item of data.pos_items) {
+      itemsByBill.set(item.pos_id, [...(itemsByBill.get(item.pos_id) ?? []), item]);
+    }
 
     return data.pos
       .filter((bill) => bill.status === 'paid')
       .sort((left, right) => right.created_at.localeCompare(left.created_at))
       .map((bill) => ({
+        id: bill.id,
         billNo: bill.bill_no,
         tableNo: bill.table_no,
         total: bill.grand_total,
         collectedAt: new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(`${bill.created_at}Z`)),
-        paidWithCash: cashPaidPosIds.has(bill.id),
+        paidWithCash: paymentModes.get(bill.id) === 'cash',
+        paymentMode: (paymentModes.get(bill.id) ?? 'paid').toUpperCase(),
+        items: (itemsByBill.get(bill.id) ?? []).map((item) => ({ name: item.item_name, quantity: item.quantity, rate: item.rate, amount: item.amount })),
       }));
-  }, [data.pos, data.receipt_transactions, data.receipts]);
+  }, [data.pos, data.pos_items, data.receipt_transactions, data.receipts]);
+  const selectedPreviousInvoice = previousBills[previousInvoiceIndex];
   // Cart financial calculations
   const subtotal = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
   const totalQuantity = lines.reduce((sum, line) => sum + line.quantity, 0);
@@ -392,7 +399,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     setBottomName('');
     setBottomQuantity('1');
     setBottomRate('');
-    setShowPaymentCollector(false);
+    setShowCashDrawer(false);
     setPrintBillNumber('');
     requestAnimationFrame(() => {
       searchInputRef.current?.focus();
@@ -556,7 +563,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     });
 
     if (sent) {
-      setShowPaymentCollector(false);
+      setShowCashDrawer(false);
       if (cafeSettings.autoPrintBill) {
         requestAnimationFrame(() => window.print());
       }
@@ -578,29 +585,15 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
   // Section 5: Payment handling
   function handleRecordPayment(pay: PaymentRecord) {
     updateActiveTab({ payment: pay });
-    setShowPaymentCollector(false);
   }
 
   function handleClearPayment() {
     updateActiveTab({ payment: null });
-    setShowPaymentCollector(true);
-  }
-
-  function handleClosePaymentCollector() {
-    setShowPaymentCollector(false);
-  }
-
-  function handleFocusPayment() {
-    if (!lines.length) return;
-    setShowBillsDrawer(true);
-    setShowPaymentCollector(true);
   }
 
   function handleCashReceipt() {
-    if (!lines.length) return;
     setCashReceiptRequest((request) => request + 1);
-    setShowBillsDrawer(true);
-    setShowPaymentCollector(true);
+    setShowCashDrawer(true);
   }
 
   // Section 6: Confirm order (Post POS bill + Payment receipt to backend, clear table, print slip, advance to next order)
@@ -697,7 +690,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         payment: null,
       });
     }
-    setShowPaymentCollector(false);
+    setShowCashDrawer(false);
     requestAnimationFrame(() => {
       codeInputRef.current?.focus();
       codeInputRef.current?.select();
@@ -724,7 +717,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         payment: null,
       });
     }
-    setShowPaymentCollector(false);
+    setShowCashDrawer(false);
     requestAnimationFrame(() => {
       codeInputRef.current?.focus();
       codeInputRef.current?.select();
@@ -733,18 +726,18 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
 
   // Auto-focus floating next order button when order is paid
   useEffect(() => {
-    if (activeTab.payment && !showPaymentCollector) {
+    if (activeTab.payment && !showCashDrawer) {
       requestAnimationFrame(() => {
         nextButtonRef.current?.focus();
       });
     }
-  }, [activeTab.payment, showPaymentCollector]);
+  }, [activeTab.payment, showCashDrawer]);
 
   // Global Keyboard Shortcuts (F1: order mode, F2: search, F3: item code, F6: cash receipt, F7: previous bills, F8: save)
   useEffect(() => {
     const handleKeyDown = (e: globalThis.KeyboardEvent) => {
       // Enter on paid order -> Next Order / Confirm
-      if (e.key === 'Enter' && activeTab.payment && !showPaymentCollector) {
+      if (e.key === 'Enter' && activeTab.payment && !showCashDrawer) {
         const activeEl = document.activeElement;
         const isEditingOtherInput =
           activeEl === searchInputRef.current ||
@@ -757,10 +750,10 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
           return;
         }
       }
-      // Escape: close payment sheet if open
-      if (e.key === 'Escape' && showPaymentCollector) {
+      // Escape: close the cash drawer if it is open.
+      if (e.key === 'Escape' && showCashDrawer) {
         e.preventDefault();
-        setShowPaymentCollector(false);
+        setShowCashDrawer(false);
         return;
       }
       // F1: cycle POS, KOT, and take-away modes.
@@ -790,7 +783,16 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
       // F7: open previous bills.
       if (e.key === 'F7') {
         e.preventDefault();
-        setShowBillsDrawer(true);
+        setPreviousInvoiceIndex(0);
+        setShowPreviousInvoiceDrawer(true);
+      }
+      if (showPreviousInvoiceDrawer && e.key === 'PageUp') {
+        e.preventDefault();
+        setPreviousInvoiceIndex((index) => Math.min(index + 1, Math.max(previousBills.length - 1, 0)));
+      }
+      if (showPreviousInvoiceDrawer && e.key === 'PageDown') {
+        e.preventDefault();
+        setPreviousInvoiceIndex((index) => Math.max(index - 1, 0));
       }
       // Alt+I is an alternate Item Code shortcut.
       if (e.altKey && e.key.toLowerCase() === 'i') {
@@ -834,7 +836,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [lines.length, busy, activeTabId, tabs, tableName, cafeSettings, showPaymentCollector, activeTab.payment, gstApplied, activeTab.chair, orderMode, data.restaurant_tables]);
+  }, [lines.length, busy, activeTabId, tabs, tableName, cafeSettings, showCashDrawer, showPreviousInvoiceDrawer, previousBills.length, activeTab.payment, gstApplied, activeTab.chair, orderMode, data.restaurant_tables]);
 
   return (
     <div
@@ -862,7 +864,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         activeTabId={activeTabId}
         onSelectTab={(tabId) => {
           setActiveTabId(tabId);
-          setShowPaymentCollector(false);
+           setShowCashDrawer(false);
         }}
         onCreateTab={createTab}
         onCloseTab={closeTab}
@@ -908,19 +910,25 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         />
       </div>
 
-      <Pos1BillsDrawer
-        open={showBillsDrawer}
-        onOpenChange={setShowBillsDrawer}
-        previousBills={previousBills}
+      <Pos1CashDrawer
+        open={showCashDrawer}
+        onOpenChange={setShowCashDrawer}
         linesCount={lines.length}
         total={total}
         payment={activeTab.payment}
-        showPaymentCollector={showPaymentCollector}
         cashReceiptRequest={cashReceiptRequest}
-        onOpenPaymentCollector={handleFocusPayment}
-        onClosePaymentCollector={handleClosePaymentCollector}
         onRecordPayment={handleRecordPayment}
         onClearPayment={handleClearPayment}
+      />
+
+      <Pos1PreviousInvoiceDrawer
+        open={showPreviousInvoiceDrawer}
+        onOpenChange={setShowPreviousInvoiceDrawer}
+        invoice={selectedPreviousInvoice}
+        invoiceNumber={previousInvoiceIndex + 1}
+        invoiceCount={previousBills.length}
+        onOlderInvoice={() => setPreviousInvoiceIndex((index) => Math.min(index + 1, Math.max(previousBills.length - 1, 0)))}
+        onNewerInvoice={() => setPreviousInvoiceIndex((index) => Math.max(index - 1, 0))}
       />
 
       {/* Section 4: Manual Entry Area (Bottom Fast Strip) */}
