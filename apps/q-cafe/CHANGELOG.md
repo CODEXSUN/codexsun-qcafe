@@ -1,5 +1,15 @@
 # Q Cafe changelog
 
+## 1.1.19 - 2026-09-09
+
+### POS workflow, receipt clarity, and safe desktop exit
+
+- Simplified POS-1 for counter use: category controls align with the order header, item-code entry is separated from a blank waiting-list reserve, and saved bills open in a dedicated drawer.
+- Keeps ordered quantities at one or more; the remove action is now the only way to delete a row.
+- Improved the 70 mm receipt with clear item-header rules and a totals divider while keeping optional receipt information blank when it is not configured.
+- Adds a login-screen Exit action that gracefully closes the local API and SQLite connection before stopping its Q Cafe sidecar, with a bounded force-stop fallback.
+- Retains the daily pre-start SQLite backup and uses the Q Cafe version source for the API, web, desktop, updater, installer, and changelog.
+
 ## 1.1.18 - 2026-09-08
 
 ### Receipt preview and desktop safety

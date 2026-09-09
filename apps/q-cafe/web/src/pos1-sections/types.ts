@@ -1,6 +1,6 @@
 import type { RefObject } from 'react';
 import type { InterfaceTopologyController } from '@codexsun/devkit-ito';
-import type { CustomMenuItem, TableMasterConfig } from '../mastersStore';
+import type { CustomMenuItem } from '../mastersStore';
 
 export type EntryLine = {
   key: string;
@@ -14,6 +14,7 @@ export type EntryLine = {
 };
 
 export type PaymentMode = 'cash' | 'upi' | 'card';
+export type OrderMode = 'POS' | 'KOT' | 'TAKE AWAY';
 
 export type PaymentRecord = {
   mode: PaymentMode;
@@ -39,6 +40,7 @@ export type OrderTab = {
   name: string;
   tableName: string;
   chair: string;
+  orderMode: OrderMode;
   lines: EntryLine[];
   gstApplied: boolean;
   payment?: PaymentRecord | null;
@@ -57,21 +59,10 @@ export interface Pos1HeaderSectionProps {
   onCloseTab: (tabId: string) => void;
   linesCount: number;
   busy: boolean;
-  onOpenReceiptPreview: () => void;
   onPrintBill: () => void;
   onSendToKitchen: () => void;
-  payment?: PaymentRecord | null;
-  onFocusPayment?: () => void;
-  showPaymentCollector?: boolean;
-  onTogglePaymentCollector?: () => void;
   showOrderTabs?: boolean;
   showKitchenButton?: boolean;
-  onClearUnsavedOrder: () => void;
-  previousBillsVisible: boolean;
-  previousBillPage: number;
-  previousBillPageCount: number;
-  onPreviousBillPage: () => void;
-  onNextBillPage: () => void;
 }
 
 export interface Pos1ProductSectionProps {
@@ -92,49 +83,28 @@ export interface Pos1BillingSectionProps {
   subtotal: number;
   totalQuantity: number;
   total: number;
+  orderMode: OrderMode;
+  onChangeOrderMode: (mode: OrderMode) => void;
+  onClearUnsavedOrder: () => void;
   onIncrementLine: (lineKey: string) => void;
   onDecrementLine: (lineKey: string) => void;
   onRemoveLine: (lineKey: string) => void;
   formatChair: (table: string, chair: number | string) => string;
-  onRecordPayment?: (payment: PaymentRecord) => void;
-  onClearPayment?: () => void;
-  collectorRef?: RefObject<HTMLDivElement | null>;
-  showPaymentCollector?: boolean;
-  onClosePaymentCollector?: () => void;
   onNextOrder?: () => void;
   nextButtonRef?: RefObject<HTMLButtonElement | null>;
-  previousBills: PreviousBill[];
-  showCollectedBills: boolean;
-  previousBillPage: number;
-  previousBillPageCount: number;
 }
 
 export interface Pos1ManualEntrySectionProps {
   topology: InterfaceTopologyController;
-  tableName: string;
-  chair: string;
   itemCode: string;
   itemName: string;
   quantity: string;
-  rate: string;
-  amount?: number;
-  tableConfigs: TableMasterConfig[];
   menuItems: CustomMenuItem[];
-  tableChairCount: number;
-  onSelectTable: (tableNo: string) => void;
-  onSelectChair: (chair: string) => void;
   onChangeItemCode: (code: string) => void;
-  onChangeItemName: (name: string) => void;
   onChangeQuantity: (qty: string) => void;
-  onChangeRate: (rate: string) => void;
   onApplyItem: (item: CustomMenuItem) => void;
   onAddToOrder: () => void;
-  formatChair: (table: string, chair: number | string) => string;
-  tableInputRef?: RefObject<HTMLInputElement | null>;
-  chairInputRef?: RefObject<HTMLInputElement | null>;
-  codeInputRef?: RefObject<HTMLInputElement | null>;
-  nameInputRef?: RefObject<HTMLInputElement | null>;
-  quantityInputRef?: RefObject<HTMLInputElement | null>;
-  rateInputRef?: RefObject<HTMLInputElement | null>;
+  codeInputRef: RefObject<HTMLInputElement | null>;
+  quantityInputRef: RefObject<HTMLInputElement | null>;
 }
 

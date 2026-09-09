@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Coffee, UserRound, Lock, KeyRound, Database, RotateCcw } from 'lucide-react';
+import { Coffee, UserRound, Lock, KeyRound, Database, Power, RotateCcw } from 'lucide-react';
 import { Button } from '@codexsun/ui/components/ui/button';
 import {
   InterfaceTopologyDrawer,
@@ -26,6 +26,7 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
   const [error, setError] = useState('');
   const [shake, setShake] = useState(false);
   const [setupBusy, setSetupBusy] = useState(false);
+  const [exitBusy, setExitBusy] = useState(false);
   const [version, setVersion] = useState(__QCAFE_VERSION__);
 
   const ref0 = useRef<HTMLInputElement>(null);
@@ -57,6 +58,19 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
       setError(err instanceof Error ? err.message : 'Q Cafe setup could not be changed.');
     } finally {
       setSetupBusy(false);
+    }
+  }
+
+  async function exitQCafe() {
+    if (!('__TAURI_INTERNALS__' in window) || exitBusy) return;
+    setExitBusy(true);
+    setError('');
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('qcafe_exit_application');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Q Cafe could not close safely.');
+      setExitBusy(false);
     }
   }
 
@@ -382,7 +396,22 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
         )}
       </div>
 
-      <p className="fixed bottom-4 right-5 text-xs text-gray-500">v{version}</p>
+      <ItoRegion id="q1.6" topology={topology} className="fixed bottom-4 right-5 flex items-center gap-2">
+        {'__TAURI_INTERNALS__' in window ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={exitBusy}
+            onClick={() => void exitQCafe()}
+            className="h-7 cursor-pointer gap-1.5 px-2 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          >
+            <Power size={13} />
+            {exitBusy ? 'Closing…' : 'Exit'}
+          </Button>
+        ) : null}
+        <p className="text-xs text-muted-foreground">v{version}</p>
+      </ItoRegion>
 
       {showItoIcon && <TopologyInspectionControl topology={topology} />}
       {showItoIcon && <InterfaceTopologyDrawer topology={topology} />}

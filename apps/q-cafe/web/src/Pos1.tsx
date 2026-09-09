@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Printer, X } from 'lucide-react';
-import { Button } from '@codexsun/ui/components/ui/button';
 import { TopologyMarker, type InterfaceTopologyController } from '@codexsun/devkit-ito';
 import type { Snapshot } from './api';
 import { getMergedMenu, getMergedTables, type CustomMenuItem, type TableMasterConfig } from './mastersStore';
@@ -10,9 +8,11 @@ import {
   Pos1HeaderSection,
   Pos1ProductSection,
   Pos1BillingSection,
+  Pos1BillsDrawer,
   Pos1ManualEntrySection,
   type EntryLine,
   type OrderTab,
+  type OrderMode,
   type PaymentRecord,
   type PreviousBill,
 } from './pos1-sections';
@@ -54,18 +54,16 @@ function formatRate(priceInPaise: number) {
   return (priceInPaise / 100).toFixed(2);
 }
 
+function defaultOrderMode(defaultServiceType: CafeSettings['defaultServiceType']): OrderMode {
+  return defaultServiceType === 'Takeaway' ? 'TAKE AWAY' : 'POS';
+}
+
 export function Pos1({ data, busy, mutate, topology }: Props) {
   const [cafeSettings, setCafeSettings] = useState<CafeSettings>(() => loadSettings());
-  const [showReceiptPreview, setShowReceiptPreview] = useState(false);
   const [printBillNumber, setPrintBillNumber] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const tableInputRef = useRef<HTMLInputElement>(null);
-  const chairInputRef = useRef<HTMLInputElement>(null);
   const codeInputRef = useRef<HTMLInputElement>(null);
-  const nameInputRef = useRef<HTMLInputElement>(null);
   const quantityInputRef = useRef<HTMLInputElement>(null);
-  const rateInputRef = useRef<HTMLInputElement>(null);
-  const collectorRef = useRef<HTMLDivElement>(null);
   const nextButtonRef = useRef<HTMLButtonElement>(null);
   const nextTabNum = useRef(2);
 
@@ -77,6 +75,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
       name: 'Order 1',
       tableName: defaultTable,
       chair: '1',
+      orderMode: defaultOrderMode(loadSettings().defaultServiceType),
       lines: [],
       gstApplied: false,
     }];
@@ -87,6 +86,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
   const lines = activeTab.lines;
   const tableName = activeTab.tableName;
   const chair = activeTab.chair ?? '1';
+  const orderMode = activeTab.orderMode;
   const gstApplied = activeTab.gstApplied ?? false;
   const nextBillNumber = String(data.pos.reduce((highestId, bill) => Math.max(highestId, bill.id), 0) + 1);
   const displayedBillNumber = printBillNumber || nextBillNumber;
@@ -101,8 +101,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [showPaymentCollector, setShowPaymentCollector] = useState(false);
-  const [previousBillPage, setPreviousBillPage] = useState(0);
-  const [showCollectedBills, setShowCollectedBills] = useState(false);
+  const [showBillsDrawer, setShowBillsDrawer] = useState(false);
 
   // Section 4: Manual entry state (synchronized with selected product card)
   const [selectedItem, setSelectedItem] = useState<CustomMenuItem | null>(null);
@@ -263,6 +262,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
       name: `Order ${num}`,
       tableName: defaultTable,
       chair: '1',
+      orderMode: defaultOrderMode(cafeSettings.defaultServiceType),
       lines: [],
       gstApplied: false,
     };
@@ -313,12 +313,16 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
   // Filtered product items
   const filteredItems = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
+    const isItemCodeSearch = /^\d+$/u.test(q);
+
     return menuItems.filter((item) => {
-      const matchesSearch =
-        !q ||
-        item.name.toLowerCase().includes(q) ||
-        item.code.toLowerCase().includes(q) ||
-        item.category.toLowerCase().includes(q);
+      const matchesSearch = !q || (
+        isItemCodeSearch
+          ? item.code.toLowerCase().startsWith(q)
+          : item.name.toLowerCase().includes(q) ||
+            item.category.toLowerCase().includes(q) ||
+            item.code.toLowerCase().startsWith(q)
+      );
 
       const matchesCategory =
         selectedCategory === 'All' ||
@@ -348,14 +352,6 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         paidWithCash: cashPaidPosIds.has(bill.id),
       }));
   }, [data.pos, data.receipt_transactions, data.receipts]);
-  const previousBillPageSize = 4;
-  const previousBillPageCount = Math.max(1, Math.ceil(previousBills.length / previousBillPageSize));
-  const activePreviousBillPage = Math.min(previousBillPage, previousBillPageCount - 1);
-  const visiblePreviousBills = previousBills.slice(
-    activePreviousBillPage * previousBillPageSize,
-    (activePreviousBillPage + 1) * previousBillPageSize
-  );
-
   // Cart financial calculations
   const subtotal = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
   const totalQuantity = lines.reduce((sum, line) => sum + line.quantity, 0);
@@ -372,9 +368,11 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
 
   function handleDecrementLine(lineKey: string) {
     updateActiveTab((tab) => ({
-      lines: tab.lines
-        .map((l) => (l.key === lineKey ? { ...l, quantity: l.quantity - 1 } : l))
-        .filter((l) => l.quantity > 0),
+      lines: tab.lines.map((line) =>
+        line.key === lineKey
+          ? { ...line, quantity: Math.max(1, line.quantity - 1) }
+          : line
+      ),
     }));
   }
 
@@ -392,7 +390,6 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     setBottomQuantity('1');
     setBottomRate('');
     setShowPaymentCollector(false);
-    setShowCollectedBills(false);
     setPrintBillNumber('');
     requestAnimationFrame(() => {
       searchInputRef.current?.focus();
@@ -400,12 +397,13 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     });
   }
 
-  function showPreviousBillPage(offset: number) {
-    setShowCollectedBills(true);
-    setPreviousBillPage((current) => Math.min(
-      Math.max(current + offset, 0),
-      previousBillPageCount - 1
-    ));
+  function handleOrderModeChange(nextMode: OrderMode) {
+    const wasTakeaway = tableName.toLowerCase() === 'parcel' || tableName.toLowerCase() === 'takeaway';
+    updateActiveTab({
+      orderMode: nextMode,
+      tableName: nextMode === 'TAKE AWAY' ? 'Parcel' : wasTakeaway ? 'T01' : tableName,
+      chair: nextMode === 'TAKE AWAY' ? '1' : chair,
+    });
   }
 
   // Section 2: Card selection & Add-to-cart
@@ -522,16 +520,6 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     }
   }
 
-  function handleItemNameChange(val: string) {
-    setBottomName(val);
-    const matched = menuItems.find((m) => m.name.toLowerCase() === val.trim().toLowerCase());
-    if (matched) {
-      setSelectedItem(matched);
-      setBottomCode(matched.code);
-      setBottomRate(formatRate(matched.price));
-    }
-  }
-
   function handleApplyItem(item: CustomMenuItem) {
     setSelectedItem(item);
     setBottomCode(item.code);
@@ -578,6 +566,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         updateActiveTab({
           tableName: defaultTable,
           chair: '1',
+          orderMode: defaultOrderMode(cafeSettings.defaultServiceType),
           lines: [],
           gstApplied: false,
         });
@@ -596,22 +585,14 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     setShowPaymentCollector(true);
   }
 
-  function handleTogglePaymentCollector() {
-    if (!lines.length) return;
-    setShowPaymentCollector((prev) => !prev);
-  }
-
   function handleClosePaymentCollector() {
     setShowPaymentCollector(false);
   }
 
   function handleFocusPayment() {
     if (!lines.length) return;
+    setShowBillsDrawer(true);
     setShowPaymentCollector(true);
-    setTimeout(() => {
-      const firstInput = collectorRef.current?.querySelector('input, select, button') as HTMLElement | null;
-      firstInput?.focus();
-    }, 60);
   }
 
   // Section 6: Confirm order (Post POS bill + Payment receipt to backend, clear table, print slip, advance to next order)
@@ -702,6 +683,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         name: `Order ${num}`,
         tableName: defaultTable,
         chair: '1',
+        orderMode: defaultOrderMode(cafeSettings.defaultServiceType),
         lines: [],
         gstApplied: false,
         payment: null,
@@ -728,6 +710,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         name: `Order ${num}`,
         tableName: defaultTable,
         chair: '1',
+        orderMode: defaultOrderMode(cafeSettings.defaultServiceType),
         lines: [],
         gstApplied: false,
         payment: null,
@@ -749,7 +732,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     }
   }, [activeTab.payment, showPaymentCollector]);
 
-  // Global Keyboard Shortcuts (F2: search, F3: table, F4: kitchen, F5: settle, F6: item code, F7: preview, F8: confirm & print, F9: new order)
+  // Global Keyboard Shortcuts (F1: order mode, F2: search, F4: kitchen, F5: settle, F6: item code, F7: bills, F8: save & print, F9: new order)
   useEffect(() => {
     const handleKeyDown = (e: globalThis.KeyboardEvent) => {
       // Enter on paid order -> Next Order / Confirm
@@ -757,12 +740,8 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         const activeEl = document.activeElement;
         const isEditingOtherInput =
           activeEl === searchInputRef.current ||
-          activeEl === nameInputRef.current ||
           activeEl === codeInputRef.current ||
-          activeEl === tableInputRef.current ||
-          activeEl === chairInputRef.current ||
-          activeEl === quantityInputRef.current ||
-          activeEl === rateInputRef.current;
+          activeEl === quantityInputRef.current;
 
         if (!isEditingOtherInput) {
           e.preventDefault();
@@ -776,24 +755,28 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         setShowPaymentCollector(false);
         return;
       }
+      // F1: cycle POS, KOT, and take-away modes.
+      if (e.key === 'F1') {
+        e.preventDefault();
+        const modes: OrderMode[] = ['POS', 'KOT', 'TAKE AWAY'];
+        const currentIndex = modes.indexOf(orderMode);
+        handleOrderModeChange(modes[(currentIndex + 1) % modes.length]!);
+      }
       // F2: focus search
       if (e.key === 'F2') {
         e.preventDefault();
         searchInputRef.current?.focus();
         searchInputRef.current?.select();
       }
-      // F3 or Alt+T: focus Table
-      if (e.key === 'F3' || (e.altKey && e.key.toLowerCase() === 't')) {
-        e.preventDefault();
-        tableInputRef.current?.focus();
-        tableInputRef.current?.select();
-      }
-      // F5: toggle payment collector / settle
+      // F5: open settlement in the bills drawer
       if (e.key === 'F5') {
         e.preventDefault();
-        if (lines.length > 0) {
-          setShowPaymentCollector((prev) => !prev);
-        }
+        handleFocusPayment();
+      }
+      // F7: open passed bills and settlement drawer.
+      if (e.key === 'F7') {
+        e.preventDefault();
+        setShowBillsDrawer(true);
       }
       // F6 or Alt+I: focus Item Code
       if (e.key === 'F6' || (e.altKey && e.key.toLowerCase() === 'i')) {
@@ -801,42 +784,17 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         codeInputRef.current?.focus();
         codeInputRef.current?.select();
       }
-      // Shift+F6 or Alt+M: focus Item Name
-      if ((e.shiftKey && e.key === 'F6') || (e.altKey && e.key.toLowerCase() === 'm')) {
-        e.preventDefault();
-        nameInputRef.current?.focus();
-        nameInputRef.current?.select();
-      }
-      // Shift+F3 or Alt+C: focus Chair/Guests
-      if ((e.shiftKey && e.key === 'F3') || (e.altKey && e.key.toLowerCase() === 'c')) {
-        e.preventDefault();
-        chairInputRef.current?.focus();
-        chairInputRef.current?.select();
-      }
       // Alt+Q: focus Quantity
       if (e.altKey && e.key.toLowerCase() === 'q') {
         e.preventDefault();
         quantityInputRef.current?.focus();
         quantityInputRef.current?.select();
       }
-      // Alt+P: focus Price
-      if (e.altKey && e.key.toLowerCase() === 'p') {
-        e.preventDefault();
-        rateInputRef.current?.focus();
-        rateInputRef.current?.select();
-      }
       // F4 or Ctrl+Enter: send to kitchen
       if (e.key === 'F4' || ((e.ctrlKey || e.metaKey) && e.key === 'Enter')) {
         e.preventDefault();
         if (lines.length > 0 && !busy) {
           void handleSendToKitchen();
-        }
-      }
-      // F7: preview slip
-      if (e.key === 'F7') {
-        e.preventDefault();
-        if (lines.length > 0) {
-          setShowReceiptPreview((visible) => !visible);
         }
       }
       // F8: confirm & print bill
@@ -862,7 +820,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [lines.length, busy, activeTabId, tabs, tableName, cafeSettings, showPaymentCollector, activeTab.payment, gstApplied, activeTab.chair, data.restaurant_tables]);
+  }, [lines.length, busy, activeTabId, tabs, tableName, cafeSettings, showPaymentCollector, activeTab.payment, gstApplied, activeTab.chair, orderMode, data.restaurant_tables]);
 
   return (
     <div
@@ -896,21 +854,10 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         onCloseTab={closeTab}
         linesCount={lines.length}
         busy={busy}
-        onOpenReceiptPreview={() => setShowReceiptPreview(true)}
         onPrintBill={handleConfirmOrder}
         onSendToKitchen={handleSendToKitchen}
-        payment={activeTab.payment}
-        onFocusPayment={handleFocusPayment}
-        showPaymentCollector={showPaymentCollector}
-        onTogglePaymentCollector={handleTogglePaymentCollector}
         showOrderTabs={Boolean(cafeSettings.showOrderTabs)}
         showKitchenButton={Boolean(cafeSettings.showKitchenButton)}
-        onClearUnsavedOrder={handleClearUnsavedOrder}
-        previousBillsVisible={previousBills.length > 0}
-        previousBillPage={activePreviousBillPage}
-        previousBillPageCount={previousBillPageCount}
-        onPreviousBillPage={() => showPreviousBillPage(-1)}
-        onNextBillPage={() => showPreviousBillPage(1)}
       />
 
       {/* Main Content Area (Split: Left Catalog Column [Categories + Product Cards] + Right Billing Cart Panel) */}
@@ -935,109 +882,46 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
           subtotal={subtotal}
           totalQuantity={totalQuantity}
           total={total}
+          orderMode={orderMode}
+          onChangeOrderMode={handleOrderModeChange}
+          onClearUnsavedOrder={handleClearUnsavedOrder}
           onIncrementLine={handleIncrementLine}
           onDecrementLine={handleDecrementLine}
           onRemoveLine={handleRemoveLine}
           formatChair={formatChair}
-          onRecordPayment={handleRecordPayment}
-          onClearPayment={handleClearPayment}
-          collectorRef={collectorRef}
-          showPaymentCollector={showPaymentCollector}
-          onClosePaymentCollector={handleClosePaymentCollector}
           onNextOrder={handleNextOrder}
           nextButtonRef={nextButtonRef}
-          previousBills={showCollectedBills && lines.length === 0 ? visiblePreviousBills : []}
-          showCollectedBills={showCollectedBills && lines.length === 0}
-          previousBillPage={activePreviousBillPage}
-          previousBillPageCount={previousBillPageCount}
         />
       </div>
+
+      <Pos1BillsDrawer
+        open={showBillsDrawer}
+        onOpenChange={setShowBillsDrawer}
+        previousBills={previousBills}
+        linesCount={lines.length}
+        total={total}
+        payment={activeTab.payment}
+        showPaymentCollector={showPaymentCollector}
+        onOpenPaymentCollector={handleFocusPayment}
+        onClosePaymentCollector={handleClosePaymentCollector}
+        onRecordPayment={handleRecordPayment}
+        onClearPayment={handleClearPayment}
+      />
 
       {/* Section 4: Manual Entry Area (Bottom Fast Strip) */}
       <Pos1ManualEntrySection
         topology={topology}
-        tableName={tableName}
-        chair={chair}
         itemCode={bottomCode}
         itemName={bottomName}
         quantity={bottomQuantity}
-        rate={bottomRate}
-        tableConfigs={tableConfigs}
         menuItems={menuItems}
-        tableChairCount={tableChairCount}
-        onSelectTable={(tableNo) => updateActiveTab({ tableName: tableNo })}
-        onSelectChair={(seat) => updateActiveTab({ chair: seat })}
         onChangeItemCode={handleItemCodeChange}
-        onChangeItemName={handleItemNameChange}
         onChangeQuantity={setBottomQuantity}
-        onChangeRate={setBottomRate}
         onApplyItem={handleApplyItem}
         onAddToOrder={handleBottomAddOrder}
-        formatChair={formatChair}
-        tableInputRef={tableInputRef}
-        chairInputRef={chairInputRef}
         codeInputRef={codeInputRef}
-        nameInputRef={nameInputRef}
         quantityInputRef={quantityInputRef}
-        rateInputRef={rateInputRef}
       />
-
-      {/* On-screen Preview Slip Dialog */}
-      {showReceiptPreview && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4 backdrop-blur-xs print:hidden"
-          onClick={() => setShowReceiptPreview(false)}
-        >
-          <div
-            className="relative flex max-h-[90vh] w-[min(100%,24rem)] flex-col overflow-hidden rounded-2xl border border-border bg-white text-black shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-border bg-muted/40 px-4 py-2.5">
-              <span className="text-xs font-semibold text-foreground">
-                Receipt preview
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowReceiptPreview(false)}
-                className="grid size-7 cursor-pointer place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
-                <X size={15} />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 scrollbar-slim bg-[#fafafa]">
-              <ThermalBillReceipt
-                settings={cafeSettings}
-                tab={activeTab}
-                tableName={tableName}
-                lines={lines}
-                subtotal={subtotal}
-                totalQuantity={totalQuantity}
-                gstApplied={gstApplied}
-                gstAmount={gstAmount}
-                total={total}
-                payment={activeTab.payment}
-                billNumber={displayedBillNumber}
-              />
-            </div>
-
-            <div className="flex items-center justify-end gap-2 border-t border-border bg-white p-3">
-              <Button variant="outline" size="sm" onClick={() => setShowReceiptPreview(false)}>
-                Close
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => {
-                  window.print();
-                }}
-              >
-                <Printer size={14} className="mr-1.5" />
-                Print Now
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 3-Inch Thermal Receipt Node (Shown strictly on print) */}
       <ThermalBillReceipt
@@ -1057,4 +941,3 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     </div>
   );
 }
-

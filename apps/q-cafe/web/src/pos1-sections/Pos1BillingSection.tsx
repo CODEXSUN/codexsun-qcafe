@@ -2,7 +2,6 @@ import { ArrowRight, Minus, Plus, Trash2 } from 'lucide-react';
 import { TopologyMarker } from '@codexsun/devkit-ito';
 import { money } from '../api';
 import type { Pos1BillingSectionProps } from './types';
-import { Pos1PaymentCollector } from './Pos1PaymentCollector';
 
 export function Pos1BillingSection({
   topology,
@@ -12,38 +11,38 @@ export function Pos1BillingSection({
   subtotal,
   totalQuantity,
   total,
+  orderMode,
+  onChangeOrderMode,
+  onClearUnsavedOrder,
   onIncrementLine,
   onDecrementLine,
   onRemoveLine,
   formatChair,
-  onRecordPayment,
-  onClearPayment,
-  collectorRef,
-  showPaymentCollector,
-  onClosePaymentCollector,
   onNextOrder,
   nextButtonRef,
-  previousBills,
-  showCollectedBills,
-  previousBillPage,
-  previousBillPageCount,
 }: Pos1BillingSectionProps) {
-  const collectedBillsTotal = previousBills.reduce((sum, bill) => sum + bill.total, 0);
-  const hasCashPayment = previousBills.some((bill) => bill.paidWithCash);
-  const footerTotal = showCollectedBills ? collectedBillsTotal : total;
-
   return (
     <div
-      className={`ito-region relative flex w-[410px] shrink-0 flex-col overflow-hidden rounded-2xl bg-card shadow-sm lg:w-[440px] ${
-        showCollectedBills ? 'border-2 border-emerald-500' : 'border border-border'
-      }`}
+      className="ito-region relative flex w-[410px] shrink-0 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm lg:w-[440px]"
       {...topology.regionProps('q12.3')}
     >
       <TopologyMarker id="q12.3" topology={topology} />
 
       {/* Cart Sub-Header: Active Order & Table Indicator */}
-      <div className="flex items-center justify-between border-b border-border px-3.5 py-2.5 bg-muted/20">
+      <div className="flex h-13 items-center justify-between border-b border-border bg-muted/20 px-3.5">
         <div className="flex items-center gap-2">
+          <select
+            value={orderMode}
+            onChange={(event) => onChangeOrderMode(event.target.value as typeof orderMode)}
+            aria-label="Order mode (F1)"
+            title="Order mode (F1)"
+            className="h-7 cursor-pointer rounded-md border border-border bg-background px-2 text-[11px] font-bold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <option value="POS">POS</option>
+            <option value="KOT">KOT</option>
+            <option value="TAKE AWAY">TAKE AWAY</option>
+          </select>
+          <kbd className="rounded border border-border bg-background px-1 py-0.5 font-mono text-[10px] font-semibold text-muted-foreground">F1</kbd>
           <span className="text-xs font-bold text-foreground">{activeTab.name}</span>
           <span className="text-xs text-muted-foreground">•</span>
           <span className="text-xs font-semibold text-muted-foreground">Table {tableName}</span>
@@ -58,9 +57,21 @@ export function Pos1BillingSection({
             </>
           )}
         </div>
-        <span className="text-[11px] font-semibold text-muted-foreground">
-          {totalQuantity} {totalQuantity === 1 ? 'item' : 'items'}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-semibold text-muted-foreground">
+            {totalQuantity} {totalQuantity === 1 ? 'item' : 'items'}
+          </span>
+          <button
+            type="button"
+            onClick={onClearUnsavedOrder}
+            disabled={lines.length === 0}
+            aria-label="Clear current order"
+            title="Clear current order"
+            className="grid size-7 cursor-pointer place-items-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-35"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
       </div>
 
       {/* Cart Table Container */}
@@ -83,13 +94,10 @@ export function Pos1BillingSection({
                   <td className="py-2.5 px-2.5 text-center font-mono text-muted-foreground">{index + 1}</td>
                   <td className="min-w-0 py-2.5 px-2.5">
                     <div className="truncate font-semibold text-foreground" title={line.name}>{line.name}</div>
-                    <div className="mt-0.5 whitespace-nowrap font-mono text-[10px] text-muted-foreground">
-                      {line.code} {line.chair ? `• Seat ${formatChair(tableName, line.chair)}` : ''}
-                    </div>
                   </td>
                   <td className="py-2.5 px-1.5 text-center">
                     <div className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-background px-1 py-0.5 shadow-2xs">
-                      <button type="button" onClick={() => onDecrementLine(line.key)} className="grid size-5 cursor-pointer place-items-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" aria-label="Decrease quantity"><Minus size={11} /></button>
+                      <button type="button" onClick={() => onDecrementLine(line.key)} disabled={line.quantity <= 1} className="grid size-5 cursor-pointer place-items-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-35" aria-label="Decrease quantity"><Minus size={11} /></button>
                       <span className="w-4 select-none text-center text-xs font-bold text-foreground">{line.quantity}</span>
                       <button type="button" onClick={() => onIncrementLine(line.key)} className="grid size-5 cursor-pointer place-items-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" aria-label="Increase quantity"><Plus size={11} /></button>
                     </div>
@@ -103,62 +111,11 @@ export function Pos1BillingSection({
               ))}
             </tbody>
           </table>
-        ) : showCollectedBills && previousBills.length > 0 ? (
-          <table className="w-full border-collapse text-left text-xs">
-            <thead className="sticky top-0 z-10 border-b border-border/80 bg-card text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              <tr>
-                <th className="w-8 px-2.5 py-2.5 text-center">#</th>
-                <th className="px-2.5 py-2.5">Bill no.</th>
-                <th className="px-2.5 py-2.5">Table</th>
-                <th className="px-2.5 py-2.5">Collected</th>
-                <th className="w-24 px-2.5 py-2.5 text-right">Amount</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/60">
-              {previousBills.map((bill, index) => (
-                <tr key={bill.billNo} className="transition-colors hover:bg-muted/30">
-                  <td className="px-2.5 py-3 text-center font-mono text-muted-foreground">
-                    {index + 1}
-                  </td>
-                  <td className="px-2.5 py-3 font-semibold text-foreground">{bill.billNo}</td>
-                  <td className="px-2.5 py-3 text-muted-foreground">{bill.tableNo}</td>
-                  <td className="px-2.5 py-3 text-muted-foreground">{bill.collectedAt}</td>
-                  <td className="whitespace-nowrap px-2.5 py-3 text-right font-bold text-foreground">{money(bill.total)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         ) : <div className="min-h-40 flex-1" aria-label="Empty order" />}
       </div>
 
-      {/* Dimmed backdrop when floating collector is open */}
-      <div
-        className={`absolute inset-0 z-30 bg-black/25 backdrop-blur-[1px] transition-opacity duration-200 ${
-          showPaymentCollector ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-        }`}
-        onClick={onClosePaymentCollector}
-      />
-
-      {/* Floating Payment Collector Sheet (Mild Fly from Bottom Animation) */}
-      <div
-        className={`absolute inset-x-2.5 bottom-[62px] z-40 max-h-[calc(100%-74px)] overflow-y-auto scrollbar-slim rounded-2xl border border-border bg-card/98 backdrop-blur-md p-4 shadow-2xl transition-all duration-250 ease-out transform ${
-          showPaymentCollector
-            ? 'translate-y-0 opacity-100 scale-100 pointer-events-auto'
-            : 'translate-y-6 opacity-0 scale-[0.98] pointer-events-none'
-        }`}
-      >
-        <Pos1PaymentCollector
-          total={total}
-          payment={activeTab.payment}
-          onRecordPayment={onRecordPayment}
-          onClearPayment={onClearPayment}
-          containerRef={collectorRef}
-          onClose={onClosePaymentCollector}
-        />
-      </div>
-
       {/* Floating Next Order Action when Paid */}
-      {activeTab.payment && !showPaymentCollector && (
+      {activeTab.payment && (
         <div className="absolute inset-x-0 bottom-[68px] z-30 flex justify-center px-4 pointer-events-none animate-in fade-in slide-in-from-bottom-3 duration-200">
           <button
             ref={nextButtonRef}
@@ -175,18 +132,14 @@ export function Pos1BillingSection({
         </div>
       )}
 
-      {/* Cart Footer: totals only. Settlement remains in the top action bar. */}
+      {/* Cart Footer: settlement and collected bills are in the right drawer. */}
       <div className="relative z-20 flex justify-end border-t border-border bg-muted/20 p-3">
         <div className="flex w-full items-baseline justify-between gap-3">
-          {showCollectedBills && hasCashPayment ? (
-            <span className="rounded-md border-2 border-emerald-600 px-2 py-0.5 text-xs font-black tracking-[0.14em] text-emerald-700 dark:border-emerald-400 dark:text-emerald-300">
-              PAID · CASH
-            </span>
-          ) : <span />}
+          <span />
           <div className="flex items-baseline gap-2">
             <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">TOTAL</span>
             <span className="text-2xl font-black tracking-tight text-blue-600 dark:text-blue-400">
-              {money(footerTotal)}
+              {money(total)}
             </span>
           </div>
         </div>

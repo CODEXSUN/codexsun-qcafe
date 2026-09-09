@@ -147,7 +147,7 @@ export function ThermalBillReceipt({
       </div>
 
       {/* Bill Type Header */}
-      <div className="border-t border-b border-dashed border-black py-1 my-1 text-center font-bold text-[11px] uppercase tracking-wider text-black">
+      <div className="py-1 my-1 text-center font-bold text-[11px] uppercase tracking-wider text-black">
         {resolvedGstApplied ? 'TAX INVOICE' : 'RESTAURANT BILL'}
       </div>
 
@@ -168,7 +168,7 @@ export function ThermalBillReceipt({
       </div>
 
       {/* Items Table Header */}
-      <div className="border-t border-b border-dashed border-black py-1 my-1 text-[10.5px] font-bold uppercase text-black">
+      <div className="my-1 border-y border-black py-1 text-[10.5px] font-bold uppercase text-black">
         <div className="flex items-center">
           <span className="flex-1">Item Description</span>
           <span className="w-8 text-right">Qty</span>
@@ -178,7 +178,7 @@ export function ThermalBillReceipt({
       </div>
 
       {/* Items List */}
-      <div className="divide-y divide-dashed divide-black/30 py-0.5">
+      <div className="space-y-0.5 py-0.5">
         {resolvedLines.map((line) => (
           <div key={line.key} className="py-1 text-[11px] text-black">
             <div className="flex items-start justify-between">
@@ -198,14 +198,16 @@ export function ThermalBillReceipt({
         )}
       </div>
 
+      <div className="ml-auto w-1/2 border-t border-black" aria-hidden="true" />
+
       {/* Summary Counts */}
-      <div className="border-t border-dashed border-black pt-1 mt-1 text-[10px] flex justify-between text-black font-semibold">
+      <div className="pt-1 mt-1 text-[10px] flex justify-between text-black font-semibold">
         <span>Total Items: {resolvedLines.length}</span>
         <span>Total Qty: {resolvedTotalQuantity}</span>
       </div>
 
       {/* Financial Breakdown */}
-      <div className="border-t border-dashed border-black pt-1 mt-1 space-y-0.5 text-[10.5px] text-black">
+      <div className="pt-1 mt-1 space-y-0.5 text-[10.5px] text-black">
         <div className="flex justify-between">
           <span>Sub Total:</span>
           <span className="font-mono">₹{(resolvedSubtotal / 100).toFixed(2)}</span>

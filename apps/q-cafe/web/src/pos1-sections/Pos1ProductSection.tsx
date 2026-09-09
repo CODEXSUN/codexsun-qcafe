@@ -18,7 +18,7 @@ export function Pos1ProductSection({
   return (
     <div className="flex flex-col flex-1 min-h-0 gap-3">
       {/* Category Filter Pills from Item Master */}
-      <div className="flex shrink-0 items-center gap-2 overflow-x-auto py-0.5 scrollbar-slim">
+      <div className="flex h-13 shrink-0 items-center gap-2 overflow-x-auto scrollbar-slim">
         {categories.map((category) => {
           const isActive = selectedCategory === category;
           return (
@@ -26,7 +26,7 @@ export function Pos1ProductSection({
               key={category}
               type="button"
               onClick={() => onSelectCategory(category)}
-              className={`shrink-0 cursor-pointer select-none rounded-xl px-4 py-2 text-xs font-semibold transition-all duration-150 active:scale-95 ${
+              className={`flex h-8 shrink-0 cursor-pointer select-none items-center rounded-xl px-4 text-xs font-semibold transition-all duration-150 active:scale-95 ${
                 isActive
                   ? 'bg-neutral-900 text-white shadow-xs dark:bg-neutral-100 dark:text-neutral-900'
                   : 'border border-border bg-card text-foreground hover:bg-muted/70'

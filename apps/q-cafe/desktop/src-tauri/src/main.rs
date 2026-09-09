@@ -229,11 +229,28 @@ fn launch_verified_installer(installer: &Path) -> Result<(), String> {
     result.map(|_| ()).map_err(|_| "The verified installer could not start.".to_string())
 }
 
+fn request_api_shutdown() {
+    let _ = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(2))
+        .build()
+        .and_then(|client| client.post("http://127.0.0.1:4180/internal/shutdown").header("Authorization", "Bearer desktop-local-operator").send())
+        .and_then(|response| response.error_for_status());
+}
+
 fn stop_api(process: &ApiProcess) -> Result<(), String> {
-    if let Some(mut child) = process.0.lock().map_err(|_| "Q Cafe API process lock failed.")?.take() {
-        child.kill().map_err(|error| format!("Q Cafe local service could not stop: {error}"))?;
-        let _ = child.wait();
+    let mut child = match process.0.lock().map_err(|_| "Q Cafe API process lock failed.")?.take() {
+        Some(child) => child,
+        None => return Ok(()),
+    };
+    request_api_shutdown();
+    for _ in 0..50 {
+        if child.try_wait().map_err(|error| format!("Q Cafe local service could not stop: {error}"))?.is_some() {
+            return Ok(());
+        }
+        sleep(Duration::from_millis(100));
     }
+    child.kill().map_err(|error| format!("Q Cafe local service could not stop: {error}"))?;
+    let _ = child.wait();
     Ok(())
 }
 
@@ -252,8 +269,10 @@ fn qcafe_install_update(process: tauri::State<'_, ApiProcess>) -> Result<(), Str
 }
 
 #[tauri::command]
-fn qcafe_exit_application(app: AppHandle) {
+fn qcafe_exit_application(app: AppHandle, process: tauri::State<'_, ApiProcess>) -> Result<(), String> {
+    stop_api(&process)?;
     app.exit(0);
+    Ok(())
 }
 
 fn start_api(app: &AppHandle) -> Result<Child, String> {
@@ -362,9 +381,7 @@ fn main() {
                 return;
             }
             if !matches!(event, tauri::WindowEvent::Destroyed) { return; }
-            if let Some(child) = window.app_handle().state::<ApiProcess>().0.lock().expect("API process lock").as_mut() {
-                let _ = child.kill();
-            }
+            let _ = stop_api(&window.app_handle().state::<ApiProcess>());
         })
         .run(tauri::generate_context!())
         .expect("Q Cafe Windows application failed");

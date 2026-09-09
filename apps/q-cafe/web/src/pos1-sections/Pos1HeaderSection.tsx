@@ -1,4 +1,4 @@
-import { CheckCircle2, ChevronLeft, ChevronRight, Eye, Plus, Printer, ReceiptText, Search, Send, Trash2, X } from 'lucide-react';
+import { Plus, Printer, Search, Send, X } from 'lucide-react';
 import { TopologyMarker } from '@codexsun/devkit-ito';
 import type { Pos1HeaderSectionProps } from './types';
 
@@ -15,21 +15,10 @@ export function Pos1HeaderSection({
   onCloseTab,
   linesCount,
   busy,
-  onOpenReceiptPreview,
   onPrintBill,
   onSendToKitchen,
-  payment,
-  onFocusPayment,
-  showPaymentCollector,
-  onTogglePaymentCollector,
   showOrderTabs = false,
   showKitchenButton = false,
-  onClearUnsavedOrder,
-  previousBillsVisible,
-  previousBillPage,
-  previousBillPageCount,
-  onPreviousBillPage,
-  onNextBillPage,
 }: Pos1HeaderSectionProps) {
   return (
     <header
@@ -169,86 +158,8 @@ export function Pos1HeaderSection({
         )}
       </div>
 
-      {/* Right: Action Buttons Row (Settle FIRST matching screenshot, Kitchen, Preview Eye, Print LAST) */}
+      {/* Right: Current-order actions. Collected bills and settlement are in the right drawer. */}
       <div className="flex items-center gap-2 shrink-0">
-        <button
-          type="button"
-          onClick={onClearUnsavedOrder}
-          className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-semibold text-foreground shadow-xs transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
-          aria-label="Clear unsaved order"
-        >
-          <Trash2 size={13} className="text-muted-foreground" />
-          <span>Clear</span>
-        </button>
-
-        {previousBillsVisible && (
-          <div className="flex items-center gap-1 rounded-xl border border-border bg-background p-1">
-            <button
-              type="button"
-              onClick={onPreviousBillPage}
-              aria-label="Previous collected bills"
-              className="grid size-7 cursor-pointer place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              <ChevronLeft size={15} />
-            </button>
-            <span className="min-w-9 text-center text-[11px] font-bold text-foreground">
-              {previousBillPage + 1}/{previousBillPageCount}
-            </span>
-            <button
-              type="button"
-              onClick={onNextBillPage}
-              aria-label="Next collected bills"
-              className="grid size-7 cursor-pointer place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              <ChevronRight size={15} />
-            </button>
-          </div>
-        )}
-
-        {/* 0. Settle / Pay Collector Button (FIRST in Action Buttons Row, matching the orange box in screenshot) */}
-        <div className="relative group shrink-0">
-          <button
-            type="button"
-            onClick={onTogglePaymentCollector ?? onFocusPayment}
-            disabled={!linesCount}
-            aria-label={payment ? `Paid via ${payment.mode}` : 'Collect Payment (F5)'}
-            className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold shadow-xs cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
-              payment
-                ? 'border-emerald-500/60 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-                : showPaymentCollector
-                ? 'border-blue-600 bg-blue-600 text-white shadow-xs'
-                : 'border-border bg-background hover:bg-muted text-foreground'
-            }`}
-          >
-            {payment ? (
-              <>
-                <CheckCircle2 size={13} className="text-emerald-600 dark:text-emerald-400" />
-                <span className="uppercase">{payment.mode} Paid</span>
-              </>
-            ) : (
-              <>
-                <ReceiptText size={13} className={showPaymentCollector ? 'text-white' : 'text-muted-foreground'} />
-                <span>Settle</span>
-                <kbd
-                  className={`font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded border select-none ${
-                    showPaymentCollector
-                      ? 'bg-white/20 text-white border-white/30'
-                      : 'bg-muted text-muted-foreground border-border'
-                  }`}
-                >
-                  F5
-                </kbd>
-              </>
-            )}
-          </button>
-          <div className="pointer-events-none absolute right-0 top-[calc(100%+0.35rem)] z-50 whitespace-nowrap rounded-lg border border-border bg-popover px-2.5 py-1 text-[11px] font-medium text-popover-foreground opacity-0 shadow-lg transition-all duration-150 group-hover:opacity-100 group-focus-within:opacity-100 flex items-center gap-1.5">
-            <span>{payment ? 'Payment recorded (Click to review/edit)' : 'Collect Cash / UPI / Card'}</span>
-            <kbd className="font-mono text-[10px] font-semibold bg-muted text-muted-foreground px-1.5 py-0.5 rounded border border-border">
-              F5
-            </kbd>
-          </div>
-        </div>
-
         {/* 1. Kitchen Button (with Kitchen label, Send icon, and F4 shortcut key) */}
         {Boolean(showKitchenButton) && (
           <div className="relative group shrink-0">
@@ -274,42 +185,23 @@ export function Pos1HeaderSection({
           </div>
         )}
 
-        {/* 2. Preview Slip (MIDDLE - Icon with Tooltip) */}
-        <div className="relative group shrink-0">
-          <button
-            type="button"
-            onClick={onOpenReceiptPreview}
-            disabled={!linesCount}
-            aria-label="Preview slip (F7)"
-            className="grid size-8.5 place-items-center rounded-xl border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
-          >
-            <Eye size={15} />
-          </button>
-          <div className="pointer-events-none absolute right-0 top-[calc(100%+0.35rem)] z-50 whitespace-nowrap rounded-lg border border-border bg-popover px-2.5 py-1 text-[11px] font-medium text-popover-foreground opacity-0 shadow-lg transition-all duration-150 group-hover:opacity-100 group-focus-within:opacity-100 flex items-center gap-1.5">
-            <span>Preview slip</span>
-            <kbd className="font-mono text-[10px] font-semibold bg-muted text-muted-foreground px-1.5 py-0.5 rounded border border-border">
-              F7
-            </kbd>
-          </div>
-        </div>
-
-        {/* 3. Confirm Button (LAST with Confirm label, Printer icon, and F8 shortcut key) */}
+        {/* Save Button (last with print icon and F8 shortcut key). */}
         <div className="relative group shrink-0">
           <button
             type="button"
             onClick={onPrintBill}
             disabled={!linesCount || busy}
-            aria-label="Confirm & print bill (F8)"
+            aria-label="Save and print bill (F8)"
             className="flex items-center gap-1.5 rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-semibold text-foreground shadow-2xs hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
           >
             <Printer size={13} />
-            <span>Confirm</span>
+            <span>Save</span>
             <kbd className="font-mono text-[10px] font-semibold bg-muted text-muted-foreground px-1.5 py-0.5 rounded border border-border select-none">
               F8
             </kbd>
           </button>
           <div className="pointer-events-none absolute right-0 top-[calc(100%+0.35rem)] z-50 whitespace-nowrap rounded-lg border border-border bg-popover px-2.5 py-1 text-[11px] font-medium text-popover-foreground opacity-0 shadow-lg transition-all duration-150 group-hover:opacity-100 group-focus-within:opacity-100 flex items-center gap-1.5">
-            <span>Confirm & print bill</span>
+            <span>Save and print bill</span>
             <kbd className="font-mono text-[10px] font-semibold bg-muted text-muted-foreground px-1.5 py-0.5 rounded border border-border">
               F8
             </kbd>
