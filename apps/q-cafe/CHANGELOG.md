@@ -1,5 +1,23 @@
 # Q Cafe changelog
 
+## 1.1.25 - 2026-09-11
+
+### Receipt preview and Windows printer services
+
+- Adds a hidden F9 shortcut that opens a compact preview of the current receipt.
+- The preview has Close and Print Now actions. Print Now uses Printer Services when direct printing is enabled.
+- Q Cafe version metadata remains synchronized across the API, web app, desktop app, installer, updater, and changelog.
+
+## 1.1.24 - 2026-09-11
+
+### Customer bill alignment and printer services
+
+- Prints customer bills through the Windows printer driver on a 70 mm layout with fixed, right-aligned quantity, rate, and amount columns.
+- Adds a centered bold phone number below the address when Contact Number is configured.
+- Keeps the physical receipt structure clear: ruled bill metadata and item header, a partial totals divider, subtotal, net payable, and multi-line footer notes.
+- Adds Printer Services and License Services, including saved Windows or network printer selection, startup connection checks, test receipts, optional raw ESC/POS output, and uninstaller cleanup for the bundled services runtime.
+- Q Cafe version metadata remains synchronized across the API, web app, desktop app, installer, updater, and changelog.
+
 ## 1.1.23 - 2026-09-09
 
 ### Separate cash settlement and previous invoices

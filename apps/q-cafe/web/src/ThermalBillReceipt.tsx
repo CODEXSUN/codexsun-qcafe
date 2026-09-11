@@ -116,6 +116,7 @@ export function ThermalBillReceipt({
   const receiptHeader = settings.receiptHeader.trim();
   const receiptLegalNote = settings.receiptLegalNote.trim();
   const address = settings.address?.trim();
+  const contactNumber = settings.contactNumber.trim();
   const gstin = settings.gstin.trim();
   const fssai = settings.fssai?.trim();
 
@@ -138,6 +139,7 @@ export function ThermalBillReceipt({
         {restaurantName ? <h1 className="text-[18px] font-black uppercase tracking-wider leading-none text-black">{restaurantName}</h1> : null}
         {receiptHeader ? <p className="text-[10.5px] font-semibold uppercase tracking-wide text-black">{receiptHeader}</p> : null}
         {address ? <p className="text-[10px] text-black leading-tight">{address}</p> : null}
+        {contactNumber ? <p className="text-[10px] font-semibold text-black leading-tight">{contactNumber}</p> : null}
         {(resolvedGstApplied && gstin) || fssai ? (
           <div className="pt-0.5 space-y-0.5 text-[10px] font-semibold text-black">
             {resolvedGstApplied && gstin ? <p>GSTIN: {gstin}</p> : null}
@@ -270,7 +272,7 @@ export function ThermalBillReceipt({
             </div>
           </div>
         ) : null}
-        <p className="text-[10px] font-bold text-black leading-tight pt-0.5">
+        <p className="whitespace-pre-line text-[10px] font-bold text-black leading-tight pt-0.5">
           {settings.receiptFooter || 'Thank you for dining with us! Please visit again.'}
         </p>
         {receiptLegalNote ? <p className="text-[9px] text-black/80">{receiptLegalNote}</p> : null}

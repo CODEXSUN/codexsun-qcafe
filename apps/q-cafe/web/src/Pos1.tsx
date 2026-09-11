@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Printer, X } from 'lucide-react';
 import { TopologyMarker, type InterfaceTopologyController } from '@codexsun/devkit-ito';
 import type { Snapshot } from './api';
 import { getMergedMenu, getMergedTables, type CustomMenuItem, type TableMasterConfig } from './mastersStore';
 import { ThermalBillReceipt } from './ThermalBillReceipt';
 import { loadSettings, type CafeSettings } from './Settings';
+import { printWithCodexsunServices } from './codexsun-services';
 import {
   Pos1HeaderSection,
   Pos1ProductSection,
@@ -103,6 +105,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [showCashDrawer, setShowCashDrawer] = useState(false);
   const [showPreviousInvoiceDrawer, setShowPreviousInvoiceDrawer] = useState(false);
+  const [showReceiptPreview, setShowReceiptPreview] = useState(false);
   const [previousInvoiceIndex, setPreviousInvoiceIndex] = useState(0);
   const [cashReceiptRequest, setCashReceiptRequest] = useState(0);
 
@@ -587,6 +590,36 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     updateActiveTab({ payment: pay });
   }
 
+  async function handlePreviewPrint() {
+    if (!lines.length) return;
+    if (!cafeSettings.directPrint) {
+      window.print();
+      return;
+    }
+    try {
+      await printWithCodexsunServices({
+        billNumber: displayedBillNumber,
+        restaurantName: cafeSettings.restaurantName,
+        receiptHeader: cafeSettings.receiptHeader,
+        address: cafeSettings.address,
+        contactNumber: cafeSettings.contactNumber,
+        tableName,
+        lines: lines.map((line) => ({
+          name: line.name,
+          quantity: line.quantity,
+          rate: line.price,
+          amount: line.price * line.quantity,
+        })),
+        subtotal,
+        gstAmount,
+        total,
+        footer: cafeSettings.receiptFooter,
+      });
+    } catch {
+      window.print();
+    }
+  }
+
   function handleClearPayment() {
     updateActiveTab({ payment: null });
   }
@@ -669,9 +702,34 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
       ],
     });
 
-    // 3. Wait for the saved bill number to render, then print the thermal receipt.
+    // 3. Send direct-print receipts to CODEXSUN Services. The system dialog remains the fallback.
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    window.print();
+    if (cafeSettings.directPrint) {
+      try {
+        await printWithCodexsunServices({
+          billNumber: createdBill.bill_no,
+          restaurantName: cafeSettings.restaurantName,
+          receiptHeader: cafeSettings.receiptHeader,
+          address: cafeSettings.address,
+          contactNumber: cafeSettings.contactNumber,
+          tableName: apiTableNo,
+          lines: posLines.map((line) => ({
+            name: line.item_name,
+            quantity: line.quantity,
+            rate: line.rate,
+            amount: line.rate * line.quantity,
+          })),
+          subtotal,
+          gstAmount,
+          total: createdBill.grand_total,
+          footer: cafeSettings.receiptFooter,
+        });
+      } catch {
+        window.print();
+      }
+    } else {
+      window.print();
+    }
     setPrintBillNumber('');
 
     // 4. Advance to next order / reset tab
@@ -785,6 +843,11 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         e.preventDefault();
         setPreviousInvoiceIndex(0);
         setShowPreviousInvoiceDrawer(true);
+      }
+      // F9: show the current bill preview without exposing a screen button.
+      if (e.key === 'F9' && lines.length > 0) {
+        e.preventDefault();
+        setShowReceiptPreview(true);
       }
       if (showPreviousInvoiceDrawer && e.key === 'PageUp') {
         e.preventDefault();
@@ -930,6 +993,55 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         onOlderInvoice={() => setPreviousInvoiceIndex((index) => Math.min(index + 1, Math.max(previousBills.length - 1, 0)))}
         onNewerInvoice={() => setPreviousInvoiceIndex((index) => Math.max(index - 1, 0))}
       />
+
+      {showReceiptPreview && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4 backdrop-blur-xs print:hidden"
+          onClick={() => setShowReceiptPreview(false)}
+        >
+          <section
+            aria-label="Receipt preview"
+            className="flex max-h-[92vh] w-full max-w-[34rem] flex-col overflow-hidden rounded-2xl border border-border bg-white text-black shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="flex items-center justify-between border-b border-border bg-muted/40 px-4 py-2.5">
+              <span className="text-sm font-semibold">Receipt preview</span>
+              <button
+                type="button"
+                aria-label="Close receipt preview"
+                onClick={() => setShowReceiptPreview(false)}
+                className="grid size-7 cursor-pointer place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <X size={15} />
+              </button>
+            </header>
+            <div className="flex-1 overflow-y-auto bg-[#fafafa] p-4 scrollbar-slim">
+              <ThermalBillReceipt
+                settings={cafeSettings}
+                tab={activeTab}
+                tableName={tableName}
+                lines={lines}
+                subtotal={subtotal}
+                totalQuantity={totalQuantity}
+                gstApplied={gstApplied}
+                gstAmount={gstAmount}
+                total={total}
+                payment={activeTab.payment}
+                billNumber={displayedBillNumber}
+              />
+            </div>
+            <footer className="flex items-center justify-end gap-2 border-t border-border bg-white p-3">
+              <button type="button" onClick={() => setShowReceiptPreview(false)} className="rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-muted">
+                Close
+              </button>
+              <button type="button" onClick={() => void handlePreviewPrint()} className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+                <Printer size={15} />
+                Print Now
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
 
       {/* Section 4: Manual Entry Area (Bottom Fast Strip) */}
       <Pos1ManualEntrySection

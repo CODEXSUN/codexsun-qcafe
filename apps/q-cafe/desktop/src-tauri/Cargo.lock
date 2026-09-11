@@ -2812,7 +2812,7 @@ dependencies = [
 
 [[package]]
 name = "q-cafe-desktop"
-version = "1.1.23"
+version = "1.1.25"
 dependencies = [
  "chrono",
  "reqwest 0.12.28",
@@ -2823,6 +2823,7 @@ dependencies = [
  "sha2",
  "tauri",
  "tauri-build",
+ "uuid",
 ]
 
 [[package]]

@@ -181,7 +181,7 @@ html.dark * {
     width: 76mm !important;
     min-width: 0 !important;
     max-width: 76mm !important;
-    margin: 0 auto !important;
+    margin: 0 !important;
     padding: 0 !important;
     background: #ffffff !important;
     color: #000000 !important;
@@ -216,8 +216,8 @@ html.dark * {
   .thermal-receipt {
     width: 70mm !important;
     max-width: 70mm !important;
-    margin: 0 auto !important;
-    padding: 2mm 1mm !important;
+    margin: 0 3mm !important;
+    padding: 2mm 0 !important;
     background: #ffffff !important;
     color: #000000 !important;
     font-family: Arial, Helvetica, sans-serif !important;

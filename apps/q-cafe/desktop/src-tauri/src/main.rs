@@ -9,8 +9,21 @@ use std::{env, fs, io::Read, path::{Path, PathBuf}, process::{Child, Command, St
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 use tauri::{AppHandle, Manager};
+use uuid::Uuid;
 
 struct ApiProcess(Mutex<Option<Child>>);
+
+struct ServicesProcess(Mutex<Option<ServicesChild>>);
+
+struct ServicesChild {
+    child: Child,
+    token: String,
+}
+
+#[derive(Deserialize, Serialize)]
+struct ServicesCredentials {
+    token: String,
+}
 
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -46,6 +59,22 @@ fn default_data_directory(settings_dir: &Path) -> PathBuf {
 
 fn settings_path(settings_dir: &Path) -> PathBuf {
     settings_dir.join("settings.json")
+}
+
+fn services_credentials_path(settings_dir: &Path) -> PathBuf {
+    settings_dir.join("codexsun-services.json")
+}
+
+fn services_credentials(settings_dir: &Path) -> Result<ServicesCredentials, String> {
+    let path = services_credentials_path(settings_dir);
+    if path.is_file() {
+        return serde_json::from_str(&fs::read_to_string(path).map_err(|error| error.to_string())?)
+            .map_err(|error| format!("CODEXSUN Services credentials are invalid: {error}"));
+    }
+    let credentials = ServicesCredentials { token: Uuid::new_v4().to_string() };
+    fs::write(&path, serde_json::to_string_pretty(&credentials).map_err(|error| error.to_string())?)
+        .map_err(|error| error.to_string())?;
+    Ok(credentials)
 }
 
 fn choose_data_directory() -> Result<PathBuf, String> {
@@ -123,6 +152,16 @@ fn prepare_api_runtime(data_dir: &PathBuf) -> Result<PathBuf, String> {
     write_api_file(&api_root, "migrations/007-numeric-menu-codes.sql", include_str!("../../../api/migrations/007-numeric-menu-codes.sql"))?;
     write_api_file(&api_root, "migrations/008-simple-pos-bill-numbers.sql", include_str!("../../../api/migrations/008-simple-pos-bill-numbers.sql"))?;
     Ok(api_root)
+}
+
+fn prepare_services_runtime(settings_dir: &Path) -> Result<PathBuf, String> {
+    let services_root = settings_dir.join("runtime").join("codexsun-services");
+    write_api_file(
+        &services_root,
+        "server.mjs",
+        include_str!("../../../../../packages/codexsun-services/src/server.mjs"),
+    )?;
+    Ok(services_root)
 }
 
 fn wait_for_api(child: &mut Child, api_log: &Path) -> Result<(), String> {
@@ -244,6 +283,23 @@ fn request_api_shutdown() {
         .and_then(|response| response.error_for_status());
 }
 
+fn wait_for_services(child: &mut Child, services_log: &Path) -> Result<(), String> {
+    for _ in 0..30 {
+        if let Some(status) = child.try_wait().map_err(|error| error.to_string())? {
+            return Err(format!("CODEXSUN Services stopped during startup ({status}). Review {}.", services_log.display()));
+        }
+        if reqwest::blocking::get("http://127.0.0.1:4181/health")
+            .ok()
+            .and_then(|response| response.error_for_status().ok())
+            .is_some() {
+            return Ok(());
+        }
+        sleep(Duration::from_millis(100));
+    }
+    let _ = child.kill();
+    Err(format!("CODEXSUN Services did not start. Review {} and reopen Q Cafe.", services_log.display()))
+}
+
 fn stop_api(process: &ApiProcess) -> Result<(), String> {
     let mut child = match process.0.lock().map_err(|_| "Q Cafe API process lock failed.")?.take() {
         Some(child) => child,
@@ -261,6 +317,83 @@ fn stop_api(process: &ApiProcess) -> Result<(), String> {
     Ok(())
 }
 
+fn start_services(app: &AppHandle) -> Result<ServicesChild, String> {
+    let settings_dir = application_settings_dir(app);
+    fs::create_dir_all(&settings_dir).map_err(|error| error.to_string())?;
+    let credentials = services_credentials(&settings_dir)?;
+    let services_root = prepare_services_runtime(&settings_dir)?;
+    let services_data = settings_dir.join("codexsun-services");
+    fs::create_dir_all(&services_data).map_err(|error| error.to_string())?;
+    let log_path = services_data.join("services.log");
+    let log = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+        .map_err(|error| format!("CODEXSUN Services log could not open: {error}"))?;
+    let node = node_binary(&application_directory()?);
+    if !node.is_file() {
+        return Err(format!("CODEXSUN Services Node runtime is missing: {}", node.display()));
+    }
+    let mut command = Command::new(node);
+    command
+        .arg(services_root.join("server.mjs"))
+        .current_dir(&services_root)
+        .env("CODEXSUN_SERVICES_PORT", "4181")
+        .env("CODEXSUN_SERVICES_TOKEN", &credentials.token)
+        .env("CODEXSUN_SERVICES_DATA_DIR", &services_data)
+        .stdout(Stdio::from(log.try_clone().map_err(|error| error.to_string())?))
+        .stderr(Stdio::from(log));
+    #[cfg(target_os = "windows")]
+    command.creation_flags(0x08000000);
+    let mut child = command.spawn()
+        .map_err(|error| format!("CODEXSUN Services could not start: {error}"))?;
+    wait_for_services(&mut child, &log_path)?;
+    Ok(ServicesChild { child, token: credentials.token })
+}
+
+fn stop_services(process: &ServicesProcess) -> Result<(), String> {
+    let mut services = match process.0.lock().map_err(|_| "CODEXSUN Services process lock failed.")?.take() {
+        Some(services) => services,
+        None => return Ok(()),
+    };
+    let _ = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(2))
+        .build()
+        .and_then(|client| client.post("http://127.0.0.1:4181/internal/shutdown").bearer_auth(&services.token).send())
+        .and_then(|response| response.error_for_status());
+    for _ in 0..50 {
+        if services.child.try_wait().map_err(|error| format!("CODEXSUN Services could not stop: {error}"))?.is_some() {
+            return Ok(());
+        }
+        sleep(Duration::from_millis(100));
+    }
+    services.child.kill().map_err(|error| format!("CODEXSUN Services could not stop: {error}"))?;
+    let _ = services.child.wait();
+    Ok(())
+}
+
+fn services_request(process: &ServicesProcess, path: &str, body: serde_json::Value) -> Result<serde_json::Value, String> {
+    let token = process.0.lock()
+        .map_err(|_| "CODEXSUN Services process lock failed.")?
+        .as_ref()
+        .ok_or_else(|| "CODEXSUN Services is unavailable. Reopen Q Cafe.".to_string())?
+        .token
+        .clone();
+    let response = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build().map_err(|error| error.to_string())?
+        .post(format!("http://127.0.0.1:4181{path}"))
+        .bearer_auth(token)
+        .json(&body)
+        .send().map_err(|error| format!("CODEXSUN Services is unavailable: {error}"))?;
+    let status = response.status();
+    let payload = response.json::<serde_json::Value>().map_err(|error| error.to_string())?;
+    if !status.is_success() {
+        return Err(payload.get("error").and_then(|value| value.as_str()).unwrap_or("CODEXSUN Services request failed.").to_string());
+    }
+    Ok(payload)
+}
+
 #[tauri::command]
 fn qcafe_check_for_update() -> Result<Option<UpdateManifest>, String> {
     check_for_update()
@@ -276,10 +409,60 @@ fn qcafe_install_update(process: tauri::State<'_, ApiProcess>) -> Result<(), Str
 }
 
 #[tauri::command]
-fn qcafe_exit_application(app: AppHandle, process: tauri::State<'_, ApiProcess>) -> Result<(), String> {
+fn qcafe_exit_application(app: AppHandle, process: tauri::State<'_, ApiProcess>, services: tauri::State<'_, ServicesProcess>) -> Result<(), String> {
+    stop_services(&services)?;
     stop_api(&process)?;
     app.exit(0);
     Ok(())
+}
+
+#[tauri::command]
+fn qcafe_print_receipt(
+    id: String,
+    title: String,
+    content: String,
+    receipt: serde_json::Value,
+    services: tauri::State<'_, ServicesProcess>,
+) -> Result<serde_json::Value, String> {
+    services_request(&services, "/v1/print-jobs", serde_json::json!({ "id": id, "title": title, "content": content, "receipt": receipt }))
+}
+
+#[tauri::command]
+fn qcafe_list_printers(services: tauri::State<'_, ServicesProcess>) -> Result<serde_json::Value, String> {
+    services_request(&services, "/v1/printers/list", serde_json::json!({}))
+}
+
+#[tauri::command]
+fn qcafe_configure_printer(
+    name: String,
+    mode: String,
+    services: tauri::State<'_, ServicesProcess>,
+) -> Result<serde_json::Value, String> {
+    services_request(&services, "/v1/printers/configure", serde_json::json!({ "name": name, "mode": mode }))
+}
+
+#[tauri::command]
+fn qcafe_smoke_test_printer(services: tauri::State<'_, ServicesProcess>) -> Result<serde_json::Value, String> {
+    services_request(&services, "/v1/printers/smoke", serde_json::json!({}))
+}
+
+#[tauri::command]
+fn qcafe_test_print(services: tauri::State<'_, ServicesProcess>) -> Result<serde_json::Value, String> {
+    services_request(&services, "/v1/printers/test-print", serde_json::json!({}))
+}
+
+#[tauri::command]
+fn qcafe_configure_license(
+    portal_url: String,
+    license_key: String,
+    services: tauri::State<'_, ServicesProcess>,
+) -> Result<serde_json::Value, String> {
+    services_request(&services, "/v1/license/configure", serde_json::json!({ "portalUrl": portal_url, "licenseKey": license_key, "productId": "q-cafe" }))
+}
+
+#[tauri::command]
+fn qcafe_verify_license(services: tauri::State<'_, ServicesProcess>) -> Result<serde_json::Value, String> {
+    services_request(&services, "/v1/license/verify", serde_json::json!({}))
 }
 
 fn start_api(app: &AppHandle) -> Result<Child, String> {
@@ -373,10 +556,14 @@ fn qcafe_clear_first_time_data(app: AppHandle, process: tauri::State<'_, ApiProc
 fn main() {
     tauri::Builder::default()
         .manage(ApiProcess(Mutex::new(None)))
-        .invoke_handler(tauri::generate_handler![qcafe_check_for_update, qcafe_install_update, qcafe_exit_application, qcafe_select_data_directory, qcafe_clear_first_time_data])
+        .manage(ServicesProcess(Mutex::new(None)))
+        .invoke_handler(tauri::generate_handler![qcafe_check_for_update, qcafe_install_update, qcafe_exit_application, qcafe_print_receipt, qcafe_list_printers, qcafe_configure_printer, qcafe_smoke_test_printer, qcafe_test_print, qcafe_configure_license, qcafe_verify_license, qcafe_select_data_directory, qcafe_clear_first_time_data])
         .setup(|app| {
             if cfg!(debug_assertions) {
                 return Ok(());
+            }
+            if let Ok(services) = start_services(app.handle()) {
+                *app.state::<ServicesProcess>().0.lock().expect("CODEXSUN Services process lock") = Some(services);
             }
             let child = start_api(app.handle())?;
             *app.state::<ApiProcess>().0.lock().expect("API process lock") = Some(child);
@@ -388,6 +575,7 @@ fn main() {
                 return;
             }
             if !matches!(event, tauri::WindowEvent::Destroyed) { return; }
+            let _ = stop_services(&window.app_handle().state::<ServicesProcess>());
             let _ = stop_api(&window.app_handle().state::<ApiProcess>());
         })
         .run(tauri::generate_context!())

@@ -1,0 +1,8 @@
+{
+  "name": "@codexsun/services",
+  "version": "1.1.2",
+  "private": true,
+  "type": "module",
+  "description": "Local Windows print and license services."
+}
+

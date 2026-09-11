@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Store, Receipt, Palette, Server, Check, RotateCcw, HardDrive, FlaskConical, CheckCircle2, AlertCircle, Sliders, Download, RefreshCw, Printer, LogOut } from 'lucide-react';
+import { Store, Receipt, Palette, Server, Check, RotateCcw, HardDrive, FlaskConical, CheckCircle2, AlertCircle, Sliders, Download, RefreshCw, Printer, LogOut, ShieldCheck } from 'lucide-react';
 import { Button } from '@codexsun/ui/components/ui/button';
 import type { InterfaceTopologyController } from '@codexsun/devkit-ito';
 import { type Snapshot } from './api';
 import { field } from './Workspaces';
 import { ItoRegion } from './ItoRegion';
 import { verifyImageStorageFolder, type StorageVerificationResult } from './mastersStore';
+import { configureCodexsunLicense, configureCodexsunPrinter, getCodexsunPrinters, smokeTestCodexsunPrinter, testPrintWithCodexsunServices, verifyCodexsunLicense, type PrinterProfile, type WindowsPrinter } from './codexsun-services';
 
 export type CafeSettings = {
   restaurantName: string;
@@ -21,7 +22,7 @@ export type CafeSettings = {
   gstin: string;
   currency: string;
   autoPrintBill: boolean;
-  printerTarget: 'system-default';
+  printerTarget: string;
   directPrint: boolean;
   theme: 'system' | 'light' | 'dark';
   showItoIcon: boolean;
@@ -131,6 +132,14 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
   const [updateBusy, setUpdateBusy] = useState(false);
   const [updateNotice, setUpdateNotice] = useState('');
   const [exitBusy, setExitBusy] = useState(false);
+  const [licensePortalUrl, setLicensePortalUrl] = useState('');
+  const [licenseKey, setLicenseKey] = useState('');
+  const [licenseNotice, setLicenseNotice] = useState('');
+  const [licenseBusy, setLicenseBusy] = useState(false);
+  const [printers, setPrinters] = useState<WindowsPrinter[]>([]);
+  const [printerProfile, setPrinterProfile] = useState<PrinterProfile | null>(null);
+  const [printerBusy, setPrinterBusy] = useState(false);
+  const [printerNotice, setPrinterNotice] = useState('');
 
   useEffect(() => {
     if (!('__TAURI_INTERNALS__' in window)) return;
@@ -145,6 +154,11 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
     const timeout = setTimeout(() => setSavedNotice(false), 2400);
     return () => clearTimeout(timeout);
   }, [savedNotice]);
+
+  useEffect(() => {
+    if (activeTab !== 'printer' || !('__TAURI_INTERNALS__' in window)) return;
+    void refreshPrinters();
+  }, [activeTab]);
 
   function handleChange<K extends keyof CafeSettings>(key: K, value: CafeSettings[K]) {
     setSettings((current) => ({ ...current, [key]: value }));
@@ -278,6 +292,75 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
     } catch (error) {
       setExitBusy(false);
       setUpdateNotice(updaterErrorMessage(error, 'Q Cafe could not close.'));
+    }
+  }
+
+  async function saveLicense() {
+    if (!('__TAURI_INTERNALS__' in window) || licenseBusy) return;
+    setLicenseBusy(true);
+    setLicenseNotice('');
+    try {
+      await configureCodexsunLicense(licensePortalUrl, licenseKey);
+      const result = await verifyCodexsunLicense();
+      setLicenseKey('');
+      setLicenseNotice(result.status === 'valid' ? 'License verified by CODEXSUN Services.' : result.message || 'License was saved but is not valid.');
+    } catch (error) {
+      setLicenseNotice(updaterErrorMessage(error, 'CODEXSUN Services could not verify the license.'));
+    } finally {
+      setLicenseBusy(false);
+    }
+  }
+
+  async function refreshPrinters() {
+    try {
+      const inventory = await getCodexsunPrinters();
+      setPrinters(inventory.printers);
+      setPrinterProfile(inventory.selected);
+      setPrinterNotice(inventory.selected.smoke.message || '');
+    } catch (error) {
+      setPrinterNotice(updaterErrorMessage(error, 'CODEXSUN Services could not read Windows printers.'));
+    }
+  }
+
+  async function savePrinter(name: string, mode: PrinterProfile['mode']) {
+    if (printerBusy) return;
+    setPrinterBusy(true);
+    try {
+      const profile = await configureCodexsunPrinter(name, mode);
+      setPrinterProfile(profile);
+      handlePrinterChange('printerTarget', profile.name || 'system-default');
+      setPrinterNotice(profile.smoke.message || 'Printer setup saved.');
+    } catch (error) {
+      setPrinterNotice(updaterErrorMessage(error, 'CODEXSUN Services could not save the printer.'));
+    } finally {
+      setPrinterBusy(false);
+    }
+  }
+
+  async function smokeTestPrinter() {
+    if (printerBusy) return;
+    setPrinterBusy(true);
+    try {
+      const profile = await smokeTestCodexsunPrinter();
+      setPrinterProfile(profile);
+      setPrinterNotice(profile.smoke.message || 'Printer connection check completed.');
+    } catch (error) {
+      setPrinterNotice(updaterErrorMessage(error, 'CODEXSUN Services could not check the printer.'));
+    } finally {
+      setPrinterBusy(false);
+    }
+  }
+
+  async function sendPrinterTest() {
+    if (printerBusy) return;
+    setPrinterBusy(true);
+    try {
+      await testPrintWithCodexsunServices();
+      setPrinterNotice('Printer test queued.');
+    } catch (error) {
+      setPrinterNotice(updaterErrorMessage(error, 'CODEXSUN Services could not queue the printer test.'));
+    } finally {
+      setPrinterBusy(false);
     }
   }
 
@@ -574,11 +657,11 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                     </label>
                     <label className="grid gap-1.5 text-sm font-medium">
                       Receipt Footer Note
-                      <input
-                        className={field}
+                      <textarea
+                        className={`${field} min-h-24 resize-y py-2`}
                         value={settings.receiptFooter}
                         onChange={(e) => handleChange('receiptFooter', e.target.value)}
-                        placeholder="Thank you note on bill"
+                        placeholder={'Thank you note on bill\nAdd one line per message'}
                       />
                     </label>
                   </div>
@@ -600,29 +683,47 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                   <div>
                     <h2 className="text-lg font-semibold tracking-tight">Printer & Receipt Output</h2>
                     <p className="text-sm text-muted-foreground">
-                      Choose the Windows default printer and control whether Q Cafe opens the receipt preview.
+                      Choose the POS receipt printer and control whether Q Cafe opens the receipt preview.
                     </p>
                   </div>
 
-                  <label className="grid gap-1.5 text-sm font-medium">
-                    Default Printer
-                    <select
-                      className={`${field} cursor-pointer`}
-                      value={settings.printerTarget}
-                      onChange={(event) => handlePrinterChange('printerTarget', event.target.value as CafeSettings['printerTarget'])}
-                    >
-                      <option value="system-default">Windows system default printer</option>
-                    </select>
-                    <span className="text-xs font-normal text-muted-foreground">
-                      Set the actual device in Windows Settings. Q Cafe uses that printer for its desktop print flow.
-                    </span>
-                  </label>
+                  <section className="space-y-3 rounded-xl border border-border bg-muted/30 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-sm font-semibold">Printer Services</h3>
+                        <p className="text-xs text-muted-foreground">Select a local or network printer installed by Windows. The startup smoke test checks its driver, port, and connection state.</p>
+                      </div>
+                      <Button type="button" variant="outline" size="sm" className="cursor-pointer" onClick={() => void refreshPrinters()} disabled={printerBusy}>Refresh</Button>
+                    </div>
+                    <label className="grid gap-1.5 text-sm font-medium">
+                      Receipt printer
+                      <select className={`${field} cursor-pointer`} value={printerProfile?.name || ''} onChange={(event) => void savePrinter(event.target.value, printerProfile?.mode || 'gdi')} disabled={printerBusy}>
+                        <option value="">Windows default printer</option>
+                        {printers.map((printer) => <option key={printer.name} value={printer.name}>{printer.name}{printer.isDefault ? ' (Default)' : ''}{printer.isNetwork ? ' · Network' : ''}</option>)}
+                      </select>
+                    </label>
+                    <label className="grid gap-1.5 text-sm font-medium">
+                      Output mode
+                      <select className={`${field} cursor-pointer`} value={printerProfile?.mode || 'gdi'} onChange={(event) => void savePrinter(printerProfile?.name || '', event.target.value as PrinterProfile['mode'])} disabled={printerBusy}>
+                        <option value="gdi">Windows driver · Unicode receipt</option>
+                        <option value="raw-escpos">Raw ESC/POS · thermal printer</option>
+                      </select>
+                      <span className="text-xs font-normal text-muted-foreground">Use Windows driver mode for A4 or Tamil receipts. Use raw ESC/POS only after the POS printer driver and character set are confirmed.</span>
+                    </label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button type="button" variant="outline" className="cursor-pointer" onClick={() => void smokeTestPrinter()} disabled={printerBusy}>Check connection</Button>
+                      <Button type="button" variant="outline" className="cursor-pointer" onClick={() => void sendPrinterTest()} disabled={printerBusy}>Print test receipt</Button>
+                      {printerProfile?.smoke.status === 'ready' ? <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-xs font-semibold text-emerald-700">Ready</span> : null}
+                      {printerProfile?.smoke.status === 'unavailable' ? <span className="rounded-full bg-destructive/10 px-2 py-1 text-xs font-semibold text-destructive">Unavailable</span> : null}
+                    </div>
+                    {printerNotice ? <p className="text-xs text-muted-foreground" role="status">{printerNotice}</p> : null}
+                  </section>
 
                   <label className="flex cursor-pointer items-start justify-between gap-4 rounded-xl border border-border bg-card p-4 transition-colors hover:bg-accent/40">
                     <span className="space-y-1">
                       <span className="block text-sm font-semibold text-foreground">Direct print</span>
                       <span className="block text-sm text-muted-foreground">
-                        When confirming a bill, open the Windows print flow immediately. Preview slip always stays inside Q Cafe.
+                        When confirming a bill, send it to the selected printer through CODEXSUN Services. If the service is unavailable, Q Cafe opens the print dialog.
                       </span>
                     </span>
                     <input
@@ -634,6 +735,30 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                       onChange={(event) => handlePrinterChange('directPrint', event.target.checked)}
                     />
                   </label>
+
+                  <section className="space-y-3 rounded-xl border border-border bg-muted/30 p-4">
+                    <div className="flex items-start gap-3">
+                      <ShieldCheck className="mt-0.5 size-5 text-muted-foreground" />
+                      <div>
+                        <h3 className="text-sm font-semibold">License Services</h3>
+                        <p className="text-xs text-muted-foreground">The installed Windows component verifies this Q Cafe installation with your HTTPS license portal.</p>
+                      </div>
+                    </div>
+                    <label className="grid gap-1.5 text-sm font-medium">
+                      License portal URL
+                      <input className={field} value={licensePortalUrl} onChange={(event) => setLicensePortalUrl(event.target.value)} placeholder="https://portal.example.com" inputMode="url" />
+                    </label>
+                    <label className="grid gap-1.5 text-sm font-medium">
+                      License key
+                      <input className={field} value={licenseKey} onChange={(event) => setLicenseKey(event.target.value)} placeholder="Enter license key" type="password" autoComplete="off" />
+                    </label>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Button type="button" className="cursor-pointer" onClick={() => void saveLicense()} disabled={licenseBusy || !licensePortalUrl.trim() || !licenseKey.trim()}>
+                        {licenseBusy ? 'Verifying…' : 'Save & verify license'}
+                      </Button>
+                      {licenseNotice ? <p className="text-xs text-muted-foreground" role="status">{licenseNotice}</p> : null}
+                    </div>
+                  </section>
 
                   <label className="grid gap-1.5 text-sm font-medium">
                     Receipt notice (optional)
