@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use chrono::Local;
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use rfd::{MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -23,6 +24,22 @@ struct ServicesChild {
 #[derive(Deserialize, Serialize)]
 struct ServicesCredentials {
     token: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ImageFolderStatus {
+    ok: bool,
+    folder_path: String,
+    can_write: bool,
+    message: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DemoImageImport {
+    count: usize,
+    folder_path: String,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -152,6 +169,64 @@ fn prepare_api_runtime(data_dir: &PathBuf) -> Result<PathBuf, String> {
     write_api_file(&api_root, "migrations/007-numeric-menu-codes.sql", include_str!("../../../api/migrations/007-numeric-menu-codes.sql"))?;
     write_api_file(&api_root, "migrations/008-simple-pos-bill-numbers.sql", include_str!("../../../api/migrations/008-simple-pos-bill-numbers.sql"))?;
     Ok(api_root)
+}
+
+fn image_folder_path(folder_path: &str) -> Result<PathBuf, String> {
+    let path = PathBuf::from(folder_path.trim());
+    if folder_path.trim().is_empty() || !path.is_absolute() {
+        return Err("Enter an absolute Windows or network image folder path.".to_string());
+    }
+    Ok(path)
+}
+
+fn verify_image_folder(folder_path: &str, write_protected: bool) -> Result<ImageFolderStatus, String> {
+    let path = image_folder_path(folder_path)?;
+    fs::create_dir_all(&path).map_err(|error| format!("Q Cafe could not create the image folder: {error}"))?;
+    let probe = path.join(".q-cafe-write-check");
+    fs::write(&probe, b"Q Cafe image folder check")
+        .map_err(|error| format!("Q Cafe cannot write to this image folder: {error}"))?;
+    fs::remove_file(&probe).map_err(|error| format!("Q Cafe could not finish the image folder check: {error}"))?;
+    Ok(ImageFolderStatus {
+        ok: true,
+        folder_path: path.display().to_string(),
+        can_write: !write_protected,
+        message: if write_protected {
+            "Folder is available. Q Cafe will keep existing image files protected.".to_string()
+        } else {
+            "Folder is available and ready for image files.".to_string()
+        },
+    })
+}
+
+fn copy_directory(source: &Path, destination: &Path) -> Result<usize, String> {
+    fs::create_dir_all(destination).map_err(|error| error.to_string())?;
+    let mut copied = 0;
+    for entry in fs::read_dir(source).map_err(|error| error.to_string())? {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let target = destination.join(entry.file_name());
+        if entry.file_type().map_err(|error| error.to_string())?.is_dir() {
+            copied += copy_directory(&entry.path(), &target)?;
+        } else {
+            fs::copy(entry.path(), target).map_err(|error| error.to_string())?;
+            copied += 1;
+        }
+    }
+    Ok(copied)
+}
+
+fn item_image_file_name(item_code: &str) -> Result<String, String> {
+    let name: String = item_code.chars()
+        .filter(|character| character.is_ascii_alphanumeric() || *character == '-' || *character == '_')
+        .collect();
+    if name.is_empty() {
+        return Err("Item code must contain a letter or number before its image can be saved.".to_string());
+    }
+    Ok(format!("{name}.jpg"))
+}
+
+fn image_bytes(image_data: &str) -> Result<Vec<u8>, String> {
+    let (_, encoded) = image_data.split_once(",").ok_or_else(|| "Item image data is invalid.".to_string())?;
+    BASE64.decode(encoded).map_err(|error| format!("Item image data could not be decoded: {error}"))
 }
 
 fn prepare_services_runtime(settings_dir: &Path) -> Result<PathBuf, String> {
@@ -465,6 +540,52 @@ fn qcafe_verify_license(services: tauri::State<'_, ServicesProcess>) -> Result<s
     services_request(&services, "/v1/license/verify", serde_json::json!({}))
 }
 
+#[tauri::command]
+fn qcafe_verify_image_folder(folder_path: String, write_protected: bool) -> Result<ImageFolderStatus, String> {
+    verify_image_folder(&folder_path, write_protected)
+}
+
+#[tauri::command]
+fn qcafe_open_image_folder(folder_path: String) -> Result<(), String> {
+    let folder = image_folder_path(&folder_path)?;
+    if !folder.is_dir() {
+        return Err("Verify the image folder before opening it.".to_string());
+    }
+    Command::new("explorer.exe")
+        .arg(folder)
+        .spawn()
+        .map_err(|error| format!("Q Cafe could not open the image folder: {error}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+fn qcafe_install_demo_images(app: AppHandle, folder_path: String, write_protected: bool) -> Result<DemoImageImport, String> {
+    if write_protected {
+        return Err("Turn off image write protection before installing demo images.".to_string());
+    }
+    let status = verify_image_folder(&folder_path, false)?;
+    let source = app.path().resource_dir().map_err(|error| error.to_string())?.join("demo-images");
+    if !source.is_dir() {
+        return Err("The packaged demo images are unavailable. Reinstall Q Cafe.".to_string());
+    }
+    let destination = PathBuf::from(&status.folder_path).join("demo-images");
+    let count = copy_directory(&source, &destination)?;
+    Ok(DemoImageImport { count, folder_path: destination.display().to_string() })
+}
+
+#[tauri::command]
+fn qcafe_store_item_image(folder_path: String, item_code: String, image_data: String, write_protected: bool) -> Result<String, String> {
+    let status = verify_image_folder(&folder_path, write_protected)?;
+    let destination = PathBuf::from(status.folder_path).join(item_image_file_name(&item_code)?);
+    if write_protected && destination.is_file() {
+        return Err("Image write protection is active for this item. Turn it off before replacing the image.".to_string());
+    }
+    let temporary = destination.with_extension("jpg.tmp");
+    fs::write(&temporary, image_bytes(&image_data)?).map_err(|error| format!("Q Cafe could not save the item image: {error}"))?;
+    fs::rename(&temporary, &destination).map_err(|error| format!("Q Cafe could not complete the item image save: {error}"))?;
+    Ok(destination.display().to_string())
+}
+
 fn start_api(app: &AppHandle) -> Result<Child, String> {
     let settings_dir = application_settings_dir(app);
     let mut storage = load_or_configure_storage(&settings_dir)?;
@@ -557,7 +678,7 @@ fn main() {
     tauri::Builder::default()
         .manage(ApiProcess(Mutex::new(None)))
         .manage(ServicesProcess(Mutex::new(None)))
-        .invoke_handler(tauri::generate_handler![qcafe_check_for_update, qcafe_install_update, qcafe_exit_application, qcafe_print_receipt, qcafe_list_printers, qcafe_configure_printer, qcafe_smoke_test_printer, qcafe_test_print, qcafe_configure_license, qcafe_verify_license, qcafe_select_data_directory, qcafe_clear_first_time_data])
+        .invoke_handler(tauri::generate_handler![qcafe_check_for_update, qcafe_install_update, qcafe_exit_application, qcafe_print_receipt, qcafe_list_printers, qcafe_configure_printer, qcafe_smoke_test_printer, qcafe_test_print, qcafe_configure_license, qcafe_verify_license, qcafe_verify_image_folder, qcafe_open_image_folder, qcafe_install_demo_images, qcafe_store_item_image, qcafe_select_data_directory, qcafe_clear_first_time_data])
         .setup(|app| {
             if cfg!(debug_assertions) {
                 return Ok(());

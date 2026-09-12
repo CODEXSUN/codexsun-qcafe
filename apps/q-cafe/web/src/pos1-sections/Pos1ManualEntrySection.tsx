@@ -1,5 +1,5 @@
 import { useMemo, type KeyboardEvent, type RefObject } from 'react';
-import { Barcode, Minus, Plus, PlusCircle } from 'lucide-react';
+import { BadgeCheck, Barcode, Clock3, Minus, Plus, PlusCircle } from 'lucide-react';
 import { TopologyMarker } from '@codexsun/devkit-ito';
 import { TypeaheadDropUp, type AutocompleteOption } from './TypeaheadDropUp';
 import type { Pos1ManualEntrySectionProps } from './types';
@@ -12,6 +12,7 @@ function focusAndSelect(ref: RefObject<HTMLInputElement | null>) {
 
 export function Pos1ManualEntrySection({
   topology,
+  lastBill,
   itemCode,
   itemName,
   quantity,
@@ -61,7 +62,19 @@ export function Pos1ManualEntrySection({
     >
       <TopologyMarker id="q12.4" topology={topology} />
       <div className="flex items-stretch gap-3">
-        <section className="min-h-16 min-w-0 flex-1 rounded-xl border border-border bg-background/60" aria-label="Reserved waiting list area" />
+        <section className="min-h-16 min-w-0 flex-1 rounded-xl border border-border bg-background/60 px-4 py-3" aria-label="Latest bill notification">
+          {lastBill ? (
+            <div className="flex h-full flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="text-sm font-semibold text-foreground">Last billed {lastBill.billNo}</span>
+              <span className="text-sm font-bold text-foreground">₹{(lastBill.total / 100).toFixed(2)}</span>
+              {lastBill.paid ? (
+                <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-700 dark:text-emerald-300"><BadgeCheck size={17} /> Paid</span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-amber-700 dark:text-amber-300"><Clock3 size={17} /> Amount pending</span>
+              )}
+            </div>
+          ) : null}
+        </section>
 
         <section className="w-[410px] shrink-0 rounded-xl border border-border bg-background p-2.5 lg:w-[440px]" aria-label="Fast item entry">
           <div className="grid grid-cols-[minmax(0,1fr)_7rem_auto] items-end gap-2">

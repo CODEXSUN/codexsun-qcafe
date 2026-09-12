@@ -1,12 +1,20 @@
 import { useState, useEffect } from 'react';
-import { Store, Receipt, Palette, Server, Check, RotateCcw, HardDrive, FlaskConical, CheckCircle2, AlertCircle, Sliders, Download, RefreshCw, Printer, LogOut, ShieldCheck } from 'lucide-react';
+import { Store, Receipt, Palette, Server, Check, RotateCcw, HardDrive, CheckCircle2, AlertCircle, Sliders, Download, RefreshCw, Printer, LogOut, ShieldCheck, FolderOpen, PackageOpen, Tags, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@codexsun/ui/components/ui/button';
 import type { InterfaceTopologyController } from '@codexsun/devkit-ito';
 import { type Snapshot } from './api';
 import { field } from './Workspaces';
 import { ItoRegion } from './ItoRegion';
-import { verifyImageStorageFolder, type StorageVerificationResult } from './mastersStore';
+import {
+  getSpecialOfferDefinitions,
+  getTodaySpecialEnabled,
+  installDemoImageCatalog,
+  saveSpecialOfferDefinitions,
+  setTodaySpecialEnabled,
+  type SpecialOfferDefinition,
+} from './mastersStore';
 import { configureCodexsunLicense, configureCodexsunPrinter, getCodexsunPrinters, smokeTestCodexsunPrinter, testPrintWithCodexsunServices, verifyCodexsunLicense, type PrinterProfile, type WindowsPrinter } from './codexsun-services';
+import { installDemoImages, openLiveImageFolder, verifyLiveImageFolder, type LiveImageFolderStatus } from './image-storage';
 
 export type CafeSettings = {
   restaurantName: string;
@@ -119,13 +127,16 @@ type Props = {
   onToggleItoIcon?: (show: boolean) => void;
 };
 
-type TabId = 'general' | 'features' | 'pos' | 'printer' | 'media' | 'appearance' | 'system';
+type TabId = 'general' | 'features' | 'pos' | 'specials' | 'printer' | 'media' | 'appearance' | 'system';
 
 export function Settings({ data, topology, onToggleItoIcon }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>('general');
   const [settings, setSettings] = useState<CafeSettings>(() => loadSettings());
   const [savedNotice, setSavedNotice] = useState(false);
-  const [verificationResult, setVerificationResult] = useState<StorageVerificationResult | null>(null);
+  const [verificationResult, setVerificationResult] = useState<LiveImageFolderStatus | null>(null);
+  const [imageFolderBusy, setImageFolderBusy] = useState(false);
+  const [demoCatalogNotice, setDemoCatalogNotice] = useState('');
+  const [demoCatalogLoaded, setDemoCatalogLoaded] = useState(false);
   const [availableUpdate, setAvailableUpdate] = useState<{ version: string; notes: string } | null>(null);
   const [currentVersion, setCurrentVersion] = useState(__QCAFE_VERSION__);
   const [updateState, setUpdateState] = useState<'idle' | 'checking' | 'current' | 'available' | 'error'>('idle');
@@ -140,6 +151,9 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
   const [printerProfile, setPrinterProfile] = useState<PrinterProfile | null>(null);
   const [printerBusy, setPrinterBusy] = useState(false);
   const [printerNotice, setPrinterNotice] = useState('');
+  const [todaySpecialEnabled, setTodaySpecialEnabledState] = useState(() => getTodaySpecialEnabled());
+  const [specialOffers, setSpecialOffers] = useState<SpecialOfferDefinition[]>(() => getSpecialOfferDefinitions());
+  const [specialOfferNotice, setSpecialOfferNotice] = useState('');
 
   useEffect(() => {
     if (!('__TAURI_INTERNALS__' in window)) return;
@@ -159,6 +173,11 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
     if (activeTab !== 'printer' || !('__TAURI_INTERNALS__' in window)) return;
     void refreshPrinters();
   }, [activeTab]);
+
+  useEffect(() => {
+    if (!('__TAURI_INTERNALS__' in window)) return;
+    void verifyFolder();
+  }, []);
 
   function handleChange<K extends keyof CafeSettings>(key: K, value: CafeSettings[K]) {
     setSettings((current) => ({ ...current, [key]: value }));
@@ -212,6 +231,33 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
     if (onToggleItoIcon) onToggleItoIcon(visible);
   }
 
+  function updateSpecialOffers(next: SpecialOfferDefinition[]) {
+    setSpecialOffers(next);
+    if (!saveSpecialOfferDefinitions(next)) {
+      setSpecialOfferNotice('Special offers could not be saved.');
+      return;
+    }
+    setSpecialOfferNotice('Special offers saved.');
+  }
+
+  function addSpecialOffer() {
+    updateSpecialOffers([...specialOffers, {
+      id: `offer-${Date.now()}`,
+      name: '',
+      prefix: '',
+      enabled: true,
+    }]);
+  }
+
+  function toggleTodaySpecial(enabled: boolean) {
+    setTodaySpecialEnabledState(enabled);
+    if (!setTodaySpecialEnabled(enabled)) {
+      setSpecialOfferNotice('Today Special could not be saved.');
+      return;
+    }
+    setSpecialOfferNotice(enabled ? 'Today Special is enabled.' : 'Today Special is disabled.');
+  }
+
   function handleSave(event: React.FormEvent) {
     event.preventDefault();
     if (settings.showItoIcon) {
@@ -237,12 +283,61 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
     setVerificationResult(null);
   }
 
-  function handleTestFolder() {
-    const result = verifyImageStorageFolder(
-      settings.imageFolderPath ?? 'C:\\q-cafe\\images',
-      Boolean(settings.imageWriteProtection)
-    );
-    setVerificationResult(result);
+  async function verifyFolder() {
+    setImageFolderBusy(true);
+    try {
+      const result = await verifyLiveImageFolder(
+        settings.imageFolderPath ?? 'C:\\q-cafe\\images',
+        Boolean(settings.imageWriteProtection),
+      );
+      setVerificationResult(result);
+    } catch (error) {
+      setVerificationResult({
+        ok: false,
+        folderPath: settings.imageFolderPath ?? '',
+        canWrite: false,
+        message: updaterErrorMessage(error, 'Q Cafe could not check this image folder.'),
+      });
+    } finally {
+      setImageFolderBusy(false);
+    }
+  }
+
+  async function openImageFolder() {
+    try {
+      await openLiveImageFolder(settings.imageFolderPath ?? 'C:\\q-cafe\\images');
+    } catch (error) {
+      setVerificationResult({
+        ok: false,
+        folderPath: settings.imageFolderPath ?? '',
+        canWrite: false,
+        message: updaterErrorMessage(error, 'Q Cafe could not open this image folder.'),
+      });
+    }
+  }
+
+  async function loadDemoCatalog(checked: boolean) {
+    if (!checked) {
+      setDemoCatalogLoaded(false);
+      setDemoCatalogNotice('Demo catalog stays installed until its items are removed from Item Master.');
+      return;
+    }
+    setImageFolderBusy(true);
+    setDemoCatalogNotice('');
+    try {
+      const result = await installDemoImages(
+        settings.imageFolderPath ?? 'C:\\q-cafe\\images',
+        Boolean(settings.imageWriteProtection),
+      );
+      const catalog = installDemoImageCatalog();
+      setDemoCatalogLoaded(true);
+      setDemoCatalogNotice(`${catalog.count} demo items and ${result.count} image files were added to ${result.folderPath}.`);
+      await verifyFolder();
+    } catch (error) {
+      setDemoCatalogNotice(updaterErrorMessage(error, 'Q Cafe could not install the demo catalog.'));
+    } finally {
+      setImageFolderBusy(false);
+    }
   }
 
   function updaterErrorMessage(error: unknown, fallback: string) {
@@ -368,6 +463,7 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
     { id: 'general', label: 'General & Profile', icon: Store },
     { id: 'features', label: 'Features & Toggles', icon: Sliders },
     { id: 'pos', label: 'POS & Billing', icon: Receipt },
+    { id: 'specials', label: 'Special Offers', icon: Tags },
     { id: 'printer', label: 'Printer & Receipts', icon: Printer },
     { id: 'media', label: 'Image Storage & Media', icon: HardDrive },
     { id: 'appearance', label: 'Appearance', icon: Palette },
@@ -775,6 +871,26 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                 </div>
               )}
 
+              {activeTab === 'specials' && (
+                <div className="space-y-6">
+                  <div>
+                    <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight text-foreground"><span className="grid size-7 place-items-center rounded-lg bg-primary/10 text-primary"><Tags size={16} /></span>Today Special</h2>
+                    <p className="mt-0.5 text-sm text-muted-foreground">Enable offers here before they can be attached to menu items.</p>
+                  </div>
+
+                  <section className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-xs sm:flex-row sm:items-center sm:justify-between">
+                    <div><h3 className="text-sm font-semibold">Today Special</h3><p className="mt-1 text-xs text-muted-foreground">Turn this on when special pricing is available for today.</p></div>
+                    <button type="button" role="switch" aria-checked={todaySpecialEnabled} onClick={() => toggleTodaySpecial(!todaySpecialEnabled)} className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full transition-colors ${todaySpecialEnabled ? 'bg-primary' : 'bg-muted-foreground/30'}`}><span className={`pointer-events-none inline-block size-5 translate-y-1 rounded-full bg-white shadow transition-transform ${todaySpecialEnabled ? 'translate-x-6' : 'translate-x-1'}`} /><span className="sr-only">Toggle Today Special</span></button>
+                  </section>
+
+                  <section className="space-y-4 rounded-2xl border border-border bg-card p-5 shadow-xs">
+                    <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-sm font-semibold">Offer definitions</h3><p className="mt-1 text-xs text-muted-foreground">Create names and prefixes such as Sunday Special / SS or Pooja Special / PS.</p></div><Button type="button" onClick={addSpecialOffer} className="cursor-pointer gap-1.5"><Plus size={15} /> Add special offer</Button></div>
+                    {specialOfferNotice && <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-700 dark:text-emerald-300">{specialOfferNotice}</p>}
+                    {specialOffers.length ? <div className="overflow-hidden rounded-xl border border-border"><div className="grid grid-cols-[minmax(0,1fr)_110px_76px_40px] gap-3 border-b border-border bg-muted/40 px-3 py-2 text-xs font-semibold text-muted-foreground"><span>Offer name</span><span>Prefix</span><span>Enabled</span><span /></div>{specialOffers.map((offer) => <div key={offer.id} className="grid grid-cols-[minmax(0,1fr)_110px_76px_40px] items-center gap-3 border-b border-border px-3 py-2 last:border-b-0"><input className={`${field} h-9 min-w-0 text-xs`} value={offer.name} onChange={(event) => updateSpecialOffers(specialOffers.map((current) => current.id === offer.id ? { ...current, name: event.target.value } : current))} placeholder="Sunday Special" /><input className={`${field} h-9 text-xs font-mono uppercase`} value={offer.prefix} onChange={(event) => updateSpecialOffers(specialOffers.map((current) => current.id === offer.id ? { ...current, prefix: event.target.value.toUpperCase() } : current))} placeholder="SS" maxLength={12} /><button type="button" onClick={() => updateSpecialOffers(specialOffers.map((current) => current.id === offer.id ? { ...current, enabled: !current.enabled } : current))} className={`cursor-pointer rounded-md px-2 py-1 text-xs font-semibold ${offer.enabled ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'bg-muted text-muted-foreground'}`}>{offer.enabled ? 'On' : 'Off'}</button><button type="button" onClick={() => updateSpecialOffers(specialOffers.filter((current) => current.id !== offer.id))} className="grid size-8 cursor-pointer place-items-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive" aria-label={`Remove ${offer.name || 'special offer'}`}><Trash2 size={15} /></button></div>)}</div> : <p className="rounded-xl border border-dashed border-border p-5 text-sm text-muted-foreground">No special offers yet. Add one to make it available during item creation.</p>}
+                  </section>
+                </div>
+              )}
+
               {activeTab === 'media' && (
                 <div className="space-y-6">
                   <div>
@@ -789,15 +905,18 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                     </p>
                   </div>
 
-                  {/* Folder Configuration */}
                   <div className="rounded-2xl border border-border bg-card p-5 shadow-xs space-y-4">
                     <div className="flex flex-col gap-1">
                       <label className="text-sm font-semibold text-foreground flex items-center justify-between">
                         <span>Image Storage Folder Path</span>
-                        <span className="text-xs font-normal text-muted-foreground">User can keep anywhere on system</span>
+                        {verificationResult?.ok && (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                            <CheckCircle2 size={14} /> Verified
+                          </span>
+                        )}
                       </label>
                       <p className="text-xs text-muted-foreground">
-                        Directory on this PC or network drive where item photos and uploaded images are stored.
+                        Q Cafe stores item image files in this local or network folder. It creates the folder when the check succeeds.
                       </p>
                     </div>
 
@@ -815,12 +934,23 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                       <Button
                         type="button"
                         variant="outline"
-                        onClick={handleTestFolder}
-                        className="cursor-pointer gap-2 shrink-0 border-primary/40 hover:border-primary hover:bg-primary/5 text-primary text-xs font-semibold h-10 px-4"
-                        title="Verify folder path and read/write permission"
+                        onClick={() => void verifyFolder()}
+                        disabled={imageFolderBusy}
+                        className="cursor-pointer gap-2 shrink-0"
+                        title="Check this folder on Windows"
                       >
-                        <FlaskConical size={15} className="stroke-[2.2]" />
-                        <span>Test & Verify Folder</span>
+                        <CheckCircle2 size={15} />
+                        <span>{imageFolderBusy ? 'Checking' : 'Check'}</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => void openImageFolder()}
+                        className="cursor-pointer gap-2 shrink-0"
+                        title="Open this folder in File Explorer"
+                      >
+                        <FolderOpen size={15} />
+                        <span>Open folder</span>
                       </Button>
                     </div>
 
@@ -842,9 +972,8 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                         <div className="space-y-1 flex-1">
                           <div className="flex items-center justify-between gap-2">
                             <span className="font-bold uppercase tracking-wider text-[10px]">
-                              {verificationResult.ok ? '✓ Folder Storage Status: Verified' : '✕ Verification Issue'}
+                              {verificationResult.ok ? 'Folder storage verified' : 'Folder check failed'}
                             </span>
-                            <span className="text-[10px] opacity-75">{verificationResult.timestamp}</span>
                           </div>
                           <p className="font-medium leading-relaxed">{verificationResult.message}</p>
                           <div className="flex flex-wrap gap-2 pt-1 font-mono text-[10px]">
@@ -852,12 +981,38 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                               Target: {verificationResult.folderPath}
                             </span>
                             <span className="rounded bg-background/60 px-1.5 py-0.5 border border-border/50">
-                              Mode: {verificationResult.isWriteProtected ? 'Locked (Write-Protected)' : 'Writable (Read & Write)'}
+                              Access: {verificationResult.canWrite ? 'Writable' : 'Protected'}
                             </span>
                           </div>
                         </div>
                       </div>
                     )}
+                  </div>
+
+                  <div className="rounded-2xl border border-border bg-card p-5 shadow-xs">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                          <PackageOpen size={16} /> Demo catalog and images
+                        </div>
+                        <p className="max-w-2xl text-xs leading-relaxed text-muted-foreground">
+                          Add ten demo menu items with item code, name, rate, and bundled images. Q Cafe copies the image files into this folder.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={demoCatalogLoaded}
+                        aria-label="Install the demo catalog and images"
+                        onClick={() => void loadDemoCatalog(!demoCatalogLoaded)}
+                        disabled={imageFolderBusy || Boolean(settings.imageWriteProtection)}
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50 ${demoCatalogLoaded ? 'bg-primary' : 'bg-muted-foreground/30'}`}
+                      >
+                        <span className={`pointer-events-none inline-block size-5 rounded-full bg-white shadow-md transition-transform ${demoCatalogLoaded ? 'translate-x-5' : 'translate-x-0'}`} />
+                      </button>
+                    </div>
+                    {settings.imageWriteProtection && <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">Turn off write protection before adding demo images.</p>}
+                    {demoCatalogNotice && <p className="mt-3 text-xs font-medium text-foreground">{demoCatalogNotice}</p>}
                   </div>
 
                   {/* Write Protection Permission */}

@@ -1,8 +1,24 @@
 import type { MenuItem, RestaurantTable } from './api';
 
+export type ItemSpecialOffer = {
+  id: string;
+  offerId: string;
+  name: string;
+  prefix: string;
+  price: number;
+};
+
+export type SpecialOfferDefinition = {
+  id: string;
+  name: string;
+  prefix: string;
+  enabled: boolean;
+};
+
 export type CustomMenuItem = MenuItem & {
   image?: string;
   isCustom?: boolean;
+  specialOffers?: ItemSpecialOffer[];
 };
 
 export type TableMasterConfig = {
@@ -78,6 +94,19 @@ export const DEMO_10_ITEMS: Array<CustomMenuItem & { image: string }> = [
 
 export const DEFAULT_ITEM_IMAGES: Record<string, string> = {};
 
+export const DEMO_IMAGE_CATALOG: Array<CustomMenuItem & { image: string }> = [
+  { id: 90_001, code: 'DEMO-01', name: 'Filter Coffee', category: 'Demo Menu', price: 3500, image: '/demo-images/filter-coffee.svg', isCustom: true },
+  { id: 90_002, code: 'DEMO-02', name: 'Cappuccino', category: 'Demo Menu', price: 9500, image: '/demo-images/cappuccino.svg', isCustom: true },
+  { id: 90_003, code: 'DEMO-03', name: 'Iced Latte', category: 'Demo Menu', price: 11000, image: '/demo-images/iced-latte.svg', isCustom: true },
+  { id: 90_004, code: 'DEMO-04', name: 'Masala Chai', category: 'Demo Menu', price: 3000, image: '/demo-images/masala-chai.svg', isCustom: true },
+  { id: 90_005, code: 'DEMO-05', name: 'Paneer Sandwich', category: 'Demo Menu', price: 14000, image: '/demo-images/paneer-sandwich.svg', isCustom: true },
+  { id: 90_006, code: 'DEMO-06', name: 'Pesto Pasta', category: 'Demo Menu', price: 18000, image: '/demo-images/pesto-pasta.svg', isCustom: true },
+  { id: 90_007, code: 'DEMO-07', name: 'Butter Croissant', category: 'Demo Menu', price: 8000, image: '/demo-images/croissant.svg', isCustom: true },
+  { id: 90_008, code: 'DEMO-08', name: 'Chocolate Brownie', category: 'Demo Menu', price: 9000, image: '/demo-images/brownie.svg', isCustom: true },
+  { id: 90_009, code: 'DEMO-09', name: 'Classic Burger', category: 'Demo Menu', price: 16000, image: '/demo-images/burger.svg', isCustom: true },
+  { id: 90_010, code: 'DEMO-10', name: 'French Fries', category: 'Demo Menu', price: 7500, image: '/demo-images/french-fries.svg', isCustom: true },
+];
+
 export const DEFAULT_PRESET_MENU: CustomMenuItem[] = DEMO_10_ITEMS.map((item) => ({ ...item }));
 
 export const PRESET_FOOD_IMAGES = [
@@ -100,6 +129,9 @@ const CUSTOMER_CATALOG_KEY = 'q-cafe-customer-catalog-revision';
 const CUSTOM_MENU_KEY = 'q-cafe-custom-menu';
 const ITEM_IMAGES_KEY = 'q-cafe-item-images';
 const CATEGORY_RENAMES_KEY = 'q-cafe-category-renames';
+const CUSTOM_CATEGORIES_KEY = 'q-cafe-custom-categories';
+const SPECIAL_OFFERS_KEY = 'q-cafe-special-offers';
+const TODAY_SPECIAL_ENABLED_KEY = 'q-cafe-today-special-enabled';
 const TABLE_CONFIG_KEY = 'q-cafe-table-config';
 
 function resetLegacyCatalogStorage(): void {
@@ -145,6 +177,74 @@ function resolvedCategory(category: string, renames: Record<string, string>): st
   return renames[category] || category || 'Uncategorized';
 }
 
+export function getCustomCategories(): string[] {
+  try {
+    const raw = localStorage.getItem(CUSTOM_CATEGORIES_KEY);
+    return raw ? JSON.parse(raw).filter((category: unknown): category is string => typeof category === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+export function getMenuCategories(items: Array<Pick<CustomMenuItem, 'category'>> = []): string[] {
+  const renames = getCategoryRenames();
+  return Array.from(new Set([
+    ...items.map((item) => resolvedCategory(item.category, renames)),
+    ...getCustomCategories().map((category) => resolvedCategory(category, renames)),
+  ].filter(Boolean))).sort((left, right) => left.localeCompare(right));
+}
+
+export function addMenuCategory(name: string): { success: boolean; error?: string } {
+  const category = name.trim();
+  if (!category) return { success: false, error: 'Category name is required.' };
+  if (getMenuCategories().some((existing) => existing.toLowerCase() === category.toLowerCase())) {
+    return { success: false, error: 'A category with this name already exists.' };
+  }
+  if (!safeSetItem(CUSTOM_CATEGORIES_KEY, JSON.stringify([...getCustomCategories(), category]))) {
+    return { success: false, error: 'Category could not be saved.' };
+  }
+  window.dispatchEvent(new CustomEvent('q-cafe-menu-updated'));
+  return { success: true };
+}
+
+export function deleteMenuCategory(name: string): { success: boolean; error?: string } {
+  const category = name.trim();
+  if (!category) return { success: false, error: 'Category name is required.' };
+  const remaining = getCustomCategories().filter((existing) => existing.toLowerCase() !== category.toLowerCase());
+  if (!safeSetItem(CUSTOM_CATEGORIES_KEY, JSON.stringify(remaining))) {
+    return { success: false, error: 'Category could not be deleted.' };
+  }
+  return renameMenuCategory(category, 'Uncategorized');
+}
+
+export function getSpecialOfferDefinitions(): SpecialOfferDefinition[] {
+  try {
+    const raw = localStorage.getItem(SPECIAL_OFFERS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveSpecialOfferDefinitions(offers: SpecialOfferDefinition[]): boolean {
+  const normalized = offers
+    .map((offer) => ({ ...offer, name: offer.name.trim(), prefix: offer.prefix.trim().toUpperCase() }))
+    .filter((offer) => offer.name && offer.prefix);
+  const saved = safeSetItem(SPECIAL_OFFERS_KEY, JSON.stringify(normalized));
+  if (saved) window.dispatchEvent(new CustomEvent('q-cafe-special-offers-updated'));
+  return saved;
+}
+
+export function getTodaySpecialEnabled(): boolean {
+  return localStorage.getItem(TODAY_SPECIAL_ENABLED_KEY) === 'true';
+}
+
+export function setTodaySpecialEnabled(enabled: boolean): boolean {
+  const saved = safeSetItem(TODAY_SPECIAL_ENABLED_KEY, String(enabled));
+  if (saved) window.dispatchEvent(new CustomEvent('q-cafe-special-offers-updated'));
+  return saved;
+}
+
 export function renameMenuCategory(currentName: string, nextName: string): { success: boolean; error?: string } {
   const current = currentName.trim();
   const next = nextName.trim();
@@ -155,7 +255,9 @@ export function renameMenuCategory(currentName: string, nextName: string): { suc
     if (value === current) renames[name] = next;
   }
   renames[current] = next;
-  if (!safeSetItem(CATEGORY_RENAMES_KEY, JSON.stringify(renames))) {
+  const customCategories = getCustomCategories().map((category) => category === current ? next : category);
+  if (!safeSetItem(CUSTOM_CATEGORIES_KEY, JSON.stringify(Array.from(new Set(customCategories)))) ||
+      !safeSetItem(CATEGORY_RENAMES_KEY, JSON.stringify(renames))) {
     return { success: false, error: 'Category name could not be saved.' };
   }
   window.dispatchEvent(new CustomEvent('q-cafe-menu-updated'));
@@ -221,15 +323,6 @@ function safeSetItem(key: string, value: string): boolean {
   }
 }
 
-export type StorageVerificationResult = {
-  ok: boolean;
-  folderPath: string;
-  isWriteProtected: boolean;
-  canWrite: boolean;
-  message: string;
-  timestamp: string;
-};
-
 export function getImageStorageSettings(): { imageFolderPath: string; imageWriteProtection: boolean } {
   try {
     const raw = localStorage.getItem('q-cafe-settings');
@@ -246,55 +339,6 @@ export function getImageStorageSettings(): { imageFolderPath: string; imageWrite
   return {
     imageFolderPath: 'C:\\q-cafe\\images',
     imageWriteProtection: false,
-  };
-}
-
-export function verifyImageStorageFolder(folderPath: string, writeProtected: boolean): StorageVerificationResult {
-  const trimmed = (folderPath || '').trim();
-  const now = new Intl.DateTimeFormat('en-IN', {
-    dateStyle: 'short',
-    timeStyle: 'medium',
-  }).format(new Date());
-
-  if (!trimmed) {
-    return {
-      ok: false,
-      folderPath: '',
-      isWriteProtected: writeProtected,
-      canWrite: false,
-      message: 'Folder path cannot be empty. Please enter a valid system path.',
-      timestamp: now,
-    };
-  }
-
-  // Windows absolute (C:\...), UNC (\\server\share), or POSIX (/...) or relative (./...)
-  const isWindowsAbsolute = /^[a-zA-Z]:[\\/]/i.test(trimmed);
-  const isUncPath = /^\\\\[^\\/]+[\\/][^\\/]+/i.test(trimmed);
-  const isUnixAbsolute = trimmed.startsWith('/');
-  const isRelative = trimmed.startsWith('./') || trimmed.startsWith('.\\');
-
-  const isValidSyntax = isWindowsAbsolute || isUncPath || isUnixAbsolute || isRelative;
-
-  if (!isValidSyntax) {
-    return {
-      ok: false,
-      folderPath: trimmed,
-      isWriteProtected: writeProtected,
-      canWrite: false,
-      message: `Invalid directory format: "${trimmed}". Provide a valid system path like C:\\q-cafe\\images.`,
-      timestamp: now,
-    };
-  }
-
-  return {
-    ok: true,
-    folderPath: trimmed,
-    isWriteProtected: writeProtected,
-    canWrite: !writeProtected,
-    message: writeProtected
-      ? `Folder verified: Path is valid. Write protection is ACTIVE (Images are protected from overwrite / deletion).`
-      : `Folder verified: Path is valid. Read & Write permissions active. Ready for new image uploads.`,
-    timestamp: now,
   };
 }
 
@@ -327,6 +371,23 @@ export function installDemoItemsAndImages(): { count: number; items: typeof DEMO
   safeSetItem(CUSTOM_MENU_KEY, JSON.stringify(currentCustom));
   window.dispatchEvent(new CustomEvent('q-cafe-menu-updated'));
   return { count: DEMO_10_ITEMS.length, items: DEMO_10_ITEMS };
+}
+
+export function installDemoImageCatalog(): { count: number; items: typeof DEMO_IMAGE_CATALOG } {
+  const images = getItemImages();
+  const currentCustom = getCustomMenuItems();
+
+  for (const item of DEMO_IMAGE_CATALOG) {
+    const index = currentCustom.findIndex((existing) => existing.code.trim().toUpperCase() === item.code);
+    if (index >= 0) currentCustom[index] = item;
+    else currentCustom.push(item);
+    images[item.code] = item.image;
+  }
+
+  safeSetItem(ITEM_IMAGES_KEY, JSON.stringify(images));
+  safeSetItem(CUSTOM_MENU_KEY, JSON.stringify(currentCustom));
+  window.dispatchEvent(new CustomEvent('q-cafe-menu-updated'));
+  return { count: DEMO_IMAGE_CATALOG.length, items: DEMO_IMAGE_CATALOG };
 }
 
 export function saveCustomMenuItem(

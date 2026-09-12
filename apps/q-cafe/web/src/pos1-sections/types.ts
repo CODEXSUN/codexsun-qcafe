@@ -102,8 +102,15 @@ export interface Pos1BillingSectionProps {
   nextButtonRef?: RefObject<HTMLButtonElement | null>;
 }
 
+export type LastBillNotification = {
+  billNo: string;
+  total: number;
+  paid: boolean;
+};
+
 export interface Pos1ManualEntrySectionProps {
   topology: InterfaceTopologyController;
+  lastBill?: LastBillNotification;
   itemCode: string;
   itemName: string;
   quantity: string;

@@ -365,6 +365,19 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
       }));
   }, [data.pos, data.pos_items, data.receipt_transactions, data.receipts]);
   const selectedPreviousInvoice = previousBills[previousInvoiceIndex];
+  const lastBillNotification = useMemo(() => {
+    const latestBill = [...data.pos].sort((left, right) => {
+      const byDate = right.created_at.localeCompare(left.created_at);
+      return byDate || right.id - left.id;
+    })[0];
+    if (!latestBill) return undefined;
+    const receiptRecorded = data.receipts.some((receipt) => receipt.pos_id === latestBill.id);
+    return {
+      billNo: latestBill.bill_no,
+      total: latestBill.grand_total,
+      paid: latestBill.status === 'paid' && receiptRecorded,
+    };
+  }, [data.pos, data.receipts]);
   // Cart financial calculations
   const subtotal = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
   const totalQuantity = lines.reduce((sum, line) => sum + line.quantity, 0);
@@ -1046,6 +1059,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
       {/* Section 4: Manual Entry Area (Bottom Fast Strip) */}
       <Pos1ManualEntrySection
         topology={topology}
+        lastBill={lastBillNotification}
         itemCode={bottomCode}
         itemName={bottomName}
         quantity={bottomQuantity}

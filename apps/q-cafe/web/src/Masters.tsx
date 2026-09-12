@@ -17,12 +17,27 @@ import {
   X,
 } from 'lucide-react';
 import { Button } from '@codexsun/ui/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@codexsun/ui/components/ui/alert-dialog';
 import { TopologyMarker, type InterfaceTopologyController } from '@codexsun/devkit-ito';
 import { money, type Snapshot } from './api';
 import { field } from './Workspaces';
 import {
+  addMenuCategory,
   deleteCustomMenuItem,
+  deleteMenuCategory,
+  getMenuCategories,
   getMergedMenu,
+  getSpecialOfferDefinitions,
+  getTodaySpecialEnabled,
   getMergedTables,
   PRESET_FOOD_IMAGES,
   saveCustomMenuItem,
@@ -30,8 +45,11 @@ import {
   renameMenuCategory,
   getImageStorageSettings,
   type CustomMenuItem,
+  type ItemSpecialOffer,
+  type SpecialOfferDefinition,
   type TableMasterConfig,
 } from './mastersStore';
+import { storeItemImage } from './image-storage';
 
 type Props = {
   data?: Snapshot;
@@ -153,7 +171,11 @@ function ItemMasterSection({
   const [formCode, setFormCode] = useState('');
   const [formName, setFormName] = useState('');
   const [formPrice, setFormPrice] = useState('');
+  const [formCategory, setFormCategory] = useState('');
   const [formImage, setFormImage] = useState('');
+  const [formSpecialOffers, setFormSpecialOffers] = useState<ItemSpecialOffer[]>([]);
+  const [specialOfferDefinitions, setSpecialOfferDefinitions] = useState<SpecialOfferDefinition[]>(() => getSpecialOfferDefinitions());
+  const [todaySpecialEnabled, setTodaySpecialEnabled] = useState(() => getTodaySpecialEnabled());
   const [formError, setFormError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -161,14 +183,19 @@ function ItemMasterSection({
     const handleSettingsUpdate = (event: Event) => {
       setStorageSettings(getImageStorageSettings());
     };
+    const handleSpecialOffersUpdate = () => {
+      setSpecialOfferDefinitions(getSpecialOfferDefinitions());
+      setTodaySpecialEnabled(getTodaySpecialEnabled());
+    };
     window.addEventListener('q-cafe-settings-updated', handleSettingsUpdate);
-    return () => window.removeEventListener('q-cafe-settings-updated', handleSettingsUpdate);
+    window.addEventListener('q-cafe-special-offers-updated', handleSpecialOffersUpdate);
+    return () => {
+      window.removeEventListener('q-cafe-settings-updated', handleSettingsUpdate);
+      window.removeEventListener('q-cafe-special-offers-updated', handleSpecialOffersUpdate);
+    };
   }, []);
 
-  const categories = useMemo(() => {
-    const set = new Set(menuItems.map((i) => i.category).filter(Boolean));
-    return ['All', ...Array.from(set)];
-  }, [menuItems]);
+  const categories = useMemo(() => ['All', ...getMenuCategories(menuItems)], [menuItems]);
 
   const filteredItems = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -199,7 +226,9 @@ function ItemMasterSection({
     setFormCode(suggestNextCode());
     setFormName('');
     setFormPrice('');
+    setFormCategory(categories.find((category) => category !== 'All') ?? 'General');
     setFormImage('');
+    setFormSpecialOffers([]);
     setFormError('');
     setShowForm(true);
   }
@@ -209,7 +238,9 @@ function ItemMasterSection({
     setFormCode(item.code);
     setFormName(item.name);
     setFormPrice(String(item.price / 100));
+    setFormCategory(item.category || 'General');
     setFormImage(item.image || '');
+    setFormSpecialOffers((item.specialOffers ?? []).map((offer) => ({ ...offer, price: offer.price / 100 })));
     setFormError('');
     setShowForm(true);
   }
@@ -264,7 +295,33 @@ function ItemMasterSection({
     reader.readAsDataURL(file);
   }
 
-  function handleSubmit(event: FormEvent) {
+  function addSpecialOfferRow() {
+    const definition = todaySpecialEnabled && specialOfferDefinitions.find((offer) => offer.enabled);
+    if (!definition) {
+      setFormError('Turn on Today Special and enable a special offer in Settings before attaching it to an item.');
+      return;
+    }
+    setFormSpecialOffers((current) => [...current, {
+      id: `${Date.now()}-${current.length}`,
+      offerId: definition.id,
+      name: definition.name,
+      prefix: definition.prefix,
+      price: 0,
+    }]);
+  }
+
+  function selectSpecialOffer(rowId: string, offerId: string) {
+    const definition = specialOfferDefinitions.find((offer) => offer.id === offerId);
+    if (!definition) return;
+    setFormSpecialOffers((current) => current.map((row) => row.id === rowId ? {
+      ...row,
+      offerId: definition.id,
+      name: definition.name,
+      prefix: definition.prefix,
+    } : row));
+  }
+
+  async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (!formCode.trim()) {
       setFormError('Item code is required.');
@@ -272,6 +329,14 @@ function ItemMasterSection({
     }
     if (!formName.trim()) {
       setFormError('Item name is required.');
+      return;
+    }
+    if (!formCategory.trim()) {
+      setFormError('Select a category.');
+      return;
+    }
+    if (formSpecialOffers.some((offer) => !Number.isFinite(offer.price) || offer.price <= 0)) {
+      setFormError('Enter a valid special price for every attached special offer.');
       return;
     }
     const parsedRate = parseFloat(formPrice.trim());
@@ -282,15 +347,29 @@ function ItemMasterSection({
 
     const priceInPaise = Math.round(parsedRate * 100);
     const id = editingItem?.id ?? Date.now();
+    const code = formCode.trim().toUpperCase();
+
+    try {
+      await storeItemImage(
+        storageSettings.imageFolderPath,
+        code,
+        formImage,
+        Boolean(storageSettings.imageWriteProtection),
+      );
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Q Cafe could not save the image to the configured folder.');
+      return;
+    }
 
     const result = saveCustomMenuItem(
       {
         id,
-        code: formCode.trim().toUpperCase(),
+        code,
         name: formName.trim(),
-        category: editingItem?.category || 'General',
+        category: formCategory.trim(),
         price: priceInPaise,
         image: formImage || undefined,
+        specialOffers: formSpecialOffers.map((offer) => ({ ...offer, price: Math.round(offer.price * 100) })),
         isCustom: true,
       },
       { bypassWriteProtection: true }
@@ -410,6 +489,14 @@ function ItemMasterSection({
             )}
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-foreground">Category <span className="text-destructive">*</span></label>
+                <select className={`${field} w-full text-xs font-medium`} value={formCategory} onChange={(event) => setFormCategory(event.target.value)} required>
+                  <option value="" disabled>Select category</option>
+                  {categories.filter((category) => category !== 'All').map((category) => <option key={category} value={category}>{category}</option>)}
+                </select>
+              </div>
+
               {/* Item Code */}
               <div>
                 <label className="block text-xs font-semibold text-foreground mb-1">
@@ -509,6 +596,34 @@ function ItemMasterSection({
               </div>
             </div>
 
+            <section className="space-y-3 border-t border-border pt-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h4 className="text-sm font-semibold text-foreground">Special prices</h4>
+                  <p className="text-xs text-muted-foreground">Attach one or more enabled offers to this item.</p>
+                </div>
+                <Button type="button" variant="outline" className="cursor-pointer gap-1.5" onClick={addSpecialOfferRow} disabled={!todaySpecialEnabled || !specialOfferDefinitions.some((offer) => offer.enabled)}>
+                  <Plus size={14} /> Add special price
+                </Button>
+              </div>
+              {formSpecialOffers.length > 0 ? (
+                <div className="overflow-hidden rounded-xl border border-border">
+                  <div className="grid grid-cols-[minmax(0,1fr)_96px_120px_36px] gap-2 border-b border-border bg-muted/40 px-3 py-2 text-xs font-semibold text-muted-foreground">
+                    <span>Special offer</span><span>Prefix</span><span>Special price</span><span />
+                  </div>
+                  {formSpecialOffers.map((offer) => (
+                    <div key={offer.id} className="grid grid-cols-[minmax(0,1fr)_96px_120px_36px] items-center gap-2 border-b border-border px-3 py-2 last:border-b-0">
+                      <select className={`${field} h-9 min-w-0 text-xs`} value={offer.offerId} onChange={(event) => selectSpecialOffer(offer.id, event.target.value)}>
+                        {specialOfferDefinitions.filter((definition) => definition.enabled || definition.id === offer.offerId).map((definition) => <option key={definition.id} value={definition.id}>{definition.name}</option>)}
+                      </select>
+                      <span className="font-mono text-xs font-semibold text-muted-foreground">{offer.prefix}</span>
+                      <div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₹</span><input type="number" min="0" step="0.01" className={`${field} h-9 w-full pl-7 text-xs font-semibold`} value={offer.price || ''} onChange={(event) => setFormSpecialOffers((current) => current.map((row) => row.id === offer.id ? { ...row, price: Number(event.target.value) } : row))} /></div>
+                      <button type="button" className="grid size-8 cursor-pointer place-items-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => setFormSpecialOffers((current) => current.filter((row) => row.id !== offer.id))} aria-label={`Remove ${offer.name}`}><Trash2 size={14} /></button>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="text-xs text-muted-foreground">No special price is attached. Turn on Today Special and configure an enabled offer in Settings, then add one here.</p>}
+            </section>
           </form>
         </div>
       )}
@@ -601,9 +716,13 @@ function CategoryMasterSection({
   const categories = useMemo(() => {
     const counts = new Map<string, number>();
     for (const item of menuItems) counts.set(item.category, (counts.get(item.category) ?? 0) + 1);
-    return Array.from(counts.entries()).sort(([left], [right]) => left.localeCompare(right));
+    return getMenuCategories(menuItems).map((category) => [category, counts.get(category) ?? 0] as const);
   }, [menuItems]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [addingCategory, setAddingCategory] = useState(false);
+  const [newCategory, setNewCategory] = useState('');
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
 
   function saveCategory(currentName: string) {
@@ -617,40 +736,80 @@ function CategoryMasterSection({
       delete next[currentName];
       return next;
     });
+    setEditingCategory(null);
     setNotice('Category updated across the menu.');
+    onRefresh();
+  }
+
+  function createCategory() {
+    const result = addMenuCategory(newCategory);
+    if (!result.success) {
+      setNotice(result.error ?? 'Category could not be created.');
+      return;
+    }
+    setNewCategory('');
+    setAddingCategory(false);
+    setNotice('Category added.');
+    onRefresh();
+  }
+
+  function confirmDeleteCategory() {
+    if (!pendingDelete) return;
+    const result = deleteMenuCategory(pendingDelete);
+    setPendingDelete(null);
+    if (!result.success) {
+      setNotice(result.error ?? 'Category could not be deleted.');
+      return;
+    }
+    setNotice('Category deleted. Existing items were moved to Uncategorized.');
     onRefresh();
   }
 
   return (
     <div className="space-y-5">
-      <div className="rounded-2xl border border-border bg-card p-5 shadow-2xs">
+      <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-border bg-card p-5 shadow-2xs">
         <div className="flex items-start gap-3">
           <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Tags size={18} /></span>
           <div>
             <h3 className="text-base font-bold text-foreground">Category Master</h3>
-            <p className="mt-0.5 text-xs text-muted-foreground">Rename a category here to update every matching item and the POS-1 category bar.</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">Manage categories for item creation and the POS category bar.</p>
           </div>
         </div>
-        {notice && <p className="mt-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-700 dark:text-emerald-300">{notice}</p>}
+        <Button type="button" onClick={() => setAddingCategory(true)} className="cursor-pointer gap-1.5"><Plus size={15} /> Add category</Button>
+        {notice && <p className="w-full rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-700 dark:text-emerald-300">{notice}</p>}
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-2xs">
+        {addingCategory && (
+          <div className="flex flex-col gap-3 border-b border-border bg-muted/30 p-4 sm:flex-row sm:items-center">
+            <div className="min-w-0 flex-1"><span className="text-sm font-semibold">New category</span></div>
+            <input autoFocus className={`${field} w-full sm:w-72`} value={newCategory} onChange={(event) => setNewCategory(event.target.value)} placeholder="Category name" aria-label="New category name" />
+            <div className="flex gap-2"><Button type="button" onClick={createCategory} className="cursor-pointer">Save</Button><Button type="button" variant="outline" onClick={() => { setAddingCategory(false); setNewCategory(''); }} className="cursor-pointer">Cancel</Button></div>
+          </div>
+        )}
         {categories.map(([category, itemCount]) => (
           <div key={category} className="flex flex-col gap-3 border-b border-border p-4 last:border-b-0 sm:flex-row sm:items-center">
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-semibold text-foreground">{category}</div>
               <div className="mt-0.5 text-xs text-muted-foreground">{itemCount} {itemCount === 1 ? 'item' : 'items'}</div>
             </div>
-            <input
-              value={drafts[category] ?? category}
-              onChange={(event) => setDrafts((current) => ({ ...current, [category]: event.target.value }))}
-              className={`${field} w-full sm:w-72`}
-              aria-label={`Category name for ${category}`}
-            />
-            <Button type="button" variant="outline" onClick={() => saveCategory(category)} className="cursor-pointer sm:w-20">Save</Button>
+            {editingCategory === category ? (
+              <input autoFocus value={drafts[category] ?? category} onChange={(event) => setDrafts((current) => ({ ...current, [category]: event.target.value }))} className={`${field} w-full sm:w-72`} aria-label={`Category name for ${category}`} />
+            ) : <div className="w-full text-sm text-muted-foreground sm:w-72">{category}</div>}
+            <div className="flex shrink-0 items-center gap-2">
+              {editingCategory === category ? <><Button type="button" onClick={() => saveCategory(category)} className="cursor-pointer">Save</Button><Button type="button" variant="outline" onClick={() => setEditingCategory(null)} className="cursor-pointer">Cancel</Button></> : <Button type="button" variant="outline" onClick={() => { setEditingCategory(category); setDrafts((current) => ({ ...current, [category]: category })); }} className="cursor-pointer gap-1.5"><Edit3 size={14} /> Edit</Button>}
+              <button type="button" onClick={() => setPendingDelete(category)} className="grid size-9 cursor-pointer place-items-center rounded-lg border border-border text-muted-foreground hover:bg-destructive/10 hover:text-destructive" aria-label={`Delete ${category}`}><Trash2 size={15} /></button>
+            </div>
           </div>
         ))}
       </div>
+
+      <AlertDialog open={Boolean(pendingDelete)} onOpenChange={(open) => !open && setPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>Delete category?</AlertDialogTitle><AlertDialogDescription>Items in “{pendingDelete}” will remain, but will be moved to Uncategorized.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel className="cursor-pointer">Cancel</AlertDialogCancel><AlertDialogAction onClick={confirmDeleteCategory} className="cursor-pointer bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete category</AlertDialogAction></AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

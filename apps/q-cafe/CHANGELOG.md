@@ -1,5 +1,15 @@
 # Q Cafe changelog
 
+## 1.1.26 - 2026-09-12
+
+### Image storage, special offers, and POS bill status
+
+- Q Cafe now uses apps/q-cafe/version.json as the single source for its API, web, desktop, updater, installer, and changelog version.
+- Moves the live image-storage configuration into Settings, verifies and opens local or network folders, stores optimized item photos in that folder, and installs the bundled demo catalog and images on demand.
+- Adds configurable Today Special offers with prefixes and enabled states. Item Master now selects the category first and stores multiple offer-specific prices with each item.
+- Adds Category Master inline add, edit, and confirmed delete actions. Deleting a category moves its existing items to Uncategorized.
+- Shows the latest POS bill in the reserved bottom strip. It displays an amber pending notice until a receipt exists, then a green paid confirmation.
+
 ## 1.1.25 - 2026-09-11
 
 ### Receipt preview and Windows printer services
