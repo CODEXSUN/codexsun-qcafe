@@ -1,16 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Store, Receipt, Palette, Server, Check, RotateCcw, HardDrive, FlaskConical, CheckCircle2, AlertCircle, Sparkles, Sliders, Download, RefreshCw, Printer, LogOut } from 'lucide-react';
+import { Store, Receipt, Palette, Server, Check, HardDrive, FolderOpen, CheckCircle2, AlertCircle, Sparkles, Sliders, Download, RefreshCw, Printer, LogOut, ShieldCheck, CircleCheck, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@codexsun/ui/components/ui/button';
 import type { InterfaceTopologyController } from '@codexsun/devkit-ito';
 import { type Snapshot } from './api';
 import { field } from './Workspaces';
 import { ItoRegion } from './ItoRegion';
-import {
-  DEMO_10_ITEMS,
-  installDemoItemsAndImages,
-  verifyImageStorageFolder,
-  type StorageVerificationResult,
-} from './mastersStore';
+import type { LicenseStatus } from './LicenseActivation';
+import { readTodaySpecialDefinitions, serializeTodaySpecialDefinitions, todaySpecialDefinitionsKey, type TodaySpecialDefinition } from './todaySpecials';
+type StorageVerificationResult = { ok: boolean; folderPath: string; isWriteProtected: boolean; canWrite: boolean; message: string; timestamp: string };
 
 export type CafeSettings = {
   restaurantName: string;
@@ -30,7 +27,6 @@ export type CafeSettings = {
   directPrint: boolean;
   theme: 'system' | 'light' | 'dark';
   showItoIcon: boolean;
-  imageFolderPath?: string;
   imageWriteProtection?: boolean;
 
   // Screen Feature & Navigation Toggles
@@ -58,10 +54,9 @@ const DEFAULT_SETTINGS: CafeSettings = {
   currency: 'INR (₹)',
   autoPrintBill: false,
   printerTarget: 'system-default',
-  directPrint: false,
+  directPrint: true,
   theme: 'system',
   showItoIcon: false,
-  imageFolderPath: 'C:\\q-cafe\\images',
   imageWriteProtection: false,
 
   // Screen Feature & Navigation Toggles default to false (all hidden by default)
@@ -118,14 +113,20 @@ export function saveSettings(settings: CafeSettings) {
 
 type Props = {
   data: Snapshot;
+  mutate: (path: string, body: unknown) => Promise<unknown | false>;
   topology: InterfaceTopologyController;
-  showItoIcon?: boolean;
-  onToggleItoIcon?: (show: boolean) => void;
 };
 
-type TabId = 'general' | 'features' | 'pos' | 'printer' | 'media' | 'appearance' | 'system';
+type TabId = 'general' | 'features' | 'pos' | 'printer' | 'media' | 'specials' | 'license' | 'appearance' | 'system';
 
-export function Settings({ data, topology, onToggleItoIcon }: Props) {
+type PrinterServiceStatus = {
+  connected: boolean;
+  spoolerRunning: boolean;
+  defaultPrinter: string | null;
+  message: string;
+};
+
+export function Settings({ data, mutate, topology }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>('general');
   const [settings, setSettings] = useState<CafeSettings>(() => loadSettings());
   const [savedNotice, setSavedNotice] = useState(false);
@@ -137,6 +138,15 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
   const [updateBusy, setUpdateBusy] = useState(false);
   const [updateNotice, setUpdateNotice] = useState('');
   const [exitBusy, setExitBusy] = useState(false);
+  const [licenseStatus, setLicenseStatus] = useState<LicenseStatus | null>(null);
+  const [licenseBusy, setLicenseBusy] = useState(false);
+  const [licenseNotice, setLicenseNotice] = useState('');
+  const [printerServiceStatus, setPrinterServiceStatus] = useState<PrinterServiceStatus | null>(null);
+  const [specialDraft, setSpecialDraft] = useState({ id: '', prefix: '', name: '' });
+  const [editingSpecialId, setEditingSpecialId] = useState<string | null>(null);
+  const imageFolderPath = data.storage.image_directory;
+  const todaySpecialEnabled = data.master_settings?.find(setting => setting.key === 'today_special_enabled')?.value === 'true';
+  const todaySpecials = readTodaySpecialDefinitions(data.master_settings);
 
   useEffect(() => {
     if (!('__TAURI_INTERNALS__' in window)) return;
@@ -191,57 +201,111 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
     setSavedNotice(true);
   }
 
-  function handleToggleIto(visible: boolean) {
-    handleChange('showItoIcon', visible);
-    const updated = { ...settings, showItoIcon: visible };
-    saveSettings(updated);
-    if (visible) {
-      localStorage.setItem(ITO_EXPLICIT_KEY, 'true');
-    } else {
-      localStorage.removeItem(ITO_EXPLICIT_KEY);
-    }
-    window.dispatchEvent(new CustomEvent('q-cafe-settings-updated', { detail: updated }));
-    if (onToggleItoIcon) onToggleItoIcon(visible);
-  }
-
   function handleSave(event: React.FormEvent) {
     event.preventDefault();
-    if (settings.showItoIcon) {
-      localStorage.setItem(ITO_EXPLICIT_KEY, 'true');
-    } else {
-      localStorage.removeItem(ITO_EXPLICIT_KEY);
-    }
     saveSettings(settings);
     applyTheme(settings.theme);
     window.dispatchEvent(new CustomEvent('q-cafe-settings-updated', { detail: settings }));
-    if (onToggleItoIcon) onToggleItoIcon(settings.showItoIcon);
     setSavedNotice(true);
   }
 
-  function handleReset() {
-    localStorage.removeItem(ITO_EXPLICIT_KEY);
-    setSettings(DEFAULT_SETTINGS);
-    saveSettings(DEFAULT_SETTINGS);
-    applyTheme(DEFAULT_SETTINGS.theme);
-    window.dispatchEvent(new CustomEvent('q-cafe-settings-updated', { detail: DEFAULT_SETTINGS }));
-    if (onToggleItoIcon) onToggleItoIcon(DEFAULT_SETTINGS.showItoIcon);
-    setSavedNotice(true);
-    setVerificationResult(null);
+  async function loadPrinterServiceStatus() {
+    if (!('__TAURI_INTERNALS__' in window)) return;
+    const { invoke } = await import('@tauri-apps/api/core');
+    setPrinterServiceStatus(await invoke<PrinterServiceStatus>('qcafe_printer_service_status'));
   }
 
-  function handleTestFolder() {
-    const result = verifyImageStorageFolder(
-      settings.imageFolderPath ?? 'C:\\q-cafe\\images',
-      Boolean(settings.imageWriteProtection)
-    );
-    setVerificationResult(result);
+  async function saveTodaySpecialDefinitions(definitions: TodaySpecialDefinition[]) {
+    await mutate('master-setting', {
+      key: todaySpecialDefinitionsKey,
+      value: serializeTodaySpecialDefinitions(definitions),
+    });
   }
 
-  function handleInstallDemo() {
-    const res = installDemoItemsAndImages();
-    setDemoInstallNotice(`Restored ${res.count} customer menu items.`);
-    setTimeout(() => setDemoInstallNotice(''), 4000);
+  async function saveTodaySpecial() {
+    const prefix = specialDraft.prefix.trim().toUpperCase();
+    const name = specialDraft.name.trim();
+    if (!prefix || !name) return;
+    const duplicate = todaySpecials.some((special) => special.prefix === prefix && special.id !== editingSpecialId);
+    if (duplicate) return;
+    const next = editingSpecialId
+      ? todaySpecials.map((special) => special.id === editingSpecialId ? { ...special, prefix, name } : special)
+      : [...todaySpecials, { id: globalThis.crypto.randomUUID(), prefix, name, isEnabled: true }];
+    await saveTodaySpecialDefinitions(next);
+    setSpecialDraft({ id: '', prefix: '', name: '' });
+    setEditingSpecialId(null);
   }
+
+  async function setTodaySpecialEnabled(id: string, isEnabled: boolean) {
+    await saveTodaySpecialDefinitions(todaySpecials.map((special) => special.id === id ? { ...special, isEnabled } : special));
+  }
+
+  async function deleteTodaySpecial(id: string) {
+    await saveTodaySpecialDefinitions(todaySpecials.filter((special) => special.id !== id));
+    if (editingSpecialId === id) {
+      setSpecialDraft({ id: '', prefix: '', name: '' });
+      setEditingSpecialId(null);
+    }
+  }
+
+  async function verifyImageFolder() {
+    try {
+      if ('__TAURI_INTERNALS__' in window) {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const result = await invoke<StorageVerificationResult>('qcafe_verify_image_storage');
+        setVerificationResult(result);
+        return;
+      }
+      const response = await mutate('verify-image-folder', {}) as { result?: StorageVerificationResult } | false;
+      if (response && response.result) setVerificationResult(response.result);
+    } catch (error) {
+      setVerificationResult({ ok: false, folderPath: imageFolderPath, isWriteProtected: false, canWrite: false, message: error instanceof Error ? error.message : 'Q Cafe could not verify the image folder.', timestamp: new Date().toLocaleString() });
+    }
+  }
+
+  async function openImageFolder() {
+    if ('__TAURI_INTERNALS__' in window) {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('qcafe_open_image_storage');
+      return;
+    }
+    await mutate('open-image-folder', {});
+  }
+
+  useEffect(() => { if (activeTab === 'media' && imageFolderPath) void verifyImageFolder(); }, [activeTab, imageFolderPath]);
+
+  async function reconnectLicense() {
+    if (!('__TAURI_INTERNALS__' in window)) {
+      setLicenseNotice('License activation and reconnect are available in the Q Cafe Windows application.');
+      return;
+    }
+    setLicenseBusy(true);
+    setLicenseNotice('');
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const status = await invoke<LicenseStatus>('qcafe_reconnect_license');
+      setLicenseStatus(status);
+      setLicenseNotice(status.message);
+    } catch (error) {
+      setLicenseNotice(error instanceof Error ? error.message : 'Q Cafe could not reconnect to the license service.');
+    } finally {
+      setLicenseBusy(false);
+    }
+  }
+
+  function openLicenseActivation() {
+    window.dispatchEvent(new Event('q-cafe-open-license-activation'));
+  }
+
+  async function loadLocalLicenseStatus() {
+    if (!('__TAURI_INTERNALS__' in window)) return;
+    const { invoke } = await import('@tauri-apps/api/core');
+    setLicenseStatus(await invoke<LicenseStatus>('qcafe_license_status'));
+  }
+
+  useEffect(() => { if (activeTab === 'license') void loadLocalLicenseStatus(); }, [activeTab]);
+  useEffect(() => { if (activeTab === 'printer') void loadPrinterServiceStatus(); }, [activeTab]);
+
 
   function updaterErrorMessage(error: unknown, fallback: string) {
     if (error instanceof Error) return error.message;
@@ -299,6 +363,8 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
     { id: 'pos', label: 'POS & Billing', icon: Receipt },
     { id: 'printer', label: 'Printer & Receipts', icon: Printer },
     { id: 'media', label: 'Image Storage & Media', icon: HardDrive },
+    { id: 'specials', label: 'Today Special', icon: Sparkles },
+    { id: 'license', label: 'License', icon: ShieldCheck },
     { id: 'appearance', label: 'Appearance', icon: Palette },
     { id: 'system', label: 'System & Runtime', icon: Server },
   ];
@@ -338,6 +404,41 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
               topology={topology}
               className="space-y-6 rounded-2xl border border-border bg-card p-6 shadow-xs"
             >
+              {activeTab === 'specials' && (
+                <div className="space-y-5">
+                  <div><h2 className="text-lg font-semibold tracking-tight">Today Special</h2><p className="text-sm text-muted-foreground">Create the available special prefixes, then select one for each item and set its special price.</p></div>
+                  <label className="flex cursor-pointer items-start justify-between gap-4 rounded-xl border border-border bg-card p-4 transition-colors hover:bg-accent/40"><span className="space-y-1"><span className="block text-sm font-semibold text-foreground">Enable Today Special</span><span className="block text-xs text-muted-foreground">Only enabled special definitions can be chosen for an item.</span></span><input type="checkbox" role="switch" aria-label="Enable Today Special" className="mt-0.5 size-5 cursor-pointer accent-primary" checked={todaySpecialEnabled} onChange={(event) => void mutate('master-setting', { key: 'today_special_enabled', value: String(event.target.checked) })}/></label>
+                  <section className="rounded-xl border border-border bg-card"><div className="flex items-center justify-between border-b p-4"><div><h3 className="font-semibold">Special definitions</h3><p className="text-xs text-muted-foreground">Use a unique prefix such as SS for Sunday Special.</p></div><Button type="button" size="sm" className="cursor-pointer" onClick={() => { setSpecialDraft({ id: '', prefix: '', name: '' }); setEditingSpecialId(null); }}><Sparkles size={14}/> New special</Button></div><div className="space-y-3 p-4"><div className="grid gap-3 md:grid-cols-[9rem_1fr_auto]"><input value={specialDraft.prefix} onChange={(event) => setSpecialDraft({ ...specialDraft, prefix: event.target.value.toUpperCase() })} placeholder="Prefix (SS)" className={field}/><input value={specialDraft.name} onChange={(event) => setSpecialDraft({ ...specialDraft, name: event.target.value })} placeholder="Special name" className={field}/><Button type="button" className="cursor-pointer" disabled={!specialDraft.prefix.trim() || !specialDraft.name.trim()} onClick={() => void saveTodaySpecial()}>{editingSpecialId ? 'Save changes' : 'Add special'}</Button></div>{todaySpecials.length === 0 ? <p className="py-3 text-sm text-muted-foreground">No special definitions yet.</p> : <div className="divide-y rounded-lg border border-border">{todaySpecials.map((special) => <div key={special.id} className="flex flex-wrap items-center gap-3 p-3"><input type="checkbox" aria-label={`Enable ${special.name}`} className="size-4 cursor-pointer accent-primary" checked={special.isEnabled} onChange={(event) => void setTodaySpecialEnabled(special.id, event.target.checked)}/><span className="rounded bg-muted px-2 py-1 font-mono text-xs font-semibold">{special.prefix}</span><span className="min-w-40 flex-1 text-sm font-medium">{special.name}</span><span className="text-xs text-muted-foreground">{special.isEnabled ? 'Enabled' : 'Disabled'}</span><Button type="button" variant="ghost" size="icon" className="cursor-pointer" aria-label={`Edit ${special.name}`} title="Edit special" onClick={() => { setSpecialDraft({ id: special.id, prefix: special.prefix, name: special.name }); setEditingSpecialId(special.id); }}><Pencil size={15}/></Button><Button type="button" variant="ghost" size="icon" className="cursor-pointer text-destructive hover:text-destructive" aria-label={`Delete ${special.name}`} title="Delete special" onClick={() => void deleteTodaySpecial(special.id)}><Trash2 size={15}/></Button></div>)}</div>}</div></section>
+                </div>
+              )}
+              {activeTab === 'license' && (
+                <div className="space-y-5">
+                  <div>
+                    <h2 className="text-lg font-semibold tracking-tight">License activation</h2>
+                    <p className="text-sm text-muted-foreground">Reconnect to Tech Media Secure, confirm this installation, or open activation.</p>
+                  </div>
+                  <div className={`rounded-xl border bg-muted/20 p-4 ${licenseStatus?.licensed ? 'border-emerald-500/70' : 'border-border'}`}>
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-foreground">{licenseStatus?.licensed ? 'Activated' : licenseStatus?.activationRequired ? 'Activation required' : 'Trial mode'}</p>
+                        <p className="text-xs text-muted-foreground">{licenseStatus?.message ?? 'Checking the desktop license service.'}</p>
+                        {licenseStatus?.machineLabel && <p className="text-xs text-muted-foreground">Machine: {licenseStatus.machineLabel}</p>}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="button" variant="outline" size="sm" onClick={() => void reconnectLicense()} disabled={licenseBusy} className="cursor-pointer gap-1.5">
+                          <RefreshCw size={14} className={licenseBusy ? 'animate-spin' : ''} />
+                          Reconnect
+                        </Button>
+                        <Button type="button" size="sm" onClick={openLicenseActivation} className="cursor-pointer gap-1.5">
+                          <ShieldCheck size={14} />
+                          Activate license
+                        </Button>
+                      </div>
+                    </div>
+                    {licenseNotice && <p role="status" className="mt-3 text-xs text-muted-foreground">{licenseNotice}</p>}
+                  </div>
+                </div>
+              )}
               {activeTab === 'general' && (
                 <div className="space-y-5">
                   <div>
@@ -404,12 +505,6 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                     </label>
                   </div>
 
-                  <div className="border-t border-border pt-4">
-                    <ItoIconToggleCard
-                      checked={settings.showItoIcon}
-                      onToggle={handleToggleIto}
-                    />
-                  </div>
                 </div>
               )}
 
@@ -586,11 +681,12 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                     </label>
                     <label className="grid gap-1.5 text-sm font-medium">
                       Receipt Footer Note
-                      <input
-                        className={field}
+                      <textarea
+                        className={`${field} min-h-24 resize-y py-2`}
                         value={settings.receiptFooter}
                         onChange={(e) => handleChange('receiptFooter', e.target.value)}
-                        placeholder="Thank you note on bill"
+                        placeholder={'Thank you note on bill\nVisit again.'}
+                        rows={3}
                       />
                     </label>
                   </div>
@@ -612,9 +708,20 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                   <div>
                     <h2 className="text-lg font-semibold tracking-tight">Printer & Receipt Output</h2>
                     <p className="text-sm text-muted-foreground">
-                      Choose the Windows default printer and control whether Q Cafe opens the receipt preview.
+                      Use the local Windows printing service for direct receipts and the Q Cafe preview when needed.
                     </p>
                   </div>
+
+                  {printerServiceStatus && (
+                    <div className={`flex items-start gap-3 rounded-xl border p-4 ${printerServiceStatus.connected ? 'border-emerald-500/70 bg-emerald-500/10' : 'border-border bg-muted/20'}`}>
+                      <CircleCheck className={`mt-0.5 size-5 shrink-0 ${printerServiceStatus.connected ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`} aria-hidden="true" />
+                      <div className="min-w-0 space-y-1">
+                        <p className="text-sm font-semibold text-foreground">{printerServiceStatus.connected ? 'Print service connected' : 'Print service needs attention'}</p>
+                        <p className="text-xs text-muted-foreground">{printerServiceStatus.message}</p>
+                        {printerServiceStatus.defaultPrinter && <p className="text-xs text-muted-foreground">Default printer: {printerServiceStatus.defaultPrinter}</p>}
+                      </div>
+                    </div>
+                  )}
 
                   <label className="grid gap-1.5 text-sm font-medium">
                     Default Printer
@@ -634,7 +741,7 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                     <span className="space-y-1">
                       <span className="block text-sm font-semibold text-foreground">Direct print</span>
                       <span className="block text-sm text-muted-foreground">
-                        When confirming a bill, open the Windows print flow immediately. Preview slip always stays inside Q Cafe.
+                        Enabled by default. Q Cafe sends the completed receipt to the Windows print flow; the preview remains available in Q Cafe.
                       </span>
                     </span>
                     <input
@@ -672,7 +779,7 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                       Image Storage & File Permissions
                     </h2>
                     <p className="text-sm text-muted-foreground mt-0.5">
-                      Configure your system image directory, manage write protection locks, and install bundled demo photos for offline use.
+                      Item images are kept alongside the Q Cafe database in one managed folder.
                     </p>
                   </div>
 
@@ -681,10 +788,10 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                     <div className="flex flex-col gap-1">
                       <label className="text-sm font-semibold text-foreground flex items-center justify-between">
                         <span>Image Storage Folder Path</span>
-                        <span className="text-xs font-normal text-muted-foreground">User can keep anywhere on system</span>
+                        <span className="text-xs font-normal text-muted-foreground">Managed with the Q Cafe data folder</span>
                       </label>
                       <p className="text-xs text-muted-foreground">
-                        Directory on this PC or network drive where item photos and uploaded images are stored.
+                        Q Cafe creates this folder at startup and stores every item image here.
                       </p>
                     </div>
 
@@ -692,23 +799,14 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                       <div className="relative flex-1">
                         <input
                           className={`${field} w-full font-mono text-xs`}
-                          value={settings.imageFolderPath ?? 'C:\\q-cafe\\images'}
-                          onChange={(e) => handleChange('imageFolderPath', e.target.value)}
-                          placeholder="e.g. C:\q-cafe\images or D:\CafeData\Images"
-                          required
+                          value={imageFolderPath}
+                          readOnly
+                          aria-label="Q Cafe image storage folder"
                         />
                       </div>
 
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={handleTestFolder}
-                        className="cursor-pointer gap-2 shrink-0 border-primary/40 hover:border-primary hover:bg-primary/5 text-primary text-xs font-semibold h-10 px-4"
-                        title="Verify folder path and read/write permission"
-                      >
-                        <FlaskConical size={15} className="stroke-[2.2]" />
-                        <span>Test & Verify Folder</span>
-                      </Button>
+                      <Button type="button" variant="outline" size="icon" onClick={() => void verifyImageFolder()} className="cursor-pointer shrink-0" title="Verify Q Cafe image storage" aria-label="Verify Q Cafe image storage"><CheckCircle2 size={16}/></Button>
+                      <Button type="button" variant="outline" onClick={() => void openImageFolder()} className="cursor-pointer gap-2 shrink-0"><FolderOpen size={16}/><span>Open folder</span></Button>
                     </div>
 
                     {verificationResult && (
@@ -786,52 +884,6 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                       </button>
                     </div>
                   </div>
-
-                  {/* Customer menu catalog */}
-                  <div className="rounded-2xl border border-border bg-card p-5 shadow-xs space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-border pb-3">
-                      <div className="space-y-0.5">
-                        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                          <Sparkles size={15} className="text-primary" />
-                          Customer menu catalog
-                        </h3>
-                        <p className="text-xs text-muted-foreground">
-                          Restore the packaged customer menu catalog when the local API is unavailable.
-                        </p>
-                      </div>
-
-                      <Button
-                        type="button"
-                        onClick={handleInstallDemo}
-                        className="cursor-pointer gap-2 shrink-0 text-xs font-semibold h-9"
-                      >
-                        <Sparkles size={14} />
-                        <span>Restore customer catalog</span>
-                      </Button>
-                    </div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-1">
-                      {DEMO_10_ITEMS.map((item) => (
-                        <div
-                          key={item.code}
-                          className="flex flex-col rounded-xl border border-border bg-muted/30 p-2 text-center overflow-hidden hover:border-primary/40 transition-colors"
-                        >
-                          <div className="aspect-video w-full rounded-lg bg-black/10 overflow-hidden mb-1.5 border border-border/40">
-                            <img src={item.image} alt={item.name} className="size-full object-cover" />
-                          </div>
-                          <span className="text-[11px] font-bold text-foreground truncate">{item.name}</span>
-                          <span className="text-[10px] text-muted-foreground font-mono">{item.code} · ₹{(item.price / 100).toFixed(0)}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {demoInstallNotice && (
-                      <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-800 dark:text-emerald-200 font-medium flex items-center gap-2">
-                        <CheckCircle2 size={15} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
-                        <span>{demoInstallNotice}</span>
-                      </div>
-                    )}
-                  </div>
                 </div>
               )}
 
@@ -866,12 +918,6 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                     ))}
                   </div>
 
-                  <div className="border-t border-border pt-4">
-                    <ItoIconToggleCard
-                      checked={settings.showItoIcon}
-                      onToggle={handleToggleIto}
-                    />
-                  </div>
                 </div>
               )}
 
@@ -940,13 +986,6 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
                     {updateNotice && <p className={`mt-3 text-xs ${updateState === 'available' ? 'text-orange-800 dark:text-orange-200' : updateState === 'current' ? 'text-emerald-800 dark:text-emerald-200' : updateState === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>{updateNotice}</p>}
                   </div>
 
-                  <div className="pt-2">
-                    <ItoIconToggleCard
-                      checked={settings.showItoIcon}
-                      onToggle={handleToggleIto}
-                    />
-                  </div>
-
                   {'__TAURI_INTERNALS__' in window && (
                     <div className="flex flex-col gap-3 rounded-xl border border-border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
                       <div className="space-y-0.5">
@@ -975,16 +1014,6 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
               topology={topology}
               className="flex items-center justify-between gap-4 pt-2"
             >
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleReset}
-                className="cursor-pointer gap-2"
-              >
-                <RotateCcw size={15} />
-                Reset defaults
-              </Button>
-
               <div className="flex items-center gap-3">
                 {savedNotice && (
                   <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
@@ -1004,56 +1033,6 @@ export function Settings({ data, topology, onToggleItoIcon }: Props) {
   );
 }
 
-function ItoIconToggleCard({
-  checked,
-  onToggle,
-}: {
-  checked: boolean;
-  onToggle: (next: boolean) => void;
-}) {
-  return (
-    <div className="flex flex-col gap-3 rounded-xl border border-border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="space-y-0.5">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-foreground">ITO / IOT Inspection Icon</span>
-          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
-            DevKit Overlay
-          </span>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Show or hide the floating purple ITO interface topology inspector button in the bottom right corner.
-        </p>
-      </div>
-
-      <div className="flex items-center gap-3">
-        <span
-          className={`text-xs font-semibold uppercase tracking-wider ${
-            checked ? 'text-primary' : 'text-muted-foreground'
-          }`}
-        >
-          {checked ? 'Showing' : 'Hidden'}
-        </span>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={checked}
-          aria-label="Show or hide ITO inspection icon"
-          onClick={() => onToggle(!checked)}
-          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
-            checked ? 'bg-primary' : 'bg-muted-foreground/30'
-          }`}
-        >
-          <span className="sr-only">Show or hide ITO inspection icon</span>
-          <span
-            className={`pointer-events-none inline-block size-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-              checked ? 'translate-x-5' : 'translate-x-0'
-            }`}
-          />
-        </button>
-      </div>
-    </div>
-  );
-}
 
 function FeatureToggleCard({
   title,

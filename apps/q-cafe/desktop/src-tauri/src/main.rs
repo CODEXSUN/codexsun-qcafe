@@ -1,13 +1,23 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod license;
+
 use chrono::Local;
 use rfd::{MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::{env, fs, io::Read, path::{Path, PathBuf}, process::{Child, Command, Stdio}, sync::Mutex, thread::sleep, time::Duration};
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
+use std::{
+    env, fs,
+    io::Read,
+    path::{Path, PathBuf},
+    process::{Child, Command, Stdio},
+    sync::Mutex,
+    thread::sleep,
+    time::Duration,
+};
 use tauri::{AppHandle, Manager};
 
 struct ApiProcess(Mutex<Option<Child>>);
@@ -21,13 +31,90 @@ struct StorageSettings {
     schema_version: u8,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ImageStorageVerification {
+    ok: bool,
+    folder_path: String,
+    is_write_protected: bool,
+    can_write: bool,
+    message: String,
+    timestamp: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PrinterServiceStatus {
+    connected: bool,
+    spooler_running: bool,
+    default_printer: Option<String>,
+    message: String,
+}
+
+#[cfg(target_os = "windows")]
+fn printer_service_status() -> PrinterServiceStatus {
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct WindowsPrinterStatus {
+        spooler_running: bool,
+        default_printer: Option<String>,
+    }
+
+    let script = "& { $spooler = Get-Service -Name Spooler -ErrorAction SilentlyContinue; $printer = Get-CimInstance -ClassName Win32_Printer -ErrorAction SilentlyContinue | Where-Object { $_.Default } | Select-Object -First 1; [PSCustomObject]@{ spoolerRunning = [bool]($spooler -and $spooler.Status -eq 'Running'); defaultPrinter = if ($printer) { [string]$printer.Name } else { $null } } | ConvertTo-Json -Compress }";
+    let result = Command::new("powershell.exe")
+        .args(["-NoProfile", "-NonInteractive", "-Command", script])
+        .creation_flags(0x08000000)
+        .output()
+        .ok()
+        .and_then(|output| output.status.success().then_some(output.stdout))
+        .and_then(|output| serde_json::from_slice::<WindowsPrinterStatus>(&output).ok());
+
+    match result {
+        Some(status) if status.spooler_running && status.default_printer.is_some() => PrinterServiceStatus {
+            connected: true,
+            spooler_running: true,
+            default_printer: status.default_printer,
+            message: "Windows Print Spooler is running and the default printer is ready.".to_string(),
+        },
+        Some(status) => PrinterServiceStatus {
+            connected: false,
+            spooler_running: status.spooler_running,
+            default_printer: status.default_printer,
+            message: if status.spooler_running {
+                "Choose a Windows default printer before enabling direct print.".to_string()
+            } else {
+                "Start the Windows Print Spooler service, then check the printer again.".to_string()
+            },
+        },
+        None => PrinterServiceStatus {
+            connected: false,
+            spooler_running: false,
+            default_printer: None,
+            message: "Q Cafe could not check the Windows printing service.".to_string(),
+        },
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn printer_service_status() -> PrinterServiceStatus {
+    PrinterServiceStatus {
+        connected: false,
+        spooler_running: false,
+        default_printer: None,
+        message: "The Q Cafe printer service is available only on Windows.".to_string(),
+    }
+}
+
 fn application_settings_dir(app: &AppHandle) -> PathBuf {
-    app.path().app_data_dir().expect("Windows application data directory is available")
+    app.path()
+        .app_data_dir()
+        .expect("Windows application data directory is available")
 }
 
 fn application_directory() -> Result<PathBuf, String> {
     let executable = env::current_exe().map_err(|error| error.to_string())?;
-    executable.parent()
+    executable
+        .parent()
         .map(PathBuf::from)
         .ok_or_else(|| "Q Cafe application directory is unavailable.".to_string())
 }
@@ -40,10 +127,35 @@ fn node_binary(application_directory: &PathBuf) -> PathBuf {
     application_directory.join("node.exe")
 }
 
-fn default_data_directory() -> PathBuf { PathBuf::from(r"D:\Q Cafe Data") }
+fn default_data_directory() -> PathBuf {
+    PathBuf::from(r"D:\Q Cafe Data")
+}
 
 fn settings_path(settings_dir: &Path) -> PathBuf {
     settings_dir.join("settings.json")
+}
+
+fn image_directory(settings: &StorageSettings) -> PathBuf {
+    settings.data_directory.join("images")
+}
+
+fn verify_image_directory(settings: &StorageSettings) -> Result<ImageStorageVerification, String> {
+    let directory = image_directory(settings);
+    fs::create_dir_all(&directory)
+        .map_err(|error| format!("Q Cafe image folder is unavailable: {error}"))?;
+    let probe = directory.join(".q-cafe-image-storage-probe");
+    fs::write(&probe, "ok")
+        .map_err(|error| format!("Q Cafe image folder is not writable: {error}"))?;
+    fs::remove_file(&probe)
+        .map_err(|error| format!("Q Cafe image folder cannot be verified: {error}"))?;
+    Ok(ImageStorageVerification {
+        ok: true,
+        folder_path: directory.display().to_string(),
+        is_write_protected: false,
+        can_write: true,
+        message: "Q Cafe image storage is verified and writable.".to_string(),
+        timestamp: Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+    })
 }
 
 fn choose_data_directory() -> Result<PathBuf, String> {
@@ -59,13 +171,20 @@ fn validate_data_directory(path: &Path) -> Result<(), String> {
     if path.as_os_str().is_empty() || path.parent().is_none() {
         return Err("Choose a folder for Q Cafe data, not a drive root.".to_string());
     }
-    if !path.to_string_lossy().to_ascii_lowercase().starts_with("d:\\") {
+    if !path
+        .to_string_lossy()
+        .to_ascii_lowercase()
+        .starts_with("d:\\")
+    {
         return Err("Choose a Q Cafe data folder on the mapped D: drive.".to_string());
     }
-    fs::create_dir_all(path).map_err(|error| format!("Q Cafe data folder is unavailable: {error}"))?;
+    fs::create_dir_all(path)
+        .map_err(|error| format!("Q Cafe data folder is unavailable: {error}"))?;
     let probe = path.join(".q-cafe-write-probe");
-    fs::write(&probe, "ok").map_err(|error| format!("Q Cafe data folder is not writable: {error}"))?;
-    fs::remove_file(probe).map_err(|error| format!("Q Cafe data folder cannot be verified: {error}"))
+    fs::write(&probe, "ok")
+        .map_err(|error| format!("Q Cafe data folder is not writable: {error}"))?;
+    fs::remove_file(probe)
+        .map_err(|error| format!("Q Cafe data folder cannot be verified: {error}"))
 }
 
 fn save_storage_settings(settings_dir: &Path, settings: &StorageSettings) -> Result<(), String> {
@@ -77,8 +196,10 @@ fn save_storage_settings(settings_dir: &Path, settings: &StorageSettings) -> Res
 fn load_or_configure_storage(settings_dir: &Path) -> Result<StorageSettings, String> {
     let path = settings_path(settings_dir);
     let settings = if path.is_file() {
-        serde_json::from_str::<StorageSettings>(&fs::read_to_string(&path).map_err(|error| error.to_string())?)
-            .map_err(|error| format!("Q Cafe storage settings are invalid: {error}"))?
+        serde_json::from_str::<StorageSettings>(
+            &fs::read_to_string(&path).map_err(|error| error.to_string())?,
+        )
+        .map_err(|error| format!("Q Cafe storage settings are invalid: {error}"))?
     } else {
         let data_directory = choose_data_directory()?;
         StorageSettings {
@@ -89,54 +210,125 @@ fn load_or_configure_storage(settings_dir: &Path) -> Result<StorageSettings, Str
         }
     };
     validate_data_directory(&settings.data_directory)?;
-    fs::create_dir_all(&settings.backup_directory).map_err(|error| format!("Q Cafe backup folder is unavailable: {error}"))?;
+    fs::create_dir_all(&settings.backup_directory)
+        .map_err(|error| format!("Q Cafe backup folder is unavailable: {error}"))?;
+    verify_image_directory(&settings)?;
     save_storage_settings(settings_dir, &settings)?;
     Ok(settings)
 }
 
 fn write_api_file(root: &PathBuf, relative_path: &str, contents: &str) -> Result<(), String> {
     let path = root.join(relative_path);
-    let parent = path.parent().ok_or_else(|| format!("Q Cafe API path is invalid: {}", path.display()))?;
+    let parent = path
+        .parent()
+        .ok_or_else(|| format!("Q Cafe API path is invalid: {}", path.display()))?;
     fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     fs::write(path, contents).map_err(|error| error.to_string())
 }
 
 fn prepare_api_runtime(data_dir: &PathBuf) -> Result<PathBuf, String> {
     let api_root = data_dir.join("runtime").join("api");
-    write_api_file(&api_root, "src/server.mjs", include_str!("../../../api/src/server.mjs"))?;
-    write_api_file(&api_root, "src/store.mjs", include_str!("../../../api/src/store.mjs"))?;
-    write_api_file(&api_root, "src/backup.mjs", include_str!("../../../api/src/backup.mjs"))?;
-    write_api_file(&api_root, "src/staff-auth.mjs", include_str!("../../../api/src/staff-auth.mjs"))?;
-    write_api_file(&api_root, "migrations/001-restaurant.sql", include_str!("../../../api/migrations/001-restaurant.sql"))?;
-    write_api_file(&api_root, "migrations/002-editable-order-lines.sql", include_str!("../../../api/migrations/002-editable-order-lines.sql"))?;
-    write_api_file(&api_root, "migrations/003-sync-and-activity.sql", include_str!("../../../api/migrations/003-sync-and-activity.sql"))?;
-    write_api_file(&api_root, "migrations/004-pos-billing.sql", include_str!("../../../api/migrations/004-pos-billing.sql"))?;
-    write_api_file(&api_root, "migrations/005-staff-identity.sql", include_str!("../../../api/migrations/005-staff-identity.sql"))?;
-    write_api_file(&api_root, "migrations/006-customer-menu-catalog.sql", include_str!("../../../api/migrations/006-customer-menu-catalog.sql"))?;
-    write_api_file(&api_root, "migrations/007-numeric-menu-codes.sql", include_str!("../../../api/migrations/007-numeric-menu-codes.sql"))?;
-    write_api_file(&api_root, "migrations/008-simple-pos-bill-numbers.sql", include_str!("../../../api/migrations/008-simple-pos-bill-numbers.sql"))?;
+    write_api_file(
+        &api_root,
+        "src/server.mjs",
+        include_str!("../../../api/src/server.mjs"),
+    )?;
+    write_api_file(
+        &api_root,
+        "src/store.mjs",
+        include_str!("../../../api/src/store.mjs"),
+    )?;
+    write_api_file(
+        &api_root,
+        "src/backup.mjs",
+        include_str!("../../../api/src/backup.mjs"),
+    )?;
+    write_api_file(
+        &api_root,
+        "src/staff-auth.mjs",
+        include_str!("../../../api/src/staff-auth.mjs"),
+    )?;
+    write_api_file(
+        &api_root,
+        "migrations/001-restaurant.sql",
+        include_str!("../../../api/migrations/001-restaurant.sql"),
+    )?;
+    write_api_file(
+        &api_root,
+        "migrations/002-editable-order-lines.sql",
+        include_str!("../../../api/migrations/002-editable-order-lines.sql"),
+    )?;
+    write_api_file(
+        &api_root,
+        "migrations/003-sync-and-activity.sql",
+        include_str!("../../../api/migrations/003-sync-and-activity.sql"),
+    )?;
+    write_api_file(
+        &api_root,
+        "migrations/004-pos-billing.sql",
+        include_str!("../../../api/migrations/004-pos-billing.sql"),
+    )?;
+    write_api_file(
+        &api_root,
+        "migrations/005-staff-identity.sql",
+        include_str!("../../../api/migrations/005-staff-identity.sql"),
+    )?;
+    write_api_file(
+        &api_root,
+        "migrations/006-customer-menu-catalog.sql",
+        include_str!("../../../api/migrations/006-customer-menu-catalog.sql"),
+    )?;
+    write_api_file(
+        &api_root,
+        "migrations/007-numeric-menu-codes.sql",
+        include_str!("../../../api/migrations/007-numeric-menu-codes.sql"),
+    )?;
+    write_api_file(
+        &api_root,
+        "migrations/008-simple-pos-bill-numbers.sql",
+        include_str!("../../../api/migrations/008-simple-pos-bill-numbers.sql"),
+    )?;
+    write_api_file(
+        &api_root,
+        "migrations/009-master-data-model.sql",
+        include_str!("../../../api/migrations/009-master-data-model.sql"),
+    )?;
     Ok(api_root)
 }
 
 fn wait_for_api(child: &mut Child, api_log: &Path) -> Result<(), String> {
     for _ in 0..30 {
         if let Some(status) = child.try_wait().map_err(|error| error.to_string())? {
-            return Err(format!("Q Cafe local service stopped during startup ({status}). Review {}.", api_log.display()));
+            return Err(format!(
+                "Q Cafe local service stopped during startup ({status}). Review {}.",
+                api_log.display()
+            ));
         }
         if reqwest::blocking::get("http://127.0.0.1:4180/health")
             .ok()
             .and_then(|response| response.error_for_status().ok())
-            .is_some() {
+            .is_some()
+        {
             return Ok(());
         }
         sleep(Duration::from_millis(100));
     }
     let _ = child.kill();
-    Err(format!("Q Cafe local service did not start. Review {} and reopen Q Cafe.", api_log.display()))
+    Err(format!(
+        "Q Cafe local service did not start. Review {} and reopen Q Cafe.",
+        api_log.display()
+    ))
 }
 
-fn backup_database(node: &Path, api_root: &Path, database_path: &Path, backup_directory: &Path) -> Result<(), String> {
-    if !database_path.is_file() { return Ok(()); }
+fn backup_database(
+    node: &Path,
+    api_root: &Path,
+    database_path: &Path,
+    backup_directory: &Path,
+) -> Result<(), String> {
+    if !database_path.is_file() {
+        return Ok(());
+    }
     let timestamp = Local::now().format("%Y%m%d-%H%M%S").to_string();
     let destination = backup_directory.join(format!("q-cafe-{timestamp}.sqlite"));
     let mut command = Command::new(node);
@@ -150,7 +342,9 @@ fn backup_database(node: &Path, api_root: &Path, database_path: &Path, backup_di
     let status = command
         .status()
         .map_err(|error| format!("Q Cafe database backup could not start: {error}"))?;
-    if !status.success() { return Err("Q Cafe database backup failed. Your data was not changed.".to_string()); }
+    if !status.success() {
+        return Err("Q Cafe database backup failed. Your data was not changed.".to_string());
+    }
     Ok(())
 }
 
@@ -171,20 +365,29 @@ struct UpdateManifest {
 }
 
 fn update_manifest_url() -> String {
-    env::var("QCAFE_UPDATE_MANIFEST_URL").unwrap_or_else(|_| "https://github.com/CODEXSUN/codexsun-qcafe/releases/latest/download/qcafe-update.json".to_string())
+    env::var("QCAFE_UPDATE_MANIFEST_URL").unwrap_or_else(|_| {
+        "https://github.com/CODEXSUN/codexsun-qcafe/releases/latest/download/qcafe-update.json"
+            .to_string()
+    })
 }
 
 fn check_for_update() -> Result<Option<UpdateManifest>, String> {
     let response = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(12))
         .user_agent("Q-Cafe-Desktop")
-        .build().map_err(|error| error.to_string())?
+        .build()
+        .map_err(|error| error.to_string())?
         .get(update_manifest_url())
-        .send().map_err(|error| error.to_string())?
-        .error_for_status().map_err(|error| error.to_string())?;
-    let update = response.json::<UpdateManifest>().map_err(|error| error.to_string())?;
+        .send()
+        .map_err(|error| error.to_string())?
+        .error_for_status()
+        .map_err(|error| error.to_string())?;
+    let update = response
+        .json::<UpdateManifest>()
+        .map_err(|error| error.to_string())?;
     let current = Version::parse(env!("CARGO_PKG_VERSION")).map_err(|error| error.to_string())?;
-    let available = Version::parse(&update.version).map_err(|error| format!("Q Cafe update version is invalid: {error}"))?;
+    let available = Version::parse(&update.version)
+        .map_err(|error| format!("Q Cafe update version is invalid: {error}"))?;
     Ok((update.stable && available > current).then_some(update))
 }
 
@@ -194,24 +397,31 @@ fn sha256_file(path: &Path) -> Result<String, String> {
     let mut buffer = [0; 64 * 1024];
     loop {
         let read = file.read(&mut buffer).map_err(|error| error.to_string())?;
-        if read == 0 { break; }
+        if read == 0 {
+            break;
+        }
         hasher.update(&buffer[..read]);
     }
     Ok(format!("{:x}", hasher.finalize()))
 }
 
 fn download_verified_installer(update: &UpdateManifest) -> Result<PathBuf, String> {
-    if !update.installer.url.starts_with("https://") { return Err("Q Cafe update download must use HTTPS.".to_string()); }
+    if !update.installer.url.starts_with("https://") {
+        return Err("Q Cafe update download must use HTTPS.".to_string());
+    }
     let directory = env::temp_dir().join("Q Cafe Updates").join(&update.version);
     fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
     let installer = directory.join("qcafe-update-setup.exe");
     let response = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(120))
         .user_agent("Q-Cafe-Desktop")
-        .build().map_err(|error| error.to_string())?
+        .build()
+        .map_err(|error| error.to_string())?
         .get(&update.installer.url)
-        .send().map_err(|error| error.to_string())?
-        .error_for_status().map_err(|error| error.to_string())?;
+        .send()
+        .map_err(|error| error.to_string())?
+        .error_for_status()
+        .map_err(|error| error.to_string())?;
     let bytes = response.bytes().map_err(|error| error.to_string())?;
     fs::write(&installer, bytes).map_err(|error| error.to_string())?;
     if sha256_file(&installer)? != update.installer.sha256.to_ascii_lowercase() {
@@ -223,33 +433,54 @@ fn download_verified_installer(update: &UpdateManifest) -> Result<PathBuf, Strin
 
 fn launch_verified_installer(installer: &Path) -> Result<(), String> {
     #[cfg(target_os = "windows")]
-    let result = Command::new(installer).arg("/S").creation_flags(0x08000000).spawn();
+    let result = Command::new(installer)
+        .arg("/S")
+        .creation_flags(0x08000000)
+        .spawn();
     #[cfg(not(target_os = "windows"))]
     let result = Command::new(installer).spawn();
-    result.map(|_| ()).map_err(|_| "The verified installer could not start.".to_string())
+    result
+        .map(|_| ())
+        .map_err(|_| "The verified installer could not start.".to_string())
 }
 
 fn request_api_shutdown() {
     let _ = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(2))
         .build()
-        .and_then(|client| client.post("http://127.0.0.1:4180/internal/shutdown").header("Authorization", "Bearer desktop-local-operator").send())
+        .and_then(|client| {
+            client
+                .post("http://127.0.0.1:4180/internal/shutdown")
+                .header("Authorization", "Bearer desktop-local-operator")
+                .send()
+        })
         .and_then(|response| response.error_for_status());
 }
 
 fn stop_api(process: &ApiProcess) -> Result<(), String> {
-    let mut child = match process.0.lock().map_err(|_| "Q Cafe API process lock failed.")?.take() {
+    let mut child = match process
+        .0
+        .lock()
+        .map_err(|_| "Q Cafe API process lock failed.")?
+        .take()
+    {
         Some(child) => child,
         None => return Ok(()),
     };
     request_api_shutdown();
     for _ in 0..50 {
-        if child.try_wait().map_err(|error| format!("Q Cafe local service could not stop: {error}"))?.is_some() {
+        if child
+            .try_wait()
+            .map_err(|error| format!("Q Cafe local service could not stop: {error}"))?
+            .is_some()
+        {
             return Ok(());
         }
         sleep(Duration::from_millis(100));
     }
-    child.kill().map_err(|error| format!("Q Cafe local service could not stop: {error}"))?;
+    child
+        .kill()
+        .map_err(|error| format!("Q Cafe local service could not stop: {error}"))?;
     let _ = child.wait();
     Ok(())
 }
@@ -269,7 +500,10 @@ fn qcafe_install_update(process: tauri::State<'_, ApiProcess>) -> Result<(), Str
 }
 
 #[tauri::command]
-fn qcafe_exit_application(app: AppHandle, process: tauri::State<'_, ApiProcess>) -> Result<(), String> {
+fn qcafe_exit_application(
+    app: AppHandle,
+    process: tauri::State<'_, ApiProcess>,
+) -> Result<(), String> {
     stop_api(&process)?;
     app.exit(0);
     Ok(())
@@ -282,7 +516,10 @@ fn start_api(app: &AppHandle) -> Result<Child, String> {
     let database_path = storage.data_directory.join("q-cafe.sqlite");
     let node = node_binary(&application_directory()?);
     if !node.is_file() {
-        return Err(format!("Q Cafe Node runtime is missing: {}", node.display()));
+        return Err(format!(
+            "Q Cafe Node runtime is missing: {}",
+            node.display()
+        ));
     }
     let today = Local::now().format("%Y-%m-%d").to_string();
     if storage.last_backup_date.as_deref() != Some(&today) {
@@ -307,15 +544,25 @@ fn start_api(app: &AppHandle) -> Result<Child, String> {
         .arg(api_root.join("src").join("server.mjs"))
         .current_dir(&api_root)
         .env("QCAFE_DATABASE_PATH", database_path)
+        .env("QCAFE_IMAGE_DIRECTORY", image_directory(&storage))
         .env("QCAFE_API_PORT", "4180")
-        .env("QCAFE_DEMO", env::var("QCAFE_DEMO").unwrap_or_else(|_| "true".to_string()))
+        .env(
+            "QCAFE_DEMO",
+            env::var("QCAFE_DEMO").unwrap_or_else(|_| "false".to_string()),
+        )
         .env("QCAFE_API_TOKEN", "desktop-local-operator")
-        .env("QCAFE_BOOTSTRAP_OWNER_PIN", env::var("QCAFE_BOOTSTRAP_OWNER_PIN").unwrap_or_default())
-        .stdout(Stdio::from(log.try_clone().map_err(|error| error.to_string())?))
+        .env(
+            "QCAFE_BOOTSTRAP_OWNER_PIN",
+            env::var("QCAFE_BOOTSTRAP_OWNER_PIN").unwrap_or_default(),
+        )
+        .stdout(Stdio::from(
+            log.try_clone().map_err(|error| error.to_string())?,
+        ))
         .stderr(Stdio::from(log));
     #[cfg(target_os = "windows")]
     command.creation_flags(0x08000000);
-    let mut child = command.spawn()
+    let mut child = command
+        .spawn()
         .map_err(|error| format!("Q Cafe API could not start: {error}"))?;
     wait_for_api(&mut child, &api_log)?;
     Ok(child)
@@ -324,12 +571,18 @@ fn start_api(app: &AppHandle) -> Result<Child, String> {
 fn replace_api(app: &AppHandle, process: &ApiProcess) -> Result<(), String> {
     stop_api(process)?;
     let child = start_api(app)?;
-    *process.0.lock().map_err(|_| "Q Cafe API process lock failed.")? = Some(child);
+    *process
+        .0
+        .lock()
+        .map_err(|_| "Q Cafe API process lock failed.")? = Some(child);
     Ok(())
 }
 
 #[tauri::command]
-fn qcafe_select_data_directory(app: AppHandle, process: tauri::State<'_, ApiProcess>) -> Result<String, String> {
+fn qcafe_select_data_directory(
+    app: AppHandle,
+    process: tauri::State<'_, ApiProcess>,
+) -> Result<String, String> {
     let settings_dir = application_settings_dir(&app);
     let data_directory = choose_data_directory()?;
     validate_data_directory(&data_directory)?;
@@ -340,14 +593,86 @@ fn qcafe_select_data_directory(app: AppHandle, process: tauri::State<'_, ApiProc
         schema_version: 1,
     };
     fs::create_dir_all(&settings.backup_directory).map_err(|error| error.to_string())?;
+    verify_image_directory(&settings)?;
     save_storage_settings(&settings_dir, &settings)?;
     replace_api(&app, &process)?;
     Ok(data_directory.join("q-cafe.sqlite").display().to_string())
 }
 
 #[tauri::command]
-fn qcafe_clear_first_time_data(app: AppHandle, process: tauri::State<'_, ApiProcess>) -> Result<bool, String> {
-    if MessageDialog::new().set_level(MessageLevel::Warning).set_title("Start with empty Q Cafe data").set_description("This removes the current local database. Existing backups are kept. Continue?").set_buttons(MessageButtons::YesNo).show() != MessageDialogResult::Yes {
+fn qcafe_license_status(app: AppHandle) -> Result<license::LicenseStatus, String> {
+    license::license_status(&application_settings_dir(&app))
+}
+
+#[tauri::command]
+fn qcafe_reconnect_license(app: AppHandle) -> Result<license::LicenseStatus, String> {
+    license::reconnect_license(&application_settings_dir(&app))
+}
+
+#[tauri::command]
+fn qcafe_activate_license(
+    app: AppHandle,
+    process: tauri::State<'_, ApiProcess>,
+    activation: license::ActivationRequest,
+) -> Result<license::LicenseStatus, String> {
+    let mut status = license::activate_license(&application_settings_dir(&app), activation)?;
+    if status.licensed {
+        if let Err(error) = replace_api(&app, &process) {
+            status.message =
+                format!("License verified. Q Cafe local service could not start: {error}");
+        }
+    }
+    Ok(status)
+}
+
+#[tauri::command]
+fn qcafe_skip_activation(
+    app: AppHandle,
+    process: tauri::State<'_, ApiProcess>,
+) -> Result<license::LicenseStatus, String> {
+    let status = license::skip_activation(&application_settings_dir(&app))?;
+    replace_api(&app, &process)?;
+    Ok(status)
+}
+
+#[tauri::command]
+fn qcafe_verify_image_storage(app: AppHandle) -> Result<ImageStorageVerification, String> {
+    let settings = load_or_configure_storage(&application_settings_dir(&app))?;
+    verify_image_directory(&settings)
+}
+
+#[tauri::command]
+fn qcafe_open_image_storage(app: AppHandle) -> Result<(), String> {
+    let settings = load_or_configure_storage(&application_settings_dir(&app))?;
+    let verification = verify_image_directory(&settings)?;
+    #[cfg(target_os = "windows")]
+    Command::new("explorer.exe")
+        .arg(&verification.folder_path)
+        .spawn()
+        .map_err(|error| format!("Q Cafe could not open the image folder: {error}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+fn qcafe_printer_service_status() -> PrinterServiceStatus {
+    printer_service_status()
+}
+
+#[tauri::command]
+fn qcafe_clear_first_time_data(
+    app: AppHandle,
+    process: tauri::State<'_, ApiProcess>,
+) -> Result<bool, String> {
+    if MessageDialog::new()
+        .set_level(MessageLevel::Warning)
+        .set_title("Start with empty Q Cafe data")
+        .set_description(
+            "This removes the current local database. Existing backups are kept. Continue?",
+        )
+        .set_buttons(MessageButtons::YesNo)
+        .show()
+        != MessageDialogResult::Yes
+    {
         return Ok(false);
     }
     let settings_dir = application_settings_dir(&app);
@@ -366,13 +691,33 @@ fn qcafe_clear_first_time_data(app: AppHandle, process: tauri::State<'_, ApiProc
 fn main() {
     tauri::Builder::default()
         .manage(ApiProcess(Mutex::new(None)))
-        .invoke_handler(tauri::generate_handler![qcafe_check_for_update, qcafe_install_update, qcafe_exit_application, qcafe_select_data_directory, qcafe_clear_first_time_data])
+        .invoke_handler(tauri::generate_handler![
+            qcafe_check_for_update,
+            qcafe_install_update,
+            qcafe_exit_application,
+            qcafe_select_data_directory,
+            qcafe_clear_first_time_data,
+            qcafe_verify_image_storage,
+            qcafe_open_image_storage,
+            qcafe_printer_service_status,
+            qcafe_license_status,
+            qcafe_reconnect_license,
+            qcafe_activate_license,
+            qcafe_skip_activation
+        ])
         .setup(|app| {
             if cfg!(debug_assertions) {
                 return Ok(());
             }
-            let child = start_api(app.handle())?;
-            *app.state::<ApiProcess>().0.lock().expect("API process lock") = Some(child);
+            if let Ok(status) = license::license_status(&application_settings_dir(app.handle())) {
+                if !status.activation_required {
+                    let child = start_api(app.handle())?;
+                    *app.state::<ApiProcess>()
+                        .0
+                        .lock()
+                        .expect("API process lock") = Some(child);
+                }
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -380,7 +725,9 @@ fn main() {
                 api.prevent_close();
                 return;
             }
-            if !matches!(event, tauri::WindowEvent::Destroyed) { return; }
+            if !matches!(event, tauri::WindowEvent::Destroyed) {
+                return;
+            }
             let _ = stop_api(&window.app_handle().state::<ApiProcess>());
         })
         .run(tauri::generate_context!())

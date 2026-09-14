@@ -16,13 +16,110 @@ export class CafeStore {
     }
   }
   snapshot() {
-    const tables = ['restaurant_tables', 'pos', 'pos_items', 'receipts', 'receipt_transactions', 'orders', 'order_lines', 'inventory', 'bookings', 'activities', 'staff_users'];
+    const tables = ['restaurant_tables', 'pos', 'pos_items', 'receipts', 'receipt_transactions', 'orders', 'order_lines', 'inventory', 'bookings', 'activities', 'staff_users', 'staff_auth_events'];
     return {
-      menu: this.db.prepare('SELECT * FROM menu WHERE is_active=1 ORDER BY category, code').all(),
+      menu: this.db.prepare(`SELECT i.id,i.code,i.name,c.name AS category,i.normal_price AS price,i.image_path,
+        COALESCE(json_group_array(json_object('id',s.id,'code',s.code,'prefix',s.prefix,'name',s.name,'price',sp.price,'is_enabled',s.is_enabled))
+        FILTER (WHERE s.id IS NOT NULL),'[]') AS specials
+        FROM items i JOIN categories c ON c.id=i.category_id
+        LEFT JOIN item_special s ON s.item_id=i.id LEFT JOIN item_special_price sp ON sp.item_special_id=s.id
+        WHERE i.is_active=1 AND c.is_active=1 GROUP BY i.id ORDER BY c.name,i.code`).all(),
+      categories: this.db.prepare('SELECT * FROM categories WHERE is_active=1 ORDER BY name').all(),
+      master_settings: this.db.prepare('SELECT * FROM master_settings ORDER BY key').all(),
       ...Object.fromEntries(tables.map(table => [table, this.db.prepare(`SELECT * FROM ${table}`).all()])),
     };
   }
+  saveCategory(input) {
+    const code = shortLabel(input.code, 40);
+    const name = label(input.name);
+    if (input.id) {
+      this.db.prepare("UPDATE categories SET code=?,name=?,updated_at=datetime('now') WHERE id=?").run(code, name, wholeNumber(input.id, 1, Number.MAX_SAFE_INTEGER, 'Category id'));
+      return { id: Number(input.id) };
+    }
+    const result = this.db.prepare('INSERT INTO categories(code,name) VALUES (?,?)').run(code, name);
+    return { id: Number(result.lastInsertRowid) };
+  }
+  deleteCategory(input) {
+    const id = wholeNumber(input.id, 1, Number.MAX_SAFE_INTEGER, 'Category id');
+    if (this.db.prepare('SELECT id FROM items WHERE category_id=? LIMIT 1').get(id)) throw new Error('Move or delete the category items first.');
+    this.db.prepare('DELETE FROM categories WHERE id=?').run(id);
+  }
+  saveItem(input) {
+    const categoryId = wholeNumber(input.category_id, 1, Number.MAX_SAFE_INTEGER, 'Category');
+    if (!this.db.prepare('SELECT id FROM categories WHERE id=? AND is_active=1').get(categoryId)) throw new Error('Choose an active category.');
+    const code = shortLabel(input.code, 40);
+    const name = label(input.name);
+    const price = wholeNumber(input.normal_price, 1, 100_000_000, 'Normal price');
+    const specials = Array.isArray(input.specials) ? input.specials : [];
+    const enabledSpecials = this.enabledTodaySpecials();
+    if (specials.length && !enabledSpecials.size) throw new Error('Enable and configure a Today Special before adding special prices.');
+    return this.transaction(() => {
+      const itemId = input.id
+        ? (this.db.prepare("UPDATE items SET category_id=?,code=?,name=?,normal_price=?,image_path=?,updated_at=datetime('now') WHERE id=?").run(categoryId, code, name, price, optionalImageName(input.image_path), wholeNumber(input.id, 1, Number.MAX_SAFE_INTEGER, 'Item id')), Number(input.id))
+        : Number(this.db.prepare('INSERT INTO items(category_id,code,name,normal_price,image_path) VALUES (?,?,?,?,?)').run(categoryId, code, name, price, optionalImageName(input.image_path)).lastInsertRowid);
+      this.db.prepare('DELETE FROM item_special WHERE item_id=?').run(itemId);
+      for (const special of specials) {
+        const prefix = shortLabel(special.prefix, 20).toUpperCase();
+        const specialName = enabledSpecials.get(prefix);
+        if (!specialName) throw new Error(`Today Special ${prefix} is not enabled.`);
+        const specialPrice = wholeNumber(special.price, 1, 100_000_000, 'Special price');
+        const result = this.db.prepare('INSERT INTO item_special(item_id,code,prefix,name,is_enabled,starts_on,ends_on) VALUES (?,?,?,?,?,?,?)').run(itemId, prefix, prefix, specialName, special.is_enabled === false ? 0 : 1, optionalLabel(special.starts_on, 32), optionalLabel(special.ends_on, 32));
+        this.db.prepare('INSERT INTO item_special_price(item_special_id,price) VALUES (?,?)').run(result.lastInsertRowid, specialPrice);
+      }
+      return { id: itemId };
+    });
+  }
+  deleteItem(input) {
+    this.db.prepare('DELETE FROM items WHERE id=?').run(wholeNumber(input.id, 1, Number.MAX_SAFE_INTEGER, 'Item id'));
+  }
+  saveRestaurantTable(input) {
+    const tableNo = restaurantTableNumber(input.table_no);
+    const chairCount = wholeNumber(input.chair_count, 1, 24, 'Chair count');
+    if (input.id) {
+      const id = wholeNumber(input.id, 1, Number.MAX_SAFE_INTEGER, 'Restaurant table id');
+      this.db.prepare('UPDATE restaurant_tables SET table_no=?,chair_count=? WHERE id=?').run(tableNo, chairCount, id);
+      return { id };
+    }
+    const result = this.db.prepare('INSERT INTO restaurant_tables(table_no,chair_count) VALUES (?,?)').run(tableNo, chairCount);
+    return { id: Number(result.lastInsertRowid) };
+  }
+  deleteRestaurantTable(input) {
+    const id = wholeNumber(input.id, 1, Number.MAX_SAFE_INTEGER, 'Restaurant table id');
+    if (this.db.prepare('SELECT id FROM pos WHERE table_id=? LIMIT 1').get(id)) throw new Error('This table has bills and cannot be deleted. Mark it offline instead.');
+    this.db.prepare('DELETE FROM restaurant_tables WHERE id=?').run(id);
+  }
+  saveMasterSetting(input) {
+    const key = shortLabel(input.key, 80); const value = String(input.value ?? '');
+    if (key === 'today_special_definitions') validateTodaySpecialDefinitions(value);
+    this.db.prepare("INSERT INTO master_settings(key,value,updated_at) VALUES (?,?,datetime('now')) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at").run(key, value);
+  }
+  enabledTodaySpecials() {
+    const enabled = this.db.prepare("SELECT value FROM master_settings WHERE key='today_special_enabled'").get()?.value === 'true';
+    if (!enabled) return new Map();
+    const value = this.db.prepare("SELECT value FROM master_settings WHERE key='today_special_definitions'").get()?.value;
+    return new Map(readTodaySpecialDefinitions(value).filter((special) => special.isEnabled).map((special) => [special.prefix, special.name]));
+  }
   hasStaffUsers() { return Boolean(this.db.prepare('SELECT id FROM staff_users LIMIT 1').get()); }
+  ensureBuiltInStaff() {
+    const accounts = [
+      ['cashier', 'Cashier', 'cashier', '1234'],
+      ['manager', 'Manager', 'manager', '4563'],
+      ['owner', 'Owner', 'owner', '7575'],
+      ['super-admin', 'Super admin', 'owner', '9696'],
+    ];
+    for (const [login, name, role, pin] of accounts) {
+      if (!this.db.prepare('SELECT id FROM staff_users WHERE login=?').get(login)) {
+        const result = this.db.prepare('INSERT INTO staff_users(name,login,role,pin_hash) VALUES (?,?,?,?)').run(name, login, role, hashPin(pin));
+        this.authEvent(result.lastInsertRowid, 'role-provisioned', name + ' local role provisioned.');
+      }
+    }
+  }
+  signInPin(pin) {
+    this.ensureBuiltInStaff();
+    const login = ({ '1234': 'cashier', '4563': 'manager', '7575': 'owner', '9696': 'super-admin' })[String(pin ?? '')];
+    if (!login) throw new Error('Incorrect PIN.');
+    return this.signInStaff(login, pin);
+  }
   bootstrapOwner(pin) {
     if (this.hasStaffUsers()) return;
     validatePin(pin);
@@ -41,7 +138,7 @@ export class CafeStore {
       throw new Error(lockedUntil ? 'Too many attempts. Try again shortly.' : 'Incorrect username or PIN.');
     }
     this.db.prepare('UPDATE staff_users SET failed_attempts=0,locked_until=NULL,last_login_at=datetime(\'now\'),updated_at=datetime(\'now\') WHERE id=?').run(staff.id);
-    this.authEvent(staff.id, 'login', 'Cashier session opened.');
+    this.authEvent(staff.id, 'login', staff.name + ' signed in as ' + staff.role + '.');
     return { id: staff.id, login: staff.login, name: staff.name, role: staff.role };
   }
   setupOwner(input) {
@@ -152,19 +249,11 @@ export class CafeStore {
       this.activity('booking', booking.lastInsertRowid, 'created', `Booking created for ${guest} at ${table}.`);
     });
   }
-  seed() {
-    this.transaction(() => {
-      if (!this.db.prepare('SELECT id FROM inventory LIMIT 1').get()) {
-        for (const row of [[1,'Coffee beans','kg',4.5,2],[2,'Milk','litres',8,10],[3,'Paneer','kg',3,2],[4,'Croissants','pieces',18,12]]) this.db.prepare('INSERT INTO inventory(id,name,unit,quantity,minimum) VALUES (?,?,?,?,?)').run(...row);
-      }
-      for (const row of Array.from({ length: 12 }, (_, index) => [`T${String(index + 1).padStart(2, '0')}`, index < 8 ? 4 : 6])) this.db.prepare('INSERT OR IGNORE INTO restaurant_tables(table_no,chair_count) VALUES (?,?)').run(...row);
-    });
-  }
   activity(entityType, entityId, action, detail) {
     this.db.prepare('INSERT INTO activities(entity_type,entity_id,action,detail) VALUES (?,?,?,?)').run(entityType, String(entityId), action, detail);
   }
   posTable(tableId, tableNo) {
-    if (tableNo === 'Takeaway') return { id: null, no: 'Takeaway', chairs: 0 };
+    if (tableNo === 'Takeaway' || tableNo === 'Parcel') return { id: null, no: 'Takeaway', chairs: 0 };
     const id = wholeNumber(tableId, 1, Number.MAX_SAFE_INTEGER, 'Table');
     const table = this.db.prepare('SELECT id,table_no,chair_count FROM restaurant_tables WHERE id=? AND status != ?').get(id, 'offline');
     if (!table) throw new Error('Choose an available restaurant table.');
@@ -176,8 +265,10 @@ export class CafeStore {
     const name = label(line.item_name);
     const quantity = decimalNumber(line.quantity, 0.001, 99, 3, 'Quantity');
     const rate = wholeNumber(line.rate, 1, 100_000_000, 'Rate');
-    const item = this.db.prepare('SELECT id FROM menu WHERE id=?').get(Number(line.menu_id));
-    return { menuId: item?.id ?? null, code, name, quantity, rate, amount: Math.round(quantity * rate) };
+    // POS lines retain their item code, name, and rate as an immutable receipt
+    // snapshot. The legacy menu_id foreign key is null for new items, which are
+    // owned by the items table.
+    return { menuId: null, code, name, quantity, rate, amount: Math.round(quantity * rate) };
   }
   receiptTransaction(transaction) {
     if (!transaction || typeof transaction !== 'object') throw new Error('Invalid payment transaction.');
@@ -227,4 +318,45 @@ function taxPercent(value) {
 function optionalLabel(value, maximum) {
   if (value === undefined || value === null || value === '') return null;
   return shortLabel(value, maximum);
+}
+function restaurantTableNumber(value) {
+  const tableNo = shortLabel(value, 40).toUpperCase();
+  if (!/^[A-Z][A-Z0-9 -]*$/u.test(tableNo)) throw new Error('Table name can use letters, numbers, spaces, and hyphens.');
+  return tableNo;
+}
+
+function optionalImageName(value) {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,119}\.(?:jpe?g|png|webp)$/iu.test(value)) {
+    throw new Error('Upload an image through Q Cafe. Image paths cannot point outside the Q Cafe image folder.');
+  }
+  return value;
+}
+
+function readTodaySpecialDefinitions(value) {
+  if (typeof value !== 'string') return [];
+  try {
+    const definitions = JSON.parse(value);
+    if (!Array.isArray(definitions)) return [];
+    return definitions.flatMap((definition) => {
+      const prefix = typeof definition?.prefix === 'string' ? definition.prefix.trim().toUpperCase() : '';
+      const name = typeof definition?.name === 'string' ? definition.name.trim() : '';
+      return prefix && name ? [{ prefix, name, isEnabled: definition.isEnabled !== false }] : [];
+    });
+  } catch {
+    return [];
+  }
+}
+
+function validateTodaySpecialDefinitions(value) {
+  const definitions = readTodaySpecialDefinitions(value);
+  const source = JSON.parse(value);
+  if (!Array.isArray(source) || definitions.length !== source.length) throw new Error('Today Special definitions must include a prefix and name.');
+  const prefixes = new Set();
+  for (const definition of definitions) {
+    shortLabel(definition.prefix, 20);
+    label(definition.name);
+    if (prefixes.has(definition.prefix)) throw new Error('Today Special prefixes must be unique.');
+    prefixes.add(definition.prefix);
+  }
 }

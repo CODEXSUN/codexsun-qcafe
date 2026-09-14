@@ -1,5 +1,31 @@
 # Q Cafe changelog
 
+## 1.0.31 - 2026-09-14
+
+### Local master data, printing, and licensing
+
+- Uses version 1.0.31 for the API, web app, desktop app, updater, installer, and changelog.
+- Adds local license activation with a stable machine ID, protected token storage, offline startup validation, and reconnect status.
+- Adds manager-owned Today Special definitions. Item special prices can use only enabled definitions.
+- Adds Restaurant Tables master data. The floor desk and POS now use the same SQLite table records.
+- Removes browser-only table configuration and catalog fallbacks from Q Cafe master data.
+- Adds managed image storage checks and a folder-open action.
+- Adds Windows Print Spooler and default-printer status in Printer & Receipts. Direct print is enabled by default for new settings.
+- Preserves multiline receipt footer notes in preview and paper output.
+- Improves POS payment collection so bills stay unpaid when cash receipt details are skipped.
+
+## 1.0.30 - 2026-09-14
+
+### Managed image storage and clean master data
+
+- Sets Q Cafe development and release work to version 1.0.30.
+- Creates one `images` folder beside the selected SQLite database folder at desktop startup.
+- Stores uploaded item images only in that managed folder and records only generated image filenames.
+- Removes browser-stored catalog, image, and preset-image fallbacks.
+- Requires every API runtime to receive the managed image folder path from its launcher, Docker configuration, or desktop shell.
+- Shows the managed folder in Settings with a verification icon and an Open folder action.
+- Adds Tech Media Secure desktop activation and validation with a persistent UUID installation ID and Windows Credential Manager token storage.
+
 ## 1.1.21 - 2026-09-09
 
 ### Clearer safe-exit confirmation

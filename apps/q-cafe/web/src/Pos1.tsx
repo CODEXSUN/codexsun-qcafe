@@ -58,6 +58,11 @@ function defaultOrderMode(defaultServiceType: CafeSettings['defaultServiceType']
   return defaultServiceType === 'Takeaway' ? 'TAKE AWAY' : 'POS';
 }
 
+function defaultTableName(settings: CafeSettings, tables: Snapshot['restaurant_tables']) {
+  if (settings.defaultServiceType === 'Takeaway') return 'Parcel';
+  return tables.find((table) => table.status === 'available')?.table_no ?? tables[0]?.table_no ?? 'Parcel';
+}
+
 export function Pos1({ data, busy, mutate, topology }: Props) {
   const [cafeSettings, setCafeSettings] = useState<CafeSettings>(() => loadSettings());
   const [printBillNumber, setPrintBillNumber] = useState('');
@@ -69,13 +74,14 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
 
   // Tabs state
   const [tabs, setTabs] = useState<OrderTab[]>(() => {
-    const defaultTable = loadSettings().defaultServiceType === 'Takeaway' ? 'Parcel' : 'T01';
+    const initialSettings = loadSettings();
+    const defaultTable = defaultTableName(initialSettings, data.restaurant_tables);
     return [{
       id: 'tab-1',
       name: 'Order 1',
       tableName: defaultTable,
       chair: '1',
-      orderMode: defaultOrderMode(loadSettings().defaultServiceType),
+      orderMode: defaultTable === 'Parcel' ? 'TAKE AWAY' : defaultOrderMode(initialSettings.defaultServiceType),
       lines: [],
       gstApplied: false,
     }];
@@ -90,6 +96,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
   const gstApplied = activeTab.gstApplied ?? false;
   const nextBillNumber = String(data.pos.reduce((highestId, bill) => Math.max(highestId, bill.id), 0) + 1);
   const displayedBillNumber = printBillNumber || nextBillNumber;
+  const lastBill = data.pos.slice().sort((a, b) => b.id - a.id)[0];
 
   // Catalog and master data
   const [menuItems, setMenuItems] = useState<CustomMenuItem[]>(() => getMergedMenu(data.menu));
@@ -129,6 +136,15 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
       window.removeEventListener('q-cafe-settings-updated', handleSettingsUpdate);
     };
   }, [data.menu, data.restaurant_tables]);
+
+  useEffect(() => {
+    if (data.restaurant_tables.length > 0) return;
+    setTabs((currentTabs) => currentTabs.map((tab) => (
+      tab.tableName.toLowerCase() === 'parcel' || tab.tableName.toLowerCase() === 'takeaway'
+        ? tab
+        : { ...tab, tableName: 'Parcel', chair: '1', orderMode: 'TAKE AWAY' }
+    )));
+  }, [data.restaurant_tables.length]);
 
   // Pickup table and chair selection from the touch Tables floor page
   useEffect(() => {
@@ -256,13 +272,13 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
   function createTab() {
     const num = nextTabNum.current++;
     const newId = `tab-${crypto.randomUUID()}`;
-    const defaultTable = cafeSettings.defaultServiceType === 'Takeaway' ? 'Parcel' : 'T01';
+    const defaultTable = defaultTableName(cafeSettings, data.restaurant_tables);
     const newTab: OrderTab = {
       id: newId,
       name: `Order ${num}`,
       tableName: defaultTable,
       chair: '1',
-      orderMode: defaultOrderMode(cafeSettings.defaultServiceType),
+      orderMode: defaultTable === 'Parcel' ? 'TAKE AWAY' : defaultOrderMode(cafeSettings.defaultServiceType),
       lines: [],
       gstApplied: false,
     };
@@ -401,7 +417,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     const wasTakeaway = tableName.toLowerCase() === 'parcel' || tableName.toLowerCase() === 'takeaway';
     updateActiveTab({
       orderMode: nextMode,
-      tableName: nextMode === 'TAKE AWAY' ? 'Parcel' : wasTakeaway ? 'T01' : tableName,
+      tableName: nextMode === 'TAKE AWAY' ? 'Parcel' : wasTakeaway ? defaultTableName(cafeSettings, data.restaurant_tables) : tableName,
       chair: nextMode === 'TAKE AWAY' ? '1' : chair,
     });
   }
@@ -562,11 +578,11 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
       if (tabs.length > 1) {
         closeTab(activeTabId);
       } else {
-        const defaultTable = cafeSettings.defaultServiceType === 'Takeaway' ? 'Parcel' : 'T01';
+        const defaultTable = defaultTableName(cafeSettings, data.restaurant_tables);
         updateActiveTab({
           tableName: defaultTable,
           chair: '1',
-          orderMode: defaultOrderMode(cafeSettings.defaultServiceType),
+          orderMode: defaultTable === 'Parcel' ? 'TAKE AWAY' : defaultOrderMode(cafeSettings.defaultServiceType),
           lines: [],
           gstApplied: false,
         });
@@ -595,7 +611,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     setShowPaymentCollector(true);
   }
 
-  // Section 6: Confirm order (Post POS bill + Payment receipt to backend, clear table, print slip, advance to next order)
+  // Section 6: Save the POS bill. A receipt and print happen only after settlement.
   async function handleConfirmOrder() {
     if (!lines.length || busy) return;
 
@@ -647,43 +663,41 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     if (!createdBill || typeof createdBill !== 'object' || !('id' in createdBill)) {
       return;
     }
-    setPrintBillNumber(createdBill.bill_no);
-
-    // 2. Post payment receipt (settles bill & automatically marks table as available)
+    // A bill without a recorded payment remains open. It can be settled later.
     const payment = activeTab.payment;
-    const paymentMode = payment?.mode || 'cash';
-    const denominations = payment?.denominations ? JSON.stringify(payment.denominations) : null;
-    const referenceNo = payment?.referenceNo || '-';
+    if (payment) {
+      const receipt = await mutate('/receipts', {
+        pos_id: createdBill.id,
+        transactions: [
+          {
+            transaction_mode: payment.mode,
+            amount: createdBill.grand_total,
+            denominations: payment.denominations ? JSON.stringify(payment.denominations) : null,
+            settlement_nature: 'collection',
+            reference_no: payment.referenceNo || '-',
+          },
+        ],
+      });
+      if (!receipt) return;
 
-    await mutate('/receipts', {
-      pos_id: createdBill.id,
-      transactions: [
-        {
-          transaction_mode: paymentMode,
-          amount: createdBill.grand_total,
-          denominations,
-          settlement_nature: 'collection',
-          reference_no: referenceNo,
-        },
-      ],
-    });
+      // A successfully settled bill is the only bill sent to the receipt printer.
+      setPrintBillNumber(createdBill.bill_no);
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      window.print();
+      setPrintBillNumber('');
+    }
 
-    // 3. Wait for the saved bill number to render, then print the thermal receipt.
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    window.print();
-    setPrintBillNumber('');
-
-    // 4. Advance to next order / reset tab
+    // Advance to the next order after saving either a paid or an unpaid bill.
     if (tabs.length > 1) {
       closeTab(activeTabId);
     } else {
-      const defaultTable = cafeSettings.defaultServiceType === 'Takeaway' ? 'Parcel' : 'T01';
+      const defaultTable = defaultTableName(cafeSettings, data.restaurant_tables);
       const num = nextTabNum.current++;
       updateActiveTab({
         name: `Order ${num}`,
         tableName: defaultTable,
         chair: '1',
-        orderMode: defaultOrderMode(cafeSettings.defaultServiceType),
+        orderMode: defaultTable === 'Parcel' ? 'TAKE AWAY' : defaultOrderMode(cafeSettings.defaultServiceType),
         lines: [],
         gstApplied: false,
         payment: null,
@@ -704,13 +718,13 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     if (tabs.length > 1) {
       closeTab(activeTabId);
     } else {
-      const defaultTable = cafeSettings.defaultServiceType === 'Takeaway' ? 'Parcel' : 'T01';
+      const defaultTable = defaultTableName(cafeSettings, data.restaurant_tables);
       const num = nextTabNum.current++;
       updateActiveTab({
         name: `Order ${num}`,
         tableName: defaultTable,
         chair: '1',
-        orderMode: defaultOrderMode(cafeSettings.defaultServiceType),
+        orderMode: defaultTable === 'Parcel' ? 'TAKE AWAY' : defaultOrderMode(cafeSettings.defaultServiceType),
         lines: [],
         gstApplied: false,
         payment: null,
@@ -732,7 +746,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     }
   }, [activeTab.payment, showPaymentCollector]);
 
-  // Global Keyboard Shortcuts (F1: order mode, F2: search, F4: kitchen, F5: settle, F6: item code, F7: bills, F8: save & print, F9: new order)
+  // Global Keyboard Shortcuts (F1: order mode, F2: search, F3: item code, F4: kitchen, F6: cash drawer, F7: bills, F8: save, F9: new order)
   useEffect(() => {
     const handleKeyDown = (e: globalThis.KeyboardEvent) => {
       // Enter on paid order -> Next Order / Confirm
@@ -768,21 +782,21 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         searchInputRef.current?.focus();
         searchInputRef.current?.select();
       }
-      // F5: open settlement in the bills drawer
-      if (e.key === 'F5') {
-        e.preventDefault();
-        handleFocusPayment();
-      }
       // F7: open passed bills and settlement drawer.
       if (e.key === 'F7') {
         e.preventDefault();
         setShowBillsDrawer(true);
       }
-      // F6 or Alt+I: focus Item Code
-      if (e.key === 'F6' || (e.altKey && e.key.toLowerCase() === 'i')) {
+      // F3 or Alt+I: focus Item Code.
+      if (e.key === 'F3' || (e.altKey && e.key.toLowerCase() === 'i')) {
         e.preventDefault();
         codeInputRef.current?.focus();
         codeInputRef.current?.select();
+      }
+      // F6: open the settlement drawer for the current order.
+      if (e.key === 'F6') {
+        e.preventDefault();
+        handleFocusPayment();
       }
       // Alt+Q: focus Quantity
       if (e.altKey && e.key.toLowerCase() === 'q') {
@@ -797,7 +811,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
           void handleSendToKitchen();
         }
       }
-      // F8: confirm & print bill
+      // F8: save as paid only when settlement is recorded; otherwise save as unpaid.
       if (e.key === 'F8') {
         e.preventDefault();
         if (lines.length > 0 && !busy) {
@@ -854,7 +868,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         onCloseTab={closeTab}
         linesCount={lines.length}
         busy={busy}
-        onPrintBill={handleConfirmOrder}
+        onSaveBill={handleConfirmOrder}
         onSendToKitchen={handleSendToKitchen}
         showOrderTabs={Boolean(cafeSettings.showOrderTabs)}
         showKitchenButton={Boolean(cafeSettings.showKitchenButton)}
@@ -921,6 +935,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         onAddToOrder={handleBottomAddOrder}
         codeInputRef={codeInputRef}
         quantityInputRef={quantityInputRef}
+        lastBill={lastBill ? { billNo: lastBill.bill_no, total: lastBill.grand_total, paid: lastBill.status === 'paid' } : null}
       />
 
       {/* 3-Inch Thermal Receipt Node (Shown strictly on print) */}

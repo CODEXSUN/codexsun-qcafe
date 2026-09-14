@@ -59,7 +59,7 @@ export function Pos1ProductSection({
                     : 'border-border/80'
                 }`}
               >
-                {/* Item Image with Fallback */}
+                {/* Managed item image, or an explicit empty-image state. */}
                 <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden bg-muted mb-2 shadow-2xs">
                   {!imageFailed ? (
                     <img

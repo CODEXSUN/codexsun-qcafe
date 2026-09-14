@@ -5,8 +5,18 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CafeStore } from './store.mjs';
 
+function setupTestFixture(store) {
+  store.db.prepare("INSERT INTO menu(id,name,category,price,code) VALUES (1,'Filter coffee','Test',8000,'ITM-001')").run();
+  store.db.prepare("INSERT INTO menu(id,name,category,price,code) VALUES (2,'Cappuccino','Test',14000,'ITM-002')").run();
+  store.db.prepare("INSERT INTO inventory(id,name,unit,quantity,minimum) VALUES (1,'Coffee beans','kg',4.5,2)").run();
+  store.db.prepare("INSERT INTO restaurant_tables(table_no,chair_count) VALUES ('T01',4)").run();
+  const category = store.saveCategory({ code: 'TEST', name: 'Test' });
+  store.saveItem({ category_id: category.id, code: 'ITM-001', name: 'Filter coffee', normal_price: 8000, specials: [] });
+  store.saveItem({ category_id: category.id, code: 'ITM-002', name: 'Cappuccino', normal_price: 14000, specials: [] });
+}
+
 test('editable order lines persist their item snapshot and kitchen transitions cannot skip states', () => {
-  const store = new CafeStore(':memory:'); store.seed();
+  const store = new CafeStore(':memory:'); setupTestFixture(store);
   const order = store.order({ table_name: 'T01', lines: [{ menu_id: 1, item_code: 'COF-1', name: 'House coffee', quantity: 1.5, price: 9500 }] });
   assert.equal(order.total, 14250);
   const { order_id, menu_id, item_code, name, quantity, price } = store.snapshot().order_lines[0];
@@ -23,7 +33,7 @@ test('editable order lines persist their item snapshot and kitchen transitions c
   store.db.close();
 });
 test('stock cannot become negative and overlapping bookings are rejected', () => {
-  const store = new CafeStore(':memory:'); store.seed();
+  const store = new CafeStore(':memory:'); setupTestFixture(store);
   assert.throws(() => store.adjust({ id: 1, delta: -100, reason: 'Usage' }));
   assert.equal(store.snapshot().inventory[0].quantity, 4.5);
   const starts_at = new Date(Date.now() + 86400000).toISOString();
@@ -32,7 +42,7 @@ test('stock cannot become negative and overlapping bookings are rejected', () =>
   store.db.close();
 });
 test('POS bills keep item, tax, table, receipt, and mixed-payment records separate', () => {
-  const store = new CafeStore(':memory:'); store.seed();
+  const store = new CafeStore(':memory:'); setupTestFixture(store);
   const table = store.snapshot().restaurant_tables[0];
   const bill = store.createPos({
     table_id: table.id,
@@ -57,14 +67,25 @@ test('POS bills keep item, tax, table, receipt, and mixed-payment records separa
   assert.throws(() => store.recordReceipt({ pos_id: bill.id, transactions: [{ transaction_mode: 'cash', amount: 1, settlement_nature: 'collection' }] }));
   const nextBill = store.createPos({ table_id: table.id, gst_percent: 0, lines: [{ menu_id: 1, item_code: '01', item_name: 'Filter coffee', quantity: 1, rate: 8000 }] });
   assert.equal(nextBill.bill_no, '2');
+  assert.equal(nextBill.status, 'open');
+  store.db.close();
+});
+test('restaurant tables are persisted and POS uses the selected restaurant table', () => {
+  const store = new CafeStore(':memory:');
+  const table = store.saveRestaurantTable({ table_no: 'T20', chair_count: 6 });
+  assert.deepEqual(store.snapshot().restaurant_tables.map((entry) => ({ id: entry.id, table_no: entry.table_no, chair_count: entry.chair_count })), [{ id: table.id, table_no: 'T20', chair_count: 6 }]);
+  store.saveRestaurantTable({ id: table.id, table_no: 'T20', chair_count: 8 });
+  assert.equal(store.snapshot().restaurant_tables[0].chair_count, 8);
+  store.deleteRestaurantTable({ id: table.id });
+  assert.equal(store.snapshot().restaurant_tables.length, 0);
   store.db.close();
 });
 test('migrations are repeatable, databases isolated, and orders survive reopening', () => {
   const directory = mkdtempSync(join(tmpdir(), 'q-cafe-'));
   try {
     const path = join(directory, 'cafe.sqlite');
-    const first = new CafeStore(path); first.seed(); first.order({ table_name: 'Takeaway', lines: [{ menu_id: 1, item_code: 'ITM-001', name: 'Filter coffee', quantity: 1, price: 8000 }] }); first.db.close();
-    const second = new CafeStore(path); second.seed(); assert.equal(second.snapshot().orders.length, 1); assert.equal(second.snapshot().menu.length, 60); second.db.close();
+    const first = new CafeStore(path); setupTestFixture(first); first.order({ table_name: 'Takeaway', lines: [{ menu_id: 1, item_code: 'ITM-001', name: 'Filter coffee', quantity: 1, price: 8000 }] }); first.db.close();
+    const second = new CafeStore(path); assert.equal(second.snapshot().orders.length, 1); assert.equal(second.snapshot().menu.length, 2); second.db.close();
     const isolated = new CafeStore(':memory:'); assert.equal(isolated.snapshot().orders.length, 0); isolated.db.close();
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });

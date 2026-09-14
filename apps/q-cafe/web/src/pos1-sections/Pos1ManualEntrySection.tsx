@@ -22,6 +22,7 @@ export function Pos1ManualEntrySection({
   onAddToOrder,
   codeInputRef,
   quantityInputRef,
+  lastBill,
 }: Pos1ManualEntrySectionProps) {
   const codeOptions: AutocompleteOption<CustomMenuItem>[] = useMemo(
     () => menuItems.map((item) => ({
@@ -63,7 +64,12 @@ export function Pos1ManualEntrySection({
     >
       <TopologyMarker id="q12.4" topology={topology} />
       <div className="flex items-stretch gap-3">
-        <section className="min-h-16 min-w-0 flex-1 rounded-xl border border-border bg-background/60" aria-label="Reserved waiting list area" />
+        <section className="min-h-16 min-w-0 flex-1 rounded-xl border border-border bg-background/60 p-3" aria-label="Last bill notification">
+          {lastBill ? <div className={lastBill.paid ? 'text-emerald-700' : 'text-amber-700'}>
+            <p className="text-xs font-semibold">{lastBill.paid ? '✓ Paid' : 'Amount pending'}</p>
+            <p className="mt-1 text-sm">Last billed no. {lastBill.billNo} · ₹{(lastBill.total / 100).toFixed(2)}</p>
+          </div> : <p className="text-sm text-muted-foreground">No billed receipt yet</p>}
+        </section>
 
         <section className="w-[410px] shrink-0 rounded-xl border border-border bg-background p-2.5 lg:w-[440px]" aria-label="Fast item entry">
           <div className="grid grid-cols-[minmax(0,1fr)_7rem_auto] items-end gap-2">

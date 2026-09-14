@@ -1,6 +1,6 @@
 [package]
 name = "q-cafe-desktop"
-version = "1.1.21"
+version = "1.0.31"
 description = "Q Cafe Windows desktop application"
 authors = ["CODEXSUN"]
 edition = "2021"
@@ -17,3 +17,5 @@ rfd = "0.15"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "native-tls"] }
 semver = "1"
 sha2 = "0.10"
+keyring = { version = "3", features = ["windows-native"] }
+uuid = { version = "1", features = ["v4"] }

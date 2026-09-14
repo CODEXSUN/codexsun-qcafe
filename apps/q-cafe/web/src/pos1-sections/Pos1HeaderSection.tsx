@@ -15,7 +15,7 @@ export function Pos1HeaderSection({
   onCloseTab,
   linesCount,
   busy,
-  onPrintBill,
+  onSaveBill,
   onSendToKitchen,
   showOrderTabs = false,
   showKitchenButton = false,
@@ -185,23 +185,23 @@ export function Pos1HeaderSection({
           </div>
         )}
 
-        {/* Save Button (last with print icon and F8 shortcut key). */}
+        {/* Save Button: settled bills print; skipped settlement stays unpaid. */}
         <div className="relative group shrink-0">
           <button
             type="button"
-            onClick={onPrintBill}
+            onClick={onSaveBill}
             disabled={!linesCount || busy}
-            aria-label="Save and print bill (F8)"
+            aria-label="Save bill (F8)"
             className="flex items-center gap-1.5 rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-semibold text-foreground shadow-2xs hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
           >
-            <Printer size={13} />
+              <Printer size={13} />
             <span>Save</span>
             <kbd className="font-mono text-[10px] font-semibold bg-muted text-muted-foreground px-1.5 py-0.5 rounded border border-border select-none">
               F8
             </kbd>
           </button>
           <div className="pointer-events-none absolute right-0 top-[calc(100%+0.35rem)] z-50 whitespace-nowrap rounded-lg border border-border bg-popover px-2.5 py-1 text-[11px] font-medium text-popover-foreground opacity-0 shadow-lg transition-all duration-150 group-hover:opacity-100 group-focus-within:opacity-100 flex items-center gap-1.5">
-            <span>Save and print bill</span>
+            <span>Save bill. Settled bills print; otherwise the bill stays unpaid.</span>
             <kbd className="font-mono text-[10px] font-semibold bg-muted text-muted-foreground px-1.5 py-0.5 rounded border border-border">
               F8
             </kbd>

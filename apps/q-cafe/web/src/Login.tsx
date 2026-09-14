@@ -20,6 +20,8 @@ import {
 } from '@codexsun/devkit-ito';
 import { signIn, signInWithCredentials, setupOwner } from './api';
 import { ItoRegion } from './ItoRegion';
+import { LicenseActivation, type LicenseStatus } from './LicenseActivation';
+import { LicenseStateBadge } from './LicenseStateBadge';
 
 type Props = {
   topology: InterfaceTopologyController;
@@ -40,6 +42,9 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
   const [exitBusy, setExitBusy] = useState(false);
   const [exitConfirmationOpen, setExitConfirmationOpen] = useState(false);
   const [version, setVersion] = useState(__QCAFE_VERSION__);
+  const [licenseStatus, setLicenseStatus] = useState<LicenseStatus | null>(null);
+  const [licenseLoading, setLicenseLoading] = useState('__TAURI_INTERNALS__' in window);
+  const [showLicenseActivation, setShowLicenseActivation] = useState(false);
 
   const ref0 = useRef<HTMLInputElement>(null);
   const ref1 = useRef<HTMLInputElement>(null);
@@ -59,9 +64,29 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
   }, []);
 
   useEffect(() => {
+    if (!('__TAURI_INTERNALS__' in window)) return;
+    void import('@tauri-apps/api/core')
+      .then(({ invoke }) => invoke<LicenseStatus>('qcafe_license_status'))
+      .then(setLicenseStatus)
+      .catch((error) => setLicenseStatus({ licensed: false, activationRequired: true, machineId: '', machineLabel: 'QCafe - DESKTOP', offline: false, message: error instanceof Error ? error.message : 'Q Cafe could not validate the license.' }))
+      .finally(() => setLicenseLoading(false));
+  }, []);
+
+  useEffect(() => {
     document.documentElement.classList.add('q-cafe-login-active');
     return () => document.documentElement.classList.remove('q-cafe-login-active');
   }, []);
+
+  if (licenseLoading) return <main className="grid min-h-screen place-items-center bg-background text-sm text-muted-foreground">Checking Q Cafe license…</main>;
+  const activationStatus = licenseStatus ?? {
+    licensed: false,
+    activationRequired: true,
+    machineId: '',
+    machineLabel: 'QCafe - DESKTOP',
+    offline: false,
+    message: 'Activate this Q Cafe installation to continue.',
+  };
+  if (showLicenseActivation || (licenseStatus && !licenseStatus.licensed && licenseStatus.activationRequired)) return <LicenseActivation status={activationStatus} onActivated={() => window.location.reload()} />;
 
   async function runFirstTimeAction(command: 'qcafe_select_data_directory' | 'qcafe_clear_first_time_data') {
     if (!('__TAURI_INTERNALS__' in window)) return;
@@ -79,9 +104,14 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
   }
 
   async function exitQCafe() {
-    if (!('__TAURI_INTERNALS__' in window) || exitBusy) return;
+    if (exitBusy) return;
     setExitBusy(true);
     setError('');
+    if (!('__TAURI_INTERNALS__' in window)) {
+      window.close();
+      setExitBusy(false);
+      return;
+    }
     try {
       const { invoke } = await import('@tauri-apps/api/core');
       await invoke('qcafe_exit_application');
@@ -416,9 +446,13 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
       </div>
 
       {createPortal(
+        <LicenseStateBadge licensed={licenseStatus?.licensed} onClick={licenseStatus?.licensed ? undefined : () => setShowLicenseActivation(true)} />,
+        document.body,
+      )}
+
+      {createPortal(
         <ItoRegion id="q1.6" topology={topology} className="fixed bottom-24 right-6 z-[100] flex flex-col items-end gap-3">
-          {'__TAURI_INTERNALS__' in window ? (
-            <Button
+          <Button
               type="button"
               variant="outline"
               disabled={exitBusy}
@@ -428,7 +462,6 @@ export function Login({ topology, showItoIcon, onSuccess }: Props) {
               <Power size={16} />
               {exitBusy ? 'Closing…' : 'Exit'}
             </Button>
-          ) : null}
           <p className="text-sm font-medium text-muted-foreground">v{version}</p>
         </ItoRegion>,
         document.body,

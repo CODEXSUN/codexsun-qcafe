@@ -59,7 +59,7 @@ export interface Pos1HeaderSectionProps {
   onCloseTab: (tabId: string) => void;
   linesCount: number;
   busy: boolean;
-  onPrintBill: () => void;
+  onSaveBill: () => void;
   onSendToKitchen: () => void;
   showOrderTabs?: boolean;
   showKitchenButton?: boolean;
@@ -106,5 +106,6 @@ export interface Pos1ManualEntrySectionProps {
   onAddToOrder: () => void;
   codeInputRef: RefObject<HTMLInputElement | null>;
   quantityInputRef: RefObject<HTMLInputElement | null>;
+  lastBill?: { billNo: string; total: number; paid: boolean } | null;
 }
 

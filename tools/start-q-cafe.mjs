@@ -2,7 +2,7 @@
 
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { getOrCreateQCafeToken, qCafeTokenPath } from "./q-cafe-token.mjs";
 
 const root = resolve(import.meta.dirname, "..");
@@ -11,6 +11,7 @@ const savedToken = process.env.QCAFE_API_TOKEN ?? qCafeEnv.QCAFE_API_TOKEN ? nul
 const token = process.env.QCAFE_API_TOKEN ?? qCafeEnv.QCAFE_API_TOKEN ?? savedToken.token;
 const cashierPin = process.env.QCAFE_CASHIER_PIN ?? qCafeEnv.QCAFE_CASHIER_PIN ?? "1234";
 const databasePath = resolve(root, "apps", "q-cafe", process.env.QCAFE_DATABASE_PATH ?? qCafeEnv.QCAFE_DATABASE_PATH ?? ".local/q-cafe.sqlite");
+const imageDirectory = resolve(dirname(databasePath), "images");
 
 console.log(`Q Cafe cashier PIN: ${cashierPin}`);
 if (savedToken) console.log(`Technical API token saved in ${qCafeTokenPath}`);
@@ -23,7 +24,8 @@ const child = spawn(process.execPath, [resolve(root, "tools", "dev-stack.mjs")],
     QCAFE_API_TOKEN: token,
     QCAFE_CASHIER_PIN: cashierPin,
     QCAFE_DATABASE_PATH: databasePath,
-    QCAFE_DEMO: process.env.QCAFE_DEMO ?? "true",
+    QCAFE_IMAGE_DIRECTORY: imageDirectory,
+    QCAFE_DEMO: process.env.QCAFE_DEMO ?? "false",
     QCAFE_ONLY: "true",
   },
   stdio: "inherit",

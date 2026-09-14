@@ -270,7 +270,7 @@ export function ThermalBillReceipt({
             </div>
           </div>
         ) : null}
-        <p className="text-[10px] font-bold text-black leading-tight pt-0.5">
+        <p className="text-[10px] font-bold text-black leading-tight pt-0.5" style={{ whiteSpace: 'break-spaces' }}>
           {settings.receiptFooter || 'Thank you for dining with us! Please visit again.'}
         </p>
         {receiptLegalNote ? <p className="text-[9px] text-black/80">{receiptLegalNote}</p> : null}

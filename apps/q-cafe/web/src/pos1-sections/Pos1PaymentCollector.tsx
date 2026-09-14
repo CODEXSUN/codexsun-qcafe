@@ -52,6 +52,7 @@ export function Pos1PaymentCollector({
   );
   const [selectedMachine, setSelectedMachine] = useState<string>(POS_MACHINES[0]);
   const [referenceNo, setReferenceNo] = useState<string>('-');
+  const [cashError, setCashError] = useState('');
   const amountInputRef = useRef<HTMLInputElement | null>(null);
 
   // Sync customTendered when total changes
@@ -84,6 +85,7 @@ export function Pos1PaymentCollector({
 
   function handleSetExact() {
     setCustomTendered(formatTenderRupees(total));
+    setCashError('');
     requestAnimationFrame(() => {
       amountInputRef.current?.focus();
       amountInputRef.current?.select();
@@ -92,6 +94,7 @@ export function Pos1PaymentCollector({
 
   function handleQuickTender(amountRupees: number) {
     setCustomTendered(amountRupees.toString());
+    setCashError('');
     requestAnimationFrame(() => {
       amountInputRef.current?.focus();
       amountInputRef.current?.select();
@@ -113,6 +116,10 @@ export function Pos1PaymentCollector({
 
     if (selectedMode === 'cash') {
       const effectiveTendered = actualTendered > 0 ? actualTendered : total;
+      if (effectiveTendered < total) {
+        setCashError('Amount received must cover the bill before payment can be completed.');
+        return;
+      }
       const effectiveBalance = Math.max(0, effectiveTendered - total);
       onRecordPayment?.({
         mode: 'cash',
@@ -274,6 +281,7 @@ export function Pos1PaymentCollector({
 
       {/* 4. Cash Mode: Amount Received (with Exact, ₹500, ₹1000, ₹2000 chips) + Change side-by-side */}
       {selectedMode === 'cash' && (
+        <div className="space-y-2">
         <div className="flex gap-3 items-stretch">
           {/* Left: Amount Received + Quick Chips */}
           <div className="flex-1 min-w-0 flex flex-col justify-between">
@@ -290,7 +298,7 @@ export function Pos1PaymentCollector({
                   inputMode="decimal"
                   aria-label="Amount Received"
                   value={customTendered}
-                  onChange={(e) => setCustomTendered(e.target.value)}
+                  onChange={(e) => { setCustomTendered(e.target.value); setCashError(''); }}
                   onFocus={(e) => e.target.select()}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
@@ -351,6 +359,8 @@ export function Pos1PaymentCollector({
               </span>
             )}
           </div>
+        </div>
+        {cashError && <p role="alert" className="text-xs font-medium text-destructive">{cashError}</p>}
         </div>
       )}
 
