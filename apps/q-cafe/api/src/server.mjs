@@ -80,21 +80,31 @@ function saveImage(input) {
   const content = typeof input.content_base64 === 'string' ? input.content_base64 : '';
   const type = typeof input.content_type === 'string' ? input.content_type : '';
   const suppliedName = typeof input.file_name === 'string' ? input.file_name : '';
-  const extension = extname(basename(suppliedName)).toLowerCase();
+  const fileName = basename(suppliedName.replaceAll('\\', '/'));
+  const extension = extname(fileName).toLowerCase();
   if (!['.jpg', '.jpeg', '.png', '.webp'].includes(extension) || !['image/jpeg', 'image/png', 'image/webp'].includes(type)) throw new Error('Choose a JPG, PNG, or WebP image.');
+  if (!isSafeImageName(fileName)) throw new Error('Use an image name with up to 120 safe characters.');
   const bytes = Buffer.from(content, 'base64');
   if (!bytes.length || bytes.length > 5_000_000) throw new Error('Choose an image smaller than 5 MB.');
-  const fileName = `${randomUUID()}${extension}`;
-  writeFileSync(join(imageDirectory, fileName), bytes, { flag: 'wx' });
+  const target = join(imageDirectory, fileName);
+  if (existsSync(target)) {
+    if (readFileSync(target).equals(bytes)) return { file_name: fileName, folder_path: imageDirectory };
+    throw new Error('An image with this file name already exists. Choose a different source file name.');
+  }
+  writeFileSync(target, bytes, { flag: 'wx' });
   return { file_name: fileName, folder_path: imageDirectory };
 }
 
 function image(request, response) {
   const fileName = basename(decodeURIComponent(request.url ?? ''));
   const file = join(imageDirectory, fileName);
-  if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,119}\.(?:jpe?g|png|webp)$/iu.test(fileName) || !existsSync(file)) {
+  if (!isSafeImageName(fileName) || !existsSync(file)) {
     response.writeHead(404, { 'Content-Type': 'application/json' }); response.end(JSON.stringify({ error: 'Image not found.' })); return;
   }
   const contentType = fileName.endsWith('.png') ? 'image/png' : fileName.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
   response.writeHead(200, { 'Content-Type': contentType, 'Cache-Control': 'private, max-age=86400' }); response.end(readFileSync(file));
+}
+
+function isSafeImageName(value) {
+  return /^[^<>:"/\\|?*\x00-\x1f]{1,120}\.(?:jpe?g|png|webp)$/iu.test(value);
 }

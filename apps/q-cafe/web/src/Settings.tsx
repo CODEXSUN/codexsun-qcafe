@@ -131,6 +131,7 @@ export function Settings({ data, mutate, topology }: Props) {
   const [settings, setSettings] = useState<CafeSettings>(() => loadSettings());
   const [savedNotice, setSavedNotice] = useState(false);
   const [verificationResult, setVerificationResult] = useState<StorageVerificationResult | null>(null);
+  const [selectedImageFolderPath, setSelectedImageFolderPath] = useState(data.storage.image_directory);
   const [demoInstallNotice, setDemoInstallNotice] = useState('');
   const [availableUpdate, setAvailableUpdate] = useState<{ version: string; notes: string } | null>(null);
   const [currentVersion, setCurrentVersion] = useState(__QCAFE_VERSION__);
@@ -144,7 +145,7 @@ export function Settings({ data, mutate, topology }: Props) {
   const [printerServiceStatus, setPrinterServiceStatus] = useState<PrinterServiceStatus | null>(null);
   const [specialDraft, setSpecialDraft] = useState({ id: '', prefix: '', name: '' });
   const [editingSpecialId, setEditingSpecialId] = useState<string | null>(null);
-  const imageFolderPath = data.storage.image_directory;
+  const imageFolderPath = selectedImageFolderPath;
   const todaySpecialEnabled = data.master_settings?.find(setting => setting.key === 'today_special_enabled')?.value === 'true';
   const todaySpecials = readTodaySpecialDefinitions(data.master_settings);
   const selectedTodaySpecialPrefix = data.master_settings?.find(
@@ -276,6 +277,22 @@ export function Settings({ data, mutate, topology }: Props) {
     await mutate('open-image-folder', {});
   }
 
+  async function selectImageFolder() {
+    if (!('__TAURI_INTERNALS__' in window)) {
+      setVerificationResult({ ok: false, folderPath: imageFolderPath, isWriteProtected: false, canWrite: false, message: 'Choose an image folder from the Q Cafe Windows application.', timestamp: new Date().toLocaleString() });
+      return;
+    }
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const result = await invoke<StorageVerificationResult>('qcafe_select_image_storage');
+      setSelectedImageFolderPath(result.folderPath);
+      setVerificationResult(result);
+    } catch (error) {
+      setVerificationResult({ ok: false, folderPath: imageFolderPath, isWriteProtected: false, canWrite: false, message: error instanceof Error ? error.message : 'Q Cafe could not change the image folder.', timestamp: new Date().toLocaleString() });
+    }
+  }
+
+  useEffect(() => setSelectedImageFolderPath(data.storage.image_directory), [data.storage.image_directory]);
   useEffect(() => { if (activeTab === 'media' && imageFolderPath) void verifyImageFolder(); }, [activeTab, imageFolderPath]);
 
   async function reconnectLicense() {
@@ -792,10 +809,10 @@ export function Settings({ data, mutate, topology }: Props) {
                     <div className="flex flex-col gap-1">
                       <label className="text-sm font-semibold text-foreground flex items-center justify-between">
                         <span>Image Storage Folder Path</span>
-                        <span className="text-xs font-normal text-muted-foreground">Managed with the Q Cafe data folder</span>
+                        <span className="text-xs font-normal text-muted-foreground">Saved as the Q Cafe default folder</span>
                       </label>
                       <p className="text-xs text-muted-foreground">
-                        Q Cafe creates this folder at startup and stores every item image here.
+                        Select a writable folder with the Windows file browser. Q Cafe uses it after every restart.
                       </p>
                     </div>
 
@@ -810,6 +827,7 @@ export function Settings({ data, mutate, topology }: Props) {
                       </div>
 
                       <Button type="button" variant="outline" size="icon" onClick={() => void verifyImageFolder()} className="cursor-pointer shrink-0" title="Verify Q Cafe image storage" aria-label="Verify Q Cafe image storage"><CheckCircle2 size={16}/></Button>
+                      <Button type="button" variant="outline" onClick={() => void selectImageFolder()} className="cursor-pointer gap-2 shrink-0"><FolderOpen size={16}/><span>Change folder</span></Button>
                       <Button type="button" variant="outline" onClick={() => void openImageFolder()} className="cursor-pointer gap-2 shrink-0"><FolderOpen size={16}/><span>Open folder</span></Button>
                     </div>
 

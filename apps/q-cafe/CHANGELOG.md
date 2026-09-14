@@ -1,5 +1,15 @@
 # Q Cafe changelog
 
+## 1.0.34 - 2026-09-14
+
+### Managed image storage and desktop preview
+
+- Q Cafe now uses apps/q-cafe/version.json as the single source for its API, web, desktop, updater, installer, and changelog version.
+- Allows Q Cafe desktop users to choose the default image storage folder with the Windows folder picker.
+- Verifies that the selected image folder is writable, moves existing supported item images safely, and restarts the local API to use the saved folder.
+- Restores item image previews in Masters and POS by allowing the desktop shell to load images from the local Q Cafe API.
+- Preserves each safe uploaded image file name instead of replacing it with a generated name.
+
 ## 1.0.33 - 2026-09-14
 
 ### POS receipt history and Today Special selection

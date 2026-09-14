@@ -330,10 +330,14 @@ function restaurantTableNumber(value) {
 
 function optionalImageName(value) {
   if (value === undefined || value === null || value === '') return null;
-  if (typeof value !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,119}\.(?:jpe?g|png|webp)$/iu.test(value)) {
+  if (typeof value !== 'string' || !isSafeImageName(value)) {
     throw new Error('Upload an image through Q Cafe. Image paths cannot point outside the Q Cafe image folder.');
   }
   return value;
+}
+
+function isSafeImageName(value) {
+  return /^[^<>:"/\\|?*\x00-\x1f]{1,120}\.(?:jpe?g|png|webp)$/iu.test(value);
 }
 
 function readTodaySpecialDefinitions(value) {

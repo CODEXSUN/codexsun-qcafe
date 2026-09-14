@@ -27,6 +27,7 @@ struct ApiProcess(Mutex<Option<Child>>);
 struct StorageSettings {
     backup_directory: PathBuf,
     data_directory: PathBuf,
+    image_directory: Option<PathBuf>,
     last_backup_date: Option<String>,
     schema_version: u8,
 }
@@ -136,11 +137,17 @@ fn settings_path(settings_dir: &Path) -> PathBuf {
 }
 
 fn image_directory(settings: &StorageSettings) -> PathBuf {
-    settings.data_directory.join("images")
+    settings
+        .image_directory
+        .clone()
+        .unwrap_or_else(|| settings.data_directory.join("images"))
 }
 
 fn verify_image_directory(settings: &StorageSettings) -> Result<ImageStorageVerification, String> {
-    let directory = image_directory(settings);
+    verify_image_directory_path(&image_directory(settings))
+}
+
+fn verify_image_directory_path(directory: &Path) -> Result<ImageStorageVerification, String> {
     fs::create_dir_all(&directory)
         .map_err(|error| format!("Q Cafe image folder is unavailable: {error}"))?;
     let probe = directory.join(".q-cafe-image-storage-probe");
@@ -165,6 +172,66 @@ fn choose_data_directory(settings_dir: &Path) -> Result<PathBuf, String> {
         .set_directory(&default)
         .pick_folder()
         .ok_or_else(|| "Q Cafe needs a data folder before it can start. Choose a folder and start Q Cafe again.".to_string())
+}
+
+fn choose_image_directory(settings: &StorageSettings) -> Result<PathBuf, String> {
+    rfd::FileDialog::new()
+        .set_title("Choose Q Cafe image storage folder")
+        .set_directory(image_directory(settings))
+        .pick_folder()
+        .ok_or_else(|| "Q Cafe image storage folder was not changed.".to_string())
+}
+
+fn is_item_image(path: &Path) -> bool {
+    matches!(
+        path.extension().and_then(|extension| extension.to_str()),
+        Some(extension) if ["jpg", "jpeg", "png", "webp"].contains(&extension.to_ascii_lowercase().as_str())
+    )
+}
+
+fn move_item_images(source: &Path, destination: &Path) -> Result<(), String> {
+    if source == destination || !source.is_dir() {
+        return Ok(());
+    }
+    fs::create_dir_all(destination).map_err(|error| error.to_string())?;
+    let files = fs::read_dir(source)
+        .map_err(|error| format!("Q Cafe could not read the current image folder: {error}"))?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| path.is_file() && is_item_image(path))
+        .collect::<Vec<_>>();
+
+    for source_file in &files {
+        let destination_file = destination.join(
+            source_file
+                .file_name()
+                .ok_or_else(|| "Q Cafe image file name is invalid.".to_string())?,
+        );
+        if destination_file.exists()
+            && fs::read(source_file).map_err(|error| error.to_string())?
+                != fs::read(&destination_file).map_err(|error| error.to_string())?
+        {
+            return Err(format!(
+                "The selected image folder already contains a different file named {}. Rename that file or choose another folder.",
+                destination_file.file_name().unwrap_or_default().to_string_lossy()
+            ));
+        }
+    }
+
+    for source_file in files {
+        let destination_file = destination.join(
+            source_file
+                .file_name()
+                .ok_or_else(|| "Q Cafe image file name is invalid.".to_string())?,
+        );
+        if !destination_file.exists() {
+            fs::copy(&source_file, &destination_file)
+                .map_err(|error| format!("Q Cafe could not move an item image: {error}"))?;
+        }
+        fs::remove_file(&source_file)
+            .map_err(|error| format!("Q Cafe could not finish moving an item image: {error}"))?;
+    }
+    Ok(())
 }
 
 fn validate_data_directory(path: &Path) -> Result<(), String> {
@@ -198,6 +265,7 @@ fn load_or_configure_storage(settings_dir: &Path) -> Result<StorageSettings, Str
         StorageSettings {
             backup_directory: data_directory.join("backups"),
             data_directory,
+            image_directory: None,
             last_backup_date: None,
             schema_version: 1,
         }
@@ -582,6 +650,7 @@ fn qcafe_select_data_directory(
     let settings = StorageSettings {
         backup_directory: data_directory.join("backups"),
         data_directory: data_directory.clone(),
+        image_directory: None,
         last_backup_date: None,
         schema_version: 1,
     };
@@ -632,6 +701,24 @@ fn qcafe_skip_activation(
 fn qcafe_verify_image_storage(app: AppHandle) -> Result<ImageStorageVerification, String> {
     let settings = load_or_configure_storage(&application_settings_dir(&app))?;
     verify_image_directory(&settings)
+}
+
+#[tauri::command]
+fn qcafe_select_image_storage(
+    app: AppHandle,
+    process: tauri::State<'_, ApiProcess>,
+) -> Result<ImageStorageVerification, String> {
+    let settings_dir = application_settings_dir(&app);
+    let mut settings = load_or_configure_storage(&settings_dir)?;
+    let selected_directory = choose_image_directory(&settings)?;
+    verify_image_directory_path(&selected_directory)?;
+    let current_directory = image_directory(&settings);
+    move_item_images(&current_directory, &selected_directory)?;
+    settings.image_directory = Some(selected_directory);
+    let verification = verify_image_directory(&settings)?;
+    save_storage_settings(&settings_dir, &settings)?;
+    replace_api(&app, &process)?;
+    Ok(verification)
 }
 
 #[tauri::command]
@@ -691,6 +778,7 @@ fn main() {
             qcafe_select_data_directory,
             qcafe_clear_first_time_data,
             qcafe_verify_image_storage,
+            qcafe_select_image_storage,
             qcafe_open_image_storage,
             qcafe_printer_service_status,
             qcafe_license_status,
