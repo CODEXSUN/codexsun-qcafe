@@ -1,5 +1,16 @@
 # Q Cafe changelog
 
+## 1.0.32 - 2026-09-14
+
+### POS receipt flow and Program Files installation
+
+- Uses version 1.0.32 for the API, web app, desktop app, updater, installer, and changelog.
+- F8 opens the receipt drawer. The cashier selects Collect payment or Skip payment. Enter then saves the bill and opens the next bill.
+- Removes prior-bill details and shift totals from the current receipt drawer.
+- Allows any writable selected data folder. The desktop app no longer requires a D: drive.
+- Installs the NSIS desktop app for all users in Program Files.
+- Adds an uninstall choice to keep SQLite only or remove all selected Q Cafe data. The uninstaller clears local settings and the Windows Credential Manager token.
+
 ## 1.0.31 - 2026-09-14
 
 ### Local master data, printing, and licensing

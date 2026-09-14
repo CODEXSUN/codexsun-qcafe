@@ -127,8 +127,8 @@ fn node_binary(application_directory: &PathBuf) -> PathBuf {
     application_directory.join("node.exe")
 }
 
-fn default_data_directory() -> PathBuf {
-    PathBuf::from(r"D:\Q Cafe Data")
+fn default_data_directory(settings_dir: &Path) -> PathBuf {
+    settings_dir.join("data")
 }
 
 fn settings_path(settings_dir: &Path) -> PathBuf {
@@ -158,8 +158,8 @@ fn verify_image_directory(settings: &StorageSettings) -> Result<ImageStorageVeri
     })
 }
 
-fn choose_data_directory() -> Result<PathBuf, String> {
-    let default = default_data_directory();
+fn choose_data_directory(settings_dir: &Path) -> Result<PathBuf, String> {
+    let default = default_data_directory(settings_dir);
     rfd::FileDialog::new()
         .set_title("Choose Q Cafe data folder")
         .set_directory(&default)
@@ -170,13 +170,6 @@ fn choose_data_directory() -> Result<PathBuf, String> {
 fn validate_data_directory(path: &Path) -> Result<(), String> {
     if path.as_os_str().is_empty() || path.parent().is_none() {
         return Err("Choose a folder for Q Cafe data, not a drive root.".to_string());
-    }
-    if !path
-        .to_string_lossy()
-        .to_ascii_lowercase()
-        .starts_with("d:\\")
-    {
-        return Err("Choose a Q Cafe data folder on the mapped D: drive.".to_string());
     }
     fs::create_dir_all(path)
         .map_err(|error| format!("Q Cafe data folder is unavailable: {error}"))?;
@@ -201,7 +194,7 @@ fn load_or_configure_storage(settings_dir: &Path) -> Result<StorageSettings, Str
         )
         .map_err(|error| format!("Q Cafe storage settings are invalid: {error}"))?
     } else {
-        let data_directory = choose_data_directory()?;
+        let data_directory = choose_data_directory(settings_dir)?;
         StorageSettings {
             backup_directory: data_directory.join("backups"),
             data_directory,
@@ -584,7 +577,7 @@ fn qcafe_select_data_directory(
     process: tauri::State<'_, ApiProcess>,
 ) -> Result<String, String> {
     let settings_dir = application_settings_dir(&app);
-    let data_directory = choose_data_directory()?;
+    let data_directory = choose_data_directory(&settings_dir)?;
     validate_data_directory(&data_directory)?;
     let settings = StorageSettings {
         backup_directory: data_directory.join("backups"),

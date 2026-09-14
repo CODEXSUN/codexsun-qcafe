@@ -2824,7 +2824,7 @@ dependencies = [
 
 [[package]]
 name = "q-cafe-desktop"
-version = "1.0.31"
+version = "1.0.32"
 dependencies = [
  "chrono",
  "keyring",

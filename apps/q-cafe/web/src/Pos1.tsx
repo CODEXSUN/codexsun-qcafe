@@ -14,7 +14,6 @@ import {
   type OrderTab,
   type OrderMode,
   type PaymentRecord,
-  type PreviousBill,
 } from './pos1-sections';
 
 type Props = {
@@ -109,6 +108,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [showPaymentCollector, setShowPaymentCollector] = useState(false);
   const [showBillsDrawer, setShowBillsDrawer] = useState(false);
+  const [readyToSave, setReadyToSave] = useState(false);
 
   // Section 4: Manual entry state (synchronized with selected product card)
   const [selectedItem, setSelectedItem] = useState<CustomMenuItem | null>(null);
@@ -348,26 +348,6 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     });
   }, [menuItems, searchQuery, selectedCategory]);
 
-  const previousBills = useMemo<PreviousBill[]>(() => {
-    const receiptPosIds = new Map(data.receipts.map((receipt) => [receipt.id, receipt.pos_id]));
-    const cashPaidPosIds = new Set(
-      data.receipt_transactions
-        .filter((transaction) => transaction.transaction_mode === 'cash')
-        .map((transaction) => receiptPosIds.get(transaction.receipt_id))
-        .filter((posId): posId is number => typeof posId === 'number')
-    );
-
-    return data.pos
-      .filter((bill) => bill.status === 'paid')
-      .sort((left, right) => right.created_at.localeCompare(left.created_at))
-      .map((bill) => ({
-        billNo: bill.bill_no,
-        tableNo: bill.table_no,
-        total: bill.grand_total,
-        collectedAt: new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(`${bill.created_at}Z`)),
-        paidWithCash: cashPaidPosIds.has(bill.id),
-      }));
-  }, [data.pos, data.receipt_transactions, data.receipts]);
   // Cart financial calculations
   const subtotal = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
   const totalQuantity = lines.reduce((sum, line) => sum + line.quantity, 0);
@@ -406,6 +386,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     setBottomQuantity('1');
     setBottomRate('');
     setShowPaymentCollector(false);
+    setReadyToSave(false);
     setPrintBillNumber('');
     requestAnimationFrame(() => {
       searchInputRef.current?.focus();
@@ -594,15 +575,27 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
   function handleRecordPayment(pay: PaymentRecord) {
     updateActiveTab({ payment: pay });
     setShowPaymentCollector(false);
+    setShowBillsDrawer(false);
+    setReadyToSave(true);
   }
 
   function handleClearPayment() {
     updateActiveTab({ payment: null });
     setShowPaymentCollector(true);
+    setReadyToSave(false);
+  }
+
+  function handleSkipPayment() {
+    updateActiveTab({ payment: null });
+    setShowPaymentCollector(false);
+    setShowBillsDrawer(false);
+    setReadyToSave(true);
+    requestAnimationFrame(() => nextButtonRef.current?.focus());
   }
 
   function handleClosePaymentCollector() {
     setShowPaymentCollector(false);
+    setReadyToSave(false);
   }
 
   function handleFocusPayment() {
@@ -731,26 +724,27 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
       });
     }
     setShowPaymentCollector(false);
+    setReadyToSave(false);
     requestAnimationFrame(() => {
       codeInputRef.current?.focus();
       codeInputRef.current?.select();
     });
   }
 
-  // Auto-focus floating next order button when order is paid
+  // Collect or Skip leaves the bill ready for one explicit Enter confirmation.
   useEffect(() => {
-    if (activeTab.payment && !showPaymentCollector) {
+    if (readyToSave && !showPaymentCollector) {
       requestAnimationFrame(() => {
         nextButtonRef.current?.focus();
       });
     }
-  }, [activeTab.payment, showPaymentCollector]);
+  }, [readyToSave, showPaymentCollector]);
 
   // Global Keyboard Shortcuts (F1: order mode, F2: search, F3: item code, F4: kitchen, F6: cash drawer, F7: bills, F8: save, F9: new order)
   useEffect(() => {
     const handleKeyDown = (e: globalThis.KeyboardEvent) => {
-      // Enter on paid order -> Next Order / Confirm
-      if (e.key === 'Enter' && activeTab.payment && !showPaymentCollector) {
+      // Enter confirms a collected or skipped bill and advances to a fresh order.
+      if (e.key === 'Enter' && readyToSave && !showPaymentCollector) {
         const activeEl = document.activeElement;
         const isEditingOtherInput =
           activeEl === searchInputRef.current ||
@@ -811,11 +805,11 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
           void handleSendToKitchen();
         }
       }
-      // F8: save as paid only when settlement is recorded; otherwise save as unpaid.
+      // F8 always opens settlement. It never posts the bill before Collect or Skip.
       if (e.key === 'F8') {
         e.preventDefault();
         if (lines.length > 0 && !busy) {
-          void handleConfirmOrder();
+          handleFocusPayment();
         }
       }
       // F9 or Alt+N: new order tab
@@ -834,7 +828,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [lines.length, busy, activeTabId, tabs, tableName, cafeSettings, showPaymentCollector, activeTab.payment, gstApplied, activeTab.chair, orderMode, data.restaurant_tables]);
+  }, [lines.length, busy, activeTabId, tabs, tableName, cafeSettings, showPaymentCollector, readyToSave, gstApplied, activeTab.chair, orderMode, data.restaurant_tables]);
 
   return (
     <div
@@ -868,7 +862,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         onCloseTab={closeTab}
         linesCount={lines.length}
         busy={busy}
-        onSaveBill={handleConfirmOrder}
+        onSaveBill={handleFocusPayment}
         onSendToKitchen={handleSendToKitchen}
         showOrderTabs={Boolean(cafeSettings.showOrderTabs)}
         showKitchenButton={Boolean(cafeSettings.showKitchenButton)}
@@ -903,6 +897,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
           onDecrementLine={handleDecrementLine}
           onRemoveLine={handleRemoveLine}
           formatChair={formatChair}
+          readyToSave={readyToSave}
           onNextOrder={handleNextOrder}
           nextButtonRef={nextButtonRef}
         />
@@ -911,7 +906,6 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
       <Pos1BillsDrawer
         open={showBillsDrawer}
         onOpenChange={setShowBillsDrawer}
-        previousBills={previousBills}
         linesCount={lines.length}
         total={total}
         payment={activeTab.payment}
@@ -920,6 +914,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         onClosePaymentCollector={handleClosePaymentCollector}
         onRecordPayment={handleRecordPayment}
         onClearPayment={handleClearPayment}
+        onSkipPayment={handleSkipPayment}
       />
 
       {/* Section 4: Manual Entry Area (Bottom Fast Strip) */}

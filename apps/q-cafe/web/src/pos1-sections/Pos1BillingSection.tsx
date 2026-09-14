@@ -18,6 +18,7 @@ export function Pos1BillingSection({
   onDecrementLine,
   onRemoveLine,
   formatChair,
+  readyToSave,
   onNextOrder,
   nextButtonRef,
 }: Pos1BillingSectionProps) {
@@ -114,8 +115,8 @@ export function Pos1BillingSection({
         ) : <div className="min-h-40 flex-1" aria-label="Empty order" />}
       </div>
 
-      {/* Floating Next Order Action when Paid */}
-      {activeTab.payment && (
+      {/* Collect or Skip enables explicit keyboard confirmation for the next bill. */}
+      {readyToSave && (
         <div className="absolute inset-x-0 bottom-[68px] z-30 flex justify-center px-4 pointer-events-none animate-in fade-in slide-in-from-bottom-3 duration-200">
           <button
             ref={nextButtonRef}
@@ -123,7 +124,7 @@ export function Pos1BillingSection({
             onClick={onNextOrder}
             className="pointer-events-auto flex items-center gap-2.5 px-6 py-2.5 rounded-full bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs shadow-xl shadow-emerald-600/35 border border-emerald-400/50 cursor-pointer transition-all ring-4 ring-emerald-500/20 hover:ring-emerald-500/30"
           >
-            <span>Next Order</span>
+            <span>Save & next bill</span>
             <kbd className="font-mono text-[10px] font-bold bg-white/20 text-white px-1.5 py-0.5 rounded-md border border-white/30 select-none">
               Enter ↵
             </kbd>

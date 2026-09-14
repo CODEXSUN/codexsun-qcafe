@@ -90,6 +90,7 @@ export interface Pos1BillingSectionProps {
   onDecrementLine: (lineKey: string) => void;
   onRemoveLine: (lineKey: string) => void;
   formatChair: (table: string, chair: number | string) => string;
+  readyToSave?: boolean;
   onNextOrder?: () => void;
   nextButtonRef?: RefObject<HTMLButtonElement | null>;
 }
