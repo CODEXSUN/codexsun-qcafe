@@ -40,3 +40,24 @@ test('built-in PIN roles, master data, special pricing, parcel billing, and audi
   assert.equal(snapshot.staff_auth_events.filter(event => event.event_type === 'login').length, 4);
   store.db.close();
 });
+
+test('managers can prepare a disabled item special before it becomes the active POS special', () => {
+  const store = new CafeStore(':memory:');
+  const category = store.saveCategory({ code: 'BF', name: 'Breakfast' });
+  store.saveMasterSetting({
+    key: 'today_special_definitions',
+    value: JSON.stringify([{ id: 'pooja-special', prefix: 'PS', name: 'Pooja Special', isEnabled: false }]),
+  });
+
+  store.saveItem({
+    category_id: category.id,
+    code: 'IDLI',
+    name: 'Idli',
+    normal_price: 15000,
+    specials: [{ prefix: 'PS', price: 8000, is_enabled: false }],
+  });
+
+  assert.match(store.snapshot().menu[0].specials, /Pooja Special/);
+  assert.match(store.snapshot().menu[0].specials, /"is_enabled":0/);
+  store.db.close();
+});

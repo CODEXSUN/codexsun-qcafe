@@ -12,6 +12,7 @@ export function Pos1ProductSection({
   selectedCategory,
   onSelectCategory,
   categories,
+  searchQuery,
 }: Pos1ProductSectionProps) {
   const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
 
@@ -48,6 +49,14 @@ export function Pos1ProductSection({
           {items.map((item) => {
             const isSelected = selectedItem?.code === item.code;
             const imageFailed = failedImages[item.code] || !item.image;
+            const activeSpecials = item.activeSpecial ? [item.activeSpecial] : [];
+            const normalizedQuery = searchQuery.trim().toLowerCase();
+            const matchingSpecials = normalizedQuery
+              ? activeSpecials.filter((special) =>
+                special.prefix.toLowerCase().includes(normalizedQuery) ||
+                special.name.toLowerCase().includes(normalizedQuery)
+              )
+              : [];
 
             return (
               <div
@@ -80,6 +89,15 @@ export function Pos1ProductSection({
                   <span className="pointer-events-none absolute bottom-1.5 right-1.5 rounded-md bg-background/90 px-1.5 py-0.5 text-sm font-bold leading-none text-blue-600 shadow-xs dark:text-blue-400">
                     {item.code}
                   </span>
+                  {activeSpecials.length > 0 && (
+                    <span className="pointer-events-none absolute left-1.5 top-1.5 flex flex-wrap gap-1">
+                      {activeSpecials.map((special) => (
+                        <span key={special.prefix} className="rounded-md bg-primary px-1.5 py-0.5 text-[10px] font-black tracking-wide text-primary-foreground shadow-xs">
+                          {special.prefix}
+                        </span>
+                      ))}
+                    </span>
+                  )}
                 </div>
 
                 {/* Item Information */}
@@ -93,6 +111,11 @@ export function Pos1ProductSection({
                   <span className="text-xs font-bold text-foreground/90 mt-0.5">
                     {money(item.price)}
                   </span>
+                  {activeSpecials.length > 0 && (
+                    <span className={`mt-1.5 line-clamp-1 text-[11px] text-muted-foreground ${matchingSpecials.length > 0 ? 'rounded bg-primary/10 px-1 py-0.5 font-semibold text-primary animate-pulse' : ''}`}>
+                      {activeSpecials.map((special) => `${special.prefix} · ${special.name} ${money(special.price)}`).join('  ·  ')}
+                    </span>
+                  )}
                 </div>
               </div>
             );

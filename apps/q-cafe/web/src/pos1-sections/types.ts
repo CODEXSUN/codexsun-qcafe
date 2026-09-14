@@ -73,6 +73,7 @@ export interface Pos1ProductSectionProps {
   selectedCategory: string;
   onSelectCategory: (category: string) => void;
   categories: string[];
+  searchQuery: string;
 }
 
 export interface Pos1BillingSectionProps {

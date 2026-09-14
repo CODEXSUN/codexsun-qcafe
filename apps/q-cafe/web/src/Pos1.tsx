@@ -9,6 +9,7 @@ import {
   Pos1ProductSection,
   Pos1BillingSection,
   Pos1BillsDrawer,
+  Pos1PreviousBillsDrawer,
   Pos1ManualEntrySection,
   type EntryLine,
   type OrderTab,
@@ -96,9 +97,16 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
   const nextBillNumber = String(data.pos.reduce((highestId, bill) => Math.max(highestId, bill.id), 0) + 1);
   const displayedBillNumber = printBillNumber || nextBillNumber;
   const lastBill = data.pos.slice().sort((a, b) => b.id - a.id)[0];
+  const todaySpecialEnabled = data.master_settings.some(
+    (setting) => setting.key === 'today_special_enabled' && setting.value === 'true'
+  );
+  const selectedTodaySpecialPrefix = data.master_settings.find(
+    (setting) => setting.key === 'today_special_selected_prefix'
+  )?.value.trim().toUpperCase();
+  const activeSpecialPrefix = todaySpecialEnabled ? selectedTodaySpecialPrefix : undefined;
 
   // Catalog and master data
-  const [menuItems, setMenuItems] = useState<CustomMenuItem[]>(() => getMergedMenu(data.menu));
+  const [menuItems, setMenuItems] = useState<CustomMenuItem[]>(() => getMergedMenu(data.menu, activeSpecialPrefix));
   const [tableConfigs, setTableConfigs] = useState<TableMasterConfig[]>(() =>
     getMergedTables(data.restaurant_tables)
   );
@@ -107,7 +115,9 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [showPaymentCollector, setShowPaymentCollector] = useState(false);
-  const [showBillsDrawer, setShowBillsDrawer] = useState(false);
+  const [showReceiptDrawer, setShowReceiptDrawer] = useState(false);
+  const [showPreviousBillsDrawer, setShowPreviousBillsDrawer] = useState(false);
+  const [selectedPreviousBillId, setSelectedPreviousBillId] = useState<number | null>(null);
   const [readyToSave, setReadyToSave] = useState(false);
 
   // Section 4: Manual entry state (synchronized with selected product card)
@@ -119,7 +129,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
 
   // Listeners for updates from Settings and Masters
   useEffect(() => {
-    const handleMenuUpdate = () => setMenuItems(getMergedMenu(data.menu));
+    const handleMenuUpdate = () => setMenuItems(getMergedMenu(data.menu, activeSpecialPrefix));
     const handleTablesUpdate = () => setTableConfigs(getMergedTables(data.restaurant_tables));
     const handleSettingsUpdate = (event: Event) => {
       const customEvent = event as CustomEvent<CafeSettings>;
@@ -135,7 +145,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
       window.removeEventListener('q-cafe-tables-updated', handleTablesUpdate);
       window.removeEventListener('q-cafe-settings-updated', handleSettingsUpdate);
     };
-  }, [data.menu, data.restaurant_tables]);
+  }, [activeSpecialPrefix, data.menu, data.restaurant_tables]);
 
   useEffect(() => {
     if (data.restaurant_tables.length > 0) return;
@@ -337,7 +347,10 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
           ? item.code.toLowerCase().startsWith(q)
           : item.name.toLowerCase().includes(q) ||
             item.category.toLowerCase().includes(q) ||
-            item.code.toLowerCase().startsWith(q)
+            item.code.toLowerCase().startsWith(q) ||
+            Boolean(item.activeSpecial && (
+              item.activeSpecial.prefix.toLowerCase().includes(q) || item.activeSpecial.name.toLowerCase().includes(q)
+            ))
       );
 
       const matchesCategory =
@@ -575,7 +588,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
   function handleRecordPayment(pay: PaymentRecord) {
     updateActiveTab({ payment: pay });
     setShowPaymentCollector(false);
-    setShowBillsDrawer(false);
+    setShowReceiptDrawer(false);
     setReadyToSave(true);
   }
 
@@ -588,7 +601,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
   function handleSkipPayment() {
     updateActiveTab({ payment: null });
     setShowPaymentCollector(false);
-    setShowBillsDrawer(false);
+    setShowReceiptDrawer(false);
     setReadyToSave(true);
     requestAnimationFrame(() => nextButtonRef.current?.focus());
   }
@@ -599,9 +612,27 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
   }
 
   function handleFocusPayment() {
-    if (!lines.length) return;
-    setShowBillsDrawer(true);
-    setShowPaymentCollector(true);
+    setShowPreviousBillsDrawer(false);
+    setShowReceiptDrawer(true);
+    setShowPaymentCollector(lines.length > 0);
+  }
+
+  function handleOpenPreviousBills() {
+    const latestBill = data.pos.slice().sort((left, right) => right.id - left.id)[0];
+    setShowReceiptDrawer(false);
+    setShowPaymentCollector(false);
+    setSelectedPreviousBillId((current) => current ?? latestBill?.id ?? null);
+    setShowPreviousBillsDrawer(true);
+  }
+
+  function movePreviousBill(direction: 1 | -1) {
+    const previousBills = data.pos.slice().sort((left, right) => right.id - left.id);
+    if (previousBills.length === 0) return;
+    const currentIndex = previousBills.findIndex((bill) => bill.id === selectedPreviousBillId);
+    const nextIndex = currentIndex < 0
+      ? 0
+      : Math.min(Math.max(currentIndex + direction, 0), previousBills.length - 1);
+    setSelectedPreviousBillId(previousBills[nextIndex]!.id);
   }
 
   // Section 6: Save the POS bill. A receipt and print happen only after settlement.
@@ -740,7 +771,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     }
   }, [readyToSave, showPaymentCollector]);
 
-  // Global Keyboard Shortcuts (F1: order mode, F2: search, F3: item code, F4: kitchen, F6: cash drawer, F7: bills, F8: save, F9: new order)
+  // Global keyboard shortcuts keep receipt settlement and passed-bill review separate.
   useEffect(() => {
     const handleKeyDown = (e: globalThis.KeyboardEvent) => {
       // Enter confirms a collected or skipped bill and advances to a fresh order.
@@ -776,10 +807,16 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         searchInputRef.current?.focus();
         searchInputRef.current?.select();
       }
-      // F7: open passed bills and settlement drawer.
+      // F7: open the passed-bills drawer. Page Up and Page Down move through bills.
       if (e.key === 'F7') {
         e.preventDefault();
-        setShowBillsDrawer(true);
+        handleOpenPreviousBills();
+        return;
+      }
+      if (showPreviousBillsDrawer && (e.key === 'PageUp' || e.key === 'PageDown')) {
+        e.preventDefault();
+        movePreviousBill(e.key === 'PageUp' ? -1 : 1);
+        return;
       }
       // F3 or Alt+I: focus Item Code.
       if (e.key === 'F3' || (e.altKey && e.key.toLowerCase() === 'i')) {
@@ -787,7 +824,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         codeInputRef.current?.focus();
         codeInputRef.current?.select();
       }
-      // F6: open the settlement drawer for the current order.
+      // F6: open the current-order receipt drawer.
       if (e.key === 'F6') {
         e.preventDefault();
         handleFocusPayment();
@@ -828,7 +865,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [lines.length, busy, activeTabId, tabs, tableName, cafeSettings, showPaymentCollector, readyToSave, gstApplied, activeTab.chair, orderMode, data.restaurant_tables]);
+  }, [lines.length, busy, activeTabId, tabs, tableName, cafeSettings, showPaymentCollector, showPreviousBillsDrawer, selectedPreviousBillId, readyToSave, gstApplied, activeTab.chair, orderMode, data.pos, data.restaurant_tables]);
 
   return (
     <div
@@ -879,6 +916,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
           selectedCategory={selectedCategory}
           onSelectCategory={setSelectedCategory}
           categories={catalogCategories}
+          searchQuery={searchQuery}
         />
 
         {/* Right Column: Billing Cart Panel (below header) */}
@@ -904,8 +942,8 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
       </div>
 
       <Pos1BillsDrawer
-        open={showBillsDrawer}
-        onOpenChange={setShowBillsDrawer}
+        open={showReceiptDrawer}
+        onOpenChange={setShowReceiptDrawer}
         linesCount={lines.length}
         total={total}
         payment={activeTab.payment}
@@ -915,6 +953,16 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         onRecordPayment={handleRecordPayment}
         onClearPayment={handleClearPayment}
         onSkipPayment={handleSkipPayment}
+      />
+
+      <Pos1PreviousBillsDrawer
+        open={showPreviousBillsDrawer}
+        onOpenChange={setShowPreviousBillsDrawer}
+        bills={data.pos}
+        items={data.pos_items}
+        selectedBillId={selectedPreviousBillId}
+        onSelectBill={setSelectedPreviousBillId}
+        onMoveBill={movePreviousBill}
       />
 
       {/* Section 4: Manual Entry Area (Bottom Fast Strip) */}

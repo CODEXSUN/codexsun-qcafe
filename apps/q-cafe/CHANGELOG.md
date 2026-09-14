@@ -1,5 +1,17 @@
 # Q Cafe changelog
 
+## 1.0.33 - 2026-09-14
+
+### POS receipt history and Today Special selection
+
+- Uses version 1.0.33 for the API, web app, desktop app, updater, installer, and changelog.
+- Separates the F6 current-order receipt drawer from the F7 previous-bills drawer.
+- Shows complete previous-bill line items, rates, amounts, status, and Page Up or Page Down navigation.
+- Adds a 50 px visual gap before the previous-bills list.
+- Adds one active Today Special prefix in Settings. POS uses only that prefix and each item’s enabled special price.
+- Shows the active special prefix as a POS item badge. Searching the prefix or special name highlights the matching description.
+- Allows managers to prepare disabled item-special prices before they are used in POS.
+
 ## 1.0.32 - 2026-09-14
 
 ### POS receipt flow and Program Files installation

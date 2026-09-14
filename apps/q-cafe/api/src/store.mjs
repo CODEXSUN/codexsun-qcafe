@@ -51,8 +51,7 @@ export class CafeStore {
     const name = label(input.name);
     const price = wholeNumber(input.normal_price, 1, 100_000_000, 'Normal price');
     const specials = Array.isArray(input.specials) ? input.specials : [];
-    const enabledSpecials = this.enabledTodaySpecials();
-    if (specials.length && !enabledSpecials.size) throw new Error('Enable and configure a Today Special before adding special prices.');
+    const configuredSpecials = this.configuredTodaySpecials();
     return this.transaction(() => {
       const itemId = input.id
         ? (this.db.prepare("UPDATE items SET category_id=?,code=?,name=?,normal_price=?,image_path=?,updated_at=datetime('now') WHERE id=?").run(categoryId, code, name, price, optionalImageName(input.image_path), wholeNumber(input.id, 1, Number.MAX_SAFE_INTEGER, 'Item id')), Number(input.id))
@@ -60,8 +59,8 @@ export class CafeStore {
       this.db.prepare('DELETE FROM item_special WHERE item_id=?').run(itemId);
       for (const special of specials) {
         const prefix = shortLabel(special.prefix, 20).toUpperCase();
-        const specialName = enabledSpecials.get(prefix);
-        if (!specialName) throw new Error(`Today Special ${prefix} is not enabled.`);
+        const specialName = configuredSpecials.get(prefix);
+        if (!specialName) throw new Error(`Configure Today Special ${prefix} before adding its price.`);
         const specialPrice = wholeNumber(special.price, 1, 100_000_000, 'Special price');
         const result = this.db.prepare('INSERT INTO item_special(item_id,code,prefix,name,is_enabled,starts_on,ends_on) VALUES (?,?,?,?,?,?,?)').run(itemId, prefix, prefix, specialName, special.is_enabled === false ? 0 : 1, optionalLabel(special.starts_on, 32), optionalLabel(special.ends_on, 32));
         this.db.prepare('INSERT INTO item_special_price(item_special_id,price) VALUES (?,?)').run(result.lastInsertRowid, specialPrice);
@@ -98,6 +97,10 @@ export class CafeStore {
     if (!enabled) return new Map();
     const value = this.db.prepare("SELECT value FROM master_settings WHERE key='today_special_definitions'").get()?.value;
     return new Map(readTodaySpecialDefinitions(value).filter((special) => special.isEnabled).map((special) => [special.prefix, special.name]));
+  }
+  configuredTodaySpecials() {
+    const value = this.db.prepare("SELECT value FROM master_settings WHERE key='today_special_definitions'").get()?.value;
+    return new Map(readTodaySpecialDefinitions(value).map((special) => [special.prefix, special.name]));
   }
   hasStaffUsers() { return Boolean(this.db.prepare('SELECT id FROM staff_users LIMIT 1').get()); }
   ensureBuiltInStaff() {

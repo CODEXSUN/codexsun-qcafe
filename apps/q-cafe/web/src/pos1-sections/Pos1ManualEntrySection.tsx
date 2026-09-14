@@ -90,7 +90,7 @@ export function Pos1ManualEntrySection({
                 }}
                 onEnter={handleCodeEnter}
                 minWidth="w-72"
-                shortcut="F6"
+                shortcut="F3"
                 icon={<Barcode className="size-4 shrink-0 text-muted-foreground" />}
               />
             </div>
