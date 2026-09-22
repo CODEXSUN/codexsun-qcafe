@@ -5,7 +5,7 @@ export function isDesktopZetro(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
-export async function desktopZetroStatus(): Promise<{ status: "ok" | "degraded"; agent: "ready" | "offline" }> {
+export async function desktopZetroStatus(): Promise<{ status: "ok" | "degraded"; agent: "ready" | "offline"; detail?: string }> {
   return invoke("zetro_desk_status");
 }
 
