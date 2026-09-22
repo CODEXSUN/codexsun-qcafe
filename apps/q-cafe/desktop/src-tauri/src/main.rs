@@ -8,10 +8,13 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 #[cfg(target_os = "windows")]
+use std::os::windows::ffi::OsStrExt;
+#[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 use std::{
     env, fs,
-    io::Read,
+    io::{Read, Write},
+    net::TcpStream,
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::Mutex,
@@ -19,6 +22,7 @@ use std::{
     time::Duration,
 };
 use tauri::{AppHandle, Manager};
+use uuid::Uuid;
 
 struct ApiProcess(Mutex<Option<Child>>);
 
@@ -43,12 +47,60 @@ struct ImageStorageVerification {
     timestamp: String,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PrinterInfo {
+    name: String,
+    port_name: Option<String>,
+    is_default: bool,
+    is_interactive: bool,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct PrinterServiceStatus {
     connected: bool,
     spooler_running: bool,
+    service_installed: bool,
+    service_running: bool,
     default_printer: Option<String>,
+    default_printer_port: Option<String>,
+    printers: Vec<PrinterInfo>,
+    message: String,
+}
+
+const PRINT_SERVICE_NAME: &str = "CODEXSUNQCafePrint";
+const PRINT_SERVICE_ADDRESS: &str = "127.0.0.1:4181";
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawReceiptRequest {
+    printer_name: Option<String>,
+    document_name: String,
+    receipt: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RawPrintServiceRequest {
+    printer_name: String,
+    document_name: String,
+    receipt: String,
+}
+
+#[derive(Deserialize)]
+struct RawPrintServiceResponse {
+    ok: bool,
+    job_id: Option<u32>,
+    message: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DirectPrintResult {
+    queued: bool,
+    job_id: Option<u32>,
+    printer: String,
     message: String,
 }
 
@@ -56,14 +108,49 @@ struct PrinterServiceStatus {
 fn printer_service_status() -> PrinterServiceStatus {
     #[derive(Deserialize)]
     #[serde(rename_all = "camelCase")]
-    struct WindowsPrinterStatus {
-        spooler_running: bool,
-        default_printer: Option<String>,
+    struct WindowsPrinterRaw {
+        name: String,
+        port_name: Option<String>,
+        is_default: bool,
+        is_interactive: bool,
     }
 
-    let script = "& { $spooler = Get-Service -Name Spooler -ErrorAction SilentlyContinue; $printer = Get-CimInstance -ClassName Win32_Printer -ErrorAction SilentlyContinue | Where-Object { $_.Default } | Select-Object -First 1; [PSCustomObject]@{ spoolerRunning = [bool]($spooler -and $spooler.Status -eq 'Running'); defaultPrinter = if ($printer) { [string]$printer.Name } else { $null } } | ConvertTo-Json -Compress }";
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct WindowsPrinterStatus {
+        spooler_running: bool,
+        service_installed: bool,
+        service_running: bool,
+        default_printer: Option<String>,
+        default_printer_port: Option<String>,
+        printers: Option<Vec<WindowsPrinterRaw>>,
+    }
+
+    let script = format!(
+        "& {{ \
+             $spooler = Get-Service -Name Spooler -ErrorAction SilentlyContinue; \
+             $service = Get-Service -Name {PRINT_SERVICE_NAME} -ErrorAction SilentlyContinue; \
+             $printers = @(Get-CimInstance -ClassName Win32_Printer -ErrorAction SilentlyContinue | ForEach-Object {{ \
+                 [PSCustomObject]@{{ \
+                     name = [string]$_.Name; \
+                     portName = if ($_.PortName) {{ [string]$_.PortName }} else {{ $null }}; \
+                     isDefault = [bool]$_.Default; \
+                     isInteractive = [bool]($_.PortName -like '*PORTPROMPT*') \
+                 }} \
+             }}); \
+             $def = $printers | Where-Object {{ $_.isDefault }} | Select-Object -First 1; \
+             [PSCustomObject]@{{ \
+                 spoolerRunning = [bool]($spooler -and $spooler.Status -eq 'Running'); \
+                 serviceInstalled = [bool]$service; \
+                 serviceRunning = [bool]($service -and $service.Status -eq 'Running'); \
+                 defaultPrinter = if ($def) {{ [string]$def.name }} else {{ $null }}; \
+                 defaultPrinterPort = if ($def) {{ [string]$def.portName }} else {{ $null }}; \
+                 printers = $printers \
+             }} | ConvertTo-Json -Compress -Depth 3 \
+         }}"
+    );
     let result = Command::new("powershell.exe")
-        .args(["-NoProfile", "-NonInteractive", "-Command", script])
+        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
         .creation_flags(0x08000000)
         .output()
         .ok()
@@ -71,26 +158,56 @@ fn printer_service_status() -> PrinterServiceStatus {
         .and_then(|output| serde_json::from_slice::<WindowsPrinterStatus>(&output).ok());
 
     match result {
-        Some(status) if status.spooler_running && status.default_printer.is_some() => PrinterServiceStatus {
-            connected: true,
-            spooler_running: true,
-            default_printer: status.default_printer,
-            message: "Windows Print Spooler is running and the default printer is ready.".to_string(),
-        },
-        Some(status) => PrinterServiceStatus {
-            connected: false,
-            spooler_running: status.spooler_running,
-            default_printer: status.default_printer,
-            message: if status.spooler_running {
-                "Choose a Windows default printer before enabling direct print.".to_string()
-            } else {
+        Some(status) => {
+            let printers_list = status
+                .printers
+                .unwrap_or_default()
+                .into_iter()
+                .map(|p| PrinterInfo {
+                    name: p.name,
+                    port_name: p.port_name,
+                    is_default: p.is_default,
+                    is_interactive: p.is_interactive,
+                })
+                .collect::<Vec<_>>();
+
+            let has_printer = !printers_list.is_empty() || status.default_printer.is_some();
+            let connected = status.spooler_running
+                && status.service_installed
+                && status.service_running
+                && has_printer;
+            let message = if !status.spooler_running {
                 "Start the Windows Print Spooler service, then check the printer again.".to_string()
-            },
-        },
+            } else if !status.service_installed {
+                "Install the CODEXSUN Q Cafe Windows Print Service to send receipts and KOT tickets to the selected Windows queues.".to_string()
+            } else if !status.service_running {
+                "Start or repair the CODEXSUN Q Cafe Windows Print Service, then check again."
+                    .to_string()
+            } else if printers_list.is_empty() && status.default_printer.is_none() {
+                "No printers found on Windows. Connect or install a printer.".to_string()
+            } else {
+                "CODEXSUN Q Cafe Windows Print Service is connected and ready to submit receipt and KOT jobs to the selected Windows queues.".to_string()
+            };
+
+            PrinterServiceStatus {
+                connected,
+                spooler_running: status.spooler_running,
+                service_installed: status.service_installed,
+                service_running: status.service_running,
+                default_printer: status.default_printer,
+                default_printer_port: status.default_printer_port,
+                printers: printers_list,
+                message,
+            }
+        }
         None => PrinterServiceStatus {
             connected: false,
             spooler_running: false,
+            service_installed: false,
+            service_running: false,
             default_printer: None,
+            default_printer_port: None,
+            printers: Vec::new(),
             message: "Q Cafe could not check the Windows printing service.".to_string(),
         },
     }
@@ -101,7 +218,11 @@ fn printer_service_status() -> PrinterServiceStatus {
     PrinterServiceStatus {
         connected: false,
         spooler_running: false,
+        service_installed: false,
+        service_running: false,
         default_printer: None,
+        default_printer_port: None,
+        printers: Vec::new(),
         message: "The Q Cafe printer service is available only on Windows.".to_string(),
     }
 }
@@ -118,6 +239,40 @@ fn application_directory() -> Result<PathBuf, String> {
         .parent()
         .map(PathBuf::from)
         .ok_or_else(|| "Q Cafe application directory is unavailable.".to_string())
+}
+
+fn raw_print_service_binary() -> Result<PathBuf, String> {
+    let installed_binary = application_directory()?.join("q-cafe-print-service.exe");
+    if installed_binary.is_file() {
+        return Ok(installed_binary);
+    }
+    let bundled_binary = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("resources")
+        .join("q-cafe-print-service.exe");
+    if bundled_binary.is_file() {
+        return Ok(bundled_binary);
+    }
+    Err(
+        "Q Cafe Windows Print Service files are missing. Run the Q Cafe installer again."
+            .to_string(),
+    )
+}
+
+fn raw_print_service_installer() -> Result<PathBuf, String> {
+    let installed_script = application_directory()?.join("q-cafe-print-service-installer.cjs");
+    if installed_script.is_file() {
+        return Ok(installed_script);
+    }
+    let bundled_script = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("resources")
+        .join("q-cafe-print-service-installer.cjs");
+    if bundled_script.is_file() {
+        return Ok(bundled_script);
+    }
+    Err(
+        "Q Cafe print-service installer files are missing. Run the Q Cafe installer again."
+            .to_string(),
+    )
 }
 
 fn node_binary(application_directory: &PathBuf) -> PathBuf {
@@ -357,7 +512,11 @@ fn prepare_api_runtime(data_dir: &PathBuf) -> Result<PathBuf, String> {
     Ok(api_root)
 }
 
-fn wait_for_api(child: &mut Child, api_log: &Path) -> Result<(), String> {
+fn wait_for_api(
+    child: &mut Child,
+    api_log: &Path,
+    runtime_instance_id: &str,
+) -> Result<(), String> {
     for _ in 0..30 {
         if let Some(status) = child.try_wait().map_err(|error| error.to_string())? {
             return Err(format!(
@@ -365,12 +524,15 @@ fn wait_for_api(child: &mut Child, api_log: &Path) -> Result<(), String> {
                 api_log.display()
             ));
         }
-        if reqwest::blocking::get("http://127.0.0.1:4180/health")
-            .ok()
-            .and_then(|response| response.error_for_status().ok())
-            .is_some()
-        {
-            return Ok(());
+        if let Ok(response) = reqwest::blocking::get("http://127.0.0.1:4180/health") {
+            let is_own_runtime = response
+                .headers()
+                .get("X-Q-Cafe-Runtime-Instance")
+                .and_then(|value| value.to_str().ok())
+                .is_some_and(|value| value == runtime_instance_id);
+            if response.status().is_success() && is_own_runtime {
+                return Ok(());
+            }
         }
         sleep(Duration::from_millis(100));
     }
@@ -600,6 +762,7 @@ fn start_api(app: &AppHandle) -> Result<Child, String> {
         .append(true)
         .open(&api_log)
         .map_err(|error| format!("Q Cafe API log could not open: {error}"))?;
+    let runtime_instance_id = Uuid::new_v4().to_string();
     let mut command = Command::new(node);
     command
         .arg(api_root.join("src").join("server.mjs"))
@@ -612,6 +775,7 @@ fn start_api(app: &AppHandle) -> Result<Child, String> {
             env::var("QCAFE_DEMO").unwrap_or_else(|_| "false".to_string()),
         )
         .env("QCAFE_API_TOKEN", "desktop-local-operator")
+        .env("QCAFE_RUNTIME_INSTANCE_ID", &runtime_instance_id)
         .env(
             "QCAFE_BOOTSTRAP_OWNER_PIN",
             env::var("QCAFE_BOOTSTRAP_OWNER_PIN").unwrap_or_default(),
@@ -625,7 +789,7 @@ fn start_api(app: &AppHandle) -> Result<Child, String> {
     let mut child = command
         .spawn()
         .map_err(|error| format!("Q Cafe API could not start: {error}"))?;
-    wait_for_api(&mut child, &api_log)?;
+    wait_for_api(&mut child, &api_log, &runtime_instance_id)?;
     Ok(child)
 }
 
@@ -739,6 +903,224 @@ fn qcafe_printer_service_status() -> PrinterServiceStatus {
 }
 
 #[tauri::command]
+fn qcafe_install_printer_service() -> Result<(), String> {
+    if MessageDialog::new()
+        .set_level(MessageLevel::Info)
+        .set_title("Install Q Cafe Windows Print Service")
+        .set_description("Q Cafe will install and start its Windows print service. Windows may ask for administrator approval. Continue?")
+        .set_buttons(MessageButtons::YesNo)
+        .show()
+        != MessageDialogResult::Yes
+    {
+        return Ok(());
+    }
+
+    let service_binary = raw_print_service_binary()?;
+    let script = raw_print_service_installer()?;
+    let node = node_binary(&application_directory()?);
+    if !node.is_file() {
+        return Err("Q Cafe Node runtime is missing. Run the Q Cafe installer again.".to_string());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use windows_sys::Win32::UI::Shell::ShellExecuteW;
+        use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+
+        let node_wide = node
+            .as_os_str()
+            .encode_wide()
+            .chain(Some(0))
+            .collect::<Vec<_>>();
+        let parameters = format!("\"{}\" \"{}\"", script.display(), service_binary.display());
+        let parameters_wide = std::ffi::OsStr::new(&parameters)
+            .encode_wide()
+            .chain(Some(0))
+            .collect::<Vec<_>>();
+        let directory = application_directory()?;
+        let directory_wide = directory
+            .as_os_str()
+            .encode_wide()
+            .chain(Some(0))
+            .collect::<Vec<_>>();
+        let verb = "runas\0".encode_utf16().collect::<Vec<_>>();
+        let result = unsafe {
+            ShellExecuteW(
+                std::ptr::null_mut(),
+                verb.as_ptr(),
+                node_wide.as_ptr(),
+                parameters_wide.as_ptr(),
+                directory_wide.as_ptr(),
+                SW_SHOWNORMAL,
+            )
+        };
+        if (result as isize) <= 32 {
+            return Err("Windows did not start the Q Cafe Node service installer. Approve the administrator prompt and try again.".to_string());
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn qcafe_print_raw_receipt(request: RawReceiptRequest) -> Result<DirectPrintResult, String> {
+    if request.receipt.trim().is_empty() || request.receipt.len() > 16_384 {
+        return Err("Q Cafe could not prepare a valid receipt for direct printing.".to_string());
+    }
+    let status = printer_service_status();
+    if !status.spooler_running {
+        return Err("Windows Print Spooler service is stopped. Start the Print Spooler service and try again.".to_string());
+    }
+    if !status.service_installed {
+        return Err("The Q Cafe Windows Print Service is not installed. Install it from Printer & Receipts Settings.".to_string());
+    }
+    if !status.service_running {
+        return Err("The Q Cafe Windows Print Service is not running. Repair it from Printer & Receipts Settings.".to_string());
+    }
+
+    let printer = match request.printer_name.as_deref() {
+        Some(name) if !name.trim().is_empty() && name != "system-default" => name.to_string(),
+        _ => status
+            .default_printer
+            .ok_or_else(|| "No Windows default printer is selected.".to_string())?,
+    };
+    let interactive_printer = status
+        .printers
+        .iter()
+        .any(|candidate| candidate.name == printer && candidate.is_interactive);
+
+    #[cfg(target_os = "windows")]
+    {
+        if interactive_printer {
+            return print_interactive_receipt(printer, request.document_name, request.receipt);
+        }
+        return send_raw_receipt_to_service(printer, request.document_name, request.receipt);
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("Direct printing is only supported on Windows.".to_string())
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn powershell_single_quoted(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "''"))
+}
+
+#[cfg(target_os = "windows")]
+fn print_interactive_receipt(
+    printer: String,
+    document_name: String,
+    receipt: String,
+) -> Result<DirectPrintResult, String> {
+    let directory = env::temp_dir().join("Q Cafe").join("print-jobs");
+    fs::create_dir_all(&directory)
+        .map_err(|error| format!("Q Cafe could not prepare the PDF print job: {error}"))?;
+    let request_id = Uuid::new_v4();
+    let content_path = directory.join(format!("{request_id}.txt"));
+    fs::write(&content_path, receipt)
+        .map_err(|error| format!("Q Cafe could not prepare the PDF receipt: {error}"))?;
+
+    let script = format!(
+        "$ErrorActionPreference='Stop'\n\
+         $content=Get-Content -LiteralPath {content_path} -Raw -Encoding UTF8\n\
+         Add-Type -AssemblyName System.Drawing\n\
+         $document=New-Object System.Drawing.Printing.PrintDocument\n\
+         $document.DocumentName={document_name}\n\
+         $document.PrinterSettings.PrinterName={printer}\n\
+         if (!$document.PrinterSettings.IsValid) {{ throw 'The selected Windows printer is unavailable.' }}\n\
+         $document.DefaultPageSettings.Margins=New-Object System.Drawing.Printing.Margins(20,20,20,20)\n\
+         $document.add_PrintPage({{ param($sender,$event) \
+           $font=New-Object System.Drawing.Font('Consolas',9); \
+           $format=New-Object System.Drawing.StringFormat; \
+           $format.FormatFlags=[System.Drawing.StringFormatFlags]::MeasureTrailingSpaces; \
+           $lineHeight=[Math]::Ceiling($font.GetHeight($event.Graphics)); \
+           $y=20; \
+           foreach($line in ($content -split \"`r?`n\")) {{ $event.Graphics.DrawString($line,$font,[System.Drawing.Brushes]::Black,20,$y,$format); $y+=$lineHeight }}; \
+           $event.HasMorePages=$false \
+         }})\n\
+         $document.Print()",
+        content_path = powershell_single_quoted(&content_path.display().to_string()),
+        document_name = powershell_single_quoted(&document_name),
+        printer = powershell_single_quoted(&printer),
+    );
+    let output = Command::new("powershell.exe")
+        .args([
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            &script,
+        ])
+        .creation_flags(0x08000000)
+        .output()
+        .map_err(|error| format!("Q Cafe could not open the Windows PDF save dialog: {error}"))?;
+    let _ = fs::remove_file(&content_path);
+    if !output.status.success() {
+        let message = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(if message.is_empty() {
+            "Windows did not complete the PDF print request.".to_string()
+        } else {
+            message
+        });
+    }
+    Ok(DirectPrintResult {
+        queued: false,
+        job_id: None,
+        printer,
+        message: "Windows opened the printer output dialog.".to_string(),
+    })
+}
+
+#[cfg(target_os = "windows")]
+fn send_raw_receipt_to_service(
+    printer: String,
+    document_name: String,
+    receipt: String,
+) -> Result<DirectPrintResult, String> {
+    let address = PRINT_SERVICE_ADDRESS
+        .parse()
+        .map_err(|_| "The Q Cafe Windows Print Service address is invalid.".to_string())?;
+    let mut stream =
+        TcpStream::connect_timeout(&address, Duration::from_secs(3)).map_err(|_| {
+            "Q Cafe could not reach the Windows Print Service. Repair the service and try again."
+                .to_string()
+        })?;
+    stream
+        .set_read_timeout(Some(Duration::from_secs(8)))
+        .map_err(|_| {
+            "Q Cafe could not configure the Windows Print Service connection.".to_string()
+        })?;
+    let payload = serde_json::to_vec(&RawPrintServiceRequest {
+        printer_name: printer.clone(),
+        document_name,
+        receipt,
+    })
+    .map_err(|_| "Q Cafe could not prepare the raw receipt request.".to_string())?;
+    stream
+        .write_all(&payload)
+        .and_then(|_| stream.write_all(b"\n"))
+        .map_err(|_| {
+            "Q Cafe could not send the receipt to the Windows Print Service.".to_string()
+        })?;
+    let mut response = String::new();
+    stream.read_to_string(&mut response).map_err(|_| {
+        "Q Cafe did not receive a print response from the Windows Print Service.".to_string()
+    })?;
+    let result =
+        serde_json::from_str::<RawPrintServiceResponse>(response.trim()).map_err(|_| {
+            "Q Cafe received an invalid print response from the Windows Print Service.".to_string()
+        })?;
+    if !result.ok {
+        return Err(result.message);
+    }
+    Ok(DirectPrintResult {
+        queued: true,
+        job_id: result.job_id,
+        printer,
+        message: result.message,
+    })
+}
+
+#[tauri::command]
 fn qcafe_clear_first_time_data(
     app: AppHandle,
     process: tauri::State<'_, ApiProcess>,
@@ -781,6 +1163,8 @@ fn main() {
             qcafe_select_image_storage,
             qcafe_open_image_storage,
             qcafe_printer_service_status,
+            qcafe_install_printer_service,
+            qcafe_print_raw_receipt,
             qcafe_license_status,
             qcafe_reconnect_license,
             qcafe_activate_license,

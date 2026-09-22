@@ -1,9 +1,10 @@
 [package]
 name = "q-cafe-desktop"
-version = "1.0.34"
+version = "1.0.37"
 description = "Q Cafe Windows desktop application"
 authors = ["CODEXSUN"]
 edition = "2021"
+default-run = "q-cafe-desktop"
 
 [build-dependencies]
 tauri-build = { version = "2.4.1", features = [] }
@@ -19,3 +20,5 @@ semver = "1"
 sha2 = "0.10"
 keyring = { version = "3", features = ["windows-native"] }
 uuid = { version = "1", features = ["v4"] }
+windows-service = "0.8"
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Graphics_Printing", "Win32_Storage_Xps", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }

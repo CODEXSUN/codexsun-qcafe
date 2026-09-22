@@ -1,4 +1,4 @@
-import { ArrowRight, Minus, Plus, Trash2 } from 'lucide-react';
+import { CheckCircle2, Minus, Plus, Trash2 } from 'lucide-react';
 import { TopologyMarker } from '@codexsun/devkit-ito';
 import { money } from '../api';
 import type { Pos1BillingSectionProps } from './types';
@@ -18,9 +18,7 @@ export function Pos1BillingSection({
   onDecrementLine,
   onRemoveLine,
   formatChair,
-  readyToSave,
-  onNextOrder,
-  nextButtonRef,
+  onFocusPayment,
 }: Pos1BillingSectionProps) {
   return (
     <div
@@ -115,28 +113,36 @@ export function Pos1BillingSection({
         ) : <div className="min-h-40 flex-1" aria-label="Empty order" />}
       </div>
 
-      {/* Collect or Skip enables explicit keyboard confirmation for the next bill. */}
-      {readyToSave && (
-        <div className="absolute inset-x-0 bottom-[68px] z-30 flex justify-center px-4 pointer-events-none animate-in fade-in slide-in-from-bottom-3 duration-200">
-          <button
-            ref={nextButtonRef}
-            type="button"
-            onClick={onNextOrder}
-            className="pointer-events-auto flex items-center gap-2.5 px-6 py-2.5 rounded-full bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs shadow-xl shadow-emerald-600/35 border border-emerald-400/50 cursor-pointer transition-all ring-4 ring-emerald-500/20 hover:ring-emerald-500/30"
-          >
-            <span>Save & next bill</span>
-            <kbd className="font-mono text-[10px] font-bold bg-white/20 text-white px-1.5 py-0.5 rounded-md border border-white/30 select-none">
-              Enter ↵
-            </kbd>
-            <ArrowRight size={14} />
-          </button>
-        </div>
-      )}
-
       {/* Cart Footer: settlement and collected bills are in the right drawer. */}
       <div className="relative z-20 flex justify-end border-t border-border bg-muted/20 p-3">
-        <div className="flex w-full items-baseline justify-between gap-3">
-          <span />
+        <div className="flex w-full items-center justify-between gap-3">
+          <div>
+            {onFocusPayment && (
+              activeTab.payment ? (
+                <button
+                  type="button"
+                  onClick={onFocusPayment}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/60 bg-emerald-50 px-2.5 py-1 text-xs font-bold uppercase text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 cursor-pointer"
+                  aria-label="Payment settled"
+                >
+                  <CheckCircle2 size={13} />
+                  <span>{activeTab.payment.mode}</span>
+                  <span className="text-[10px] font-normal lowercase text-muted-foreground">(edit)</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onFocusPayment}
+                  disabled={lines.length === 0}
+                  className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                  aria-label="Choose payment method"
+                >
+                  <span>Pay</span>
+                  <kbd className="font-mono text-[9px] bg-muted px-1 py-0.5 rounded border border-border">F7</kbd>
+                </button>
+              )
+            )}
+          </div>
           <div className="flex items-baseline gap-2">
             <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">TOTAL</span>
             <span className="text-2xl font-black tracking-tight text-blue-600 dark:text-blue-400">

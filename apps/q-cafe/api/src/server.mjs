@@ -14,15 +14,16 @@ const store = new CafeStore(path);
 if (process.env.QCAFE_BOOTSTRAP_OWNER_PIN) store.bootstrapOwner(process.env.QCAFE_BOOTSTRAP_OWNER_PIN);
 const token = process.env.QCAFE_API_TOKEN;
 if (!token) throw new Error('QCAFE_API_TOKEN must be set.');
+const runtimeInstanceId = process.env.QCAFE_RUNTIME_INSTANCE_ID;
 const actions = { orders: ['cashier', input => store.order(input)], pos: ['cashier', input => store.createPos(input)], receipts: ['cashier', input => store.recordReceipt(input)], kitchen: ['kitchen', input => store.advance(input)], inventory: ['manager', input => store.adjust(input)], bookings: ['waiter', input => store.book(input)], category: ['manager', input => store.saveCategory(input)], 'category/delete': ['manager', input => store.deleteCategory(input)], item: ['manager', input => store.saveItem(input)], 'item/delete': ['manager', input => store.deleteItem(input)], table: ['manager', input => store.saveRestaurantTable(input)], 'table/delete': ['manager', input => store.deleteRestaurantTable(input)], 'master-setting': ['manager', input => store.saveMasterSetting(input)], image: ['manager', saveImage], 'verify-image-folder': ['manager', verifyImageFolder], 'open-image-folder': ['manager', openImageFolder] };
 const sessions = new Map();
 let shutdownRequested = false;
 const server = createServer(async (request, response) => {
   response.setHeader('Content-Type', 'application/json'); response.setHeader('Cache-Control', 'no-store');
   if (['tauri://localhost', 'http://tauri.localhost', 'http://127.0.0.1:5180', 'http://localhost:5180'].includes(request.headers.origin)) { response.setHeader('Access-Control-Allow-Origin', request.headers.origin); response.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type'); response.setHeader('Vary', 'Origin'); }
-  const send = (status, value) => { response.writeHead(status); response.end(JSON.stringify(value)); };
+  const send = (status, value, headers = {}) => { response.writeHead(status, headers); response.end(JSON.stringify(value)); };
   if (request.method === 'OPTIONS') return send(204, {});
-  if (request.url === '/health' && request.method === 'GET') return send(200, { status: 'ok' });
+  if (request.url === '/health' && request.method === 'GET') return send(200, { status: 'ok' }, runtimeInstanceId ? { 'X-Q-Cafe-Runtime-Instance': runtimeInstanceId } : {});
   if (request.url === '/internal/shutdown' && request.method === 'POST') {
     if (request.headers.authorization !== `Bearer ${token}`) return send(401, { error: 'Q Cafe desktop authorization is required.' });
     send(200, { status: 'stopping' });

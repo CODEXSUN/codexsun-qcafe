@@ -16,6 +16,7 @@ type Props = {
   linesCount: number;
   total: number;
   payment?: PaymentRecord | null;
+  pendingBillNumber?: string;
   showPaymentCollector: boolean;
   onOpenPaymentCollector: () => void;
   onClosePaymentCollector: () => void;
@@ -30,6 +31,7 @@ export function Pos1BillsDrawer({
   linesCount,
   total,
   payment,
+  pendingBillNumber,
   showPaymentCollector,
   onOpenPaymentCollector,
   onClosePaymentCollector,
@@ -47,13 +49,13 @@ export function Pos1BillsDrawer({
       <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[30rem]">
         <SheetHeader className="border-b border-border px-5 py-4 pr-12 text-left">
           <SheetTitle>Receipt</SheetTitle>
-          <SheetDescription>Collect or skip payment for the current bill.</SheetDescription>
+          <SheetDescription>{pendingBillNumber ? `Bill ${pendingBillNumber} is printed and unpaid. Record payment after the customer pays.` : 'Collect or skip payment for the current bill.'}</SheetDescription>
         </SheetHeader>
 
         <section className="border-b border-border p-4" aria-label="Current order settlement">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-foreground">Current order</p>
+              <p className="text-sm font-semibold text-foreground">{pendingBillNumber ? `Bill ${pendingBillNumber}` : 'Current order'}</p>
               <p className="text-xs text-muted-foreground">{linesCount} {linesCount === 1 ? 'item' : 'items'} · {money(total)}</p>
             </div>
             {payment ? (
@@ -74,7 +76,7 @@ export function Pos1BillsDrawer({
                 onClearPayment={onClearPayment}
                 onClose={onClosePaymentCollector}
               />
-              {!payment && (
+              {!payment && !pendingBillNumber && (
                 <button
                   type="button"
                   onClick={onSkipPayment}
@@ -86,13 +88,13 @@ export function Pos1BillsDrawer({
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-2">
-              <button
+              {!pendingBillNumber && <button
                 type="button"
                 onClick={onSkipPayment}
                 className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border bg-background px-3 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
               >
                 Skip payment
-              </button>
+              </button>}
               <button
                 type="button"
                 onClick={onOpenPaymentCollector}

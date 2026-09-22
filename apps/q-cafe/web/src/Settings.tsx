@@ -23,8 +23,12 @@ export type CafeSettings = {
   gstin: string;
   currency: string;
   autoPrintBill: boolean;
-  printerTarget: 'system-default';
+  /** Legacy printer setting kept to migrate existing installations. */
+  printerTarget: string;
+  billingPrinterTarget: string;
+  kotPrinterTarget: string;
   directPrint: boolean;
+  directKotPrint: boolean;
   theme: 'system' | 'light' | 'dark';
   showItoIcon: boolean;
   imageWriteProtection?: boolean;
@@ -54,7 +58,10 @@ const DEFAULT_SETTINGS: CafeSettings = {
   currency: 'INR (₹)',
   autoPrintBill: false,
   printerTarget: 'system-default',
+  billingPrinterTarget: 'system-default',
+  kotPrinterTarget: 'system-default',
   directPrint: true,
+  directKotPrint: true,
   theme: 'system',
   showItoIcon: false,
   imageWriteProtection: false,
@@ -81,6 +88,9 @@ export function loadSettings(): CafeSettings {
     return {
       ...DEFAULT_SETTINGS,
       ...parsed,
+      billingPrinterTarget: parsed.billingPrinterTarget ?? parsed.printerTarget ?? DEFAULT_SETTINGS.billingPrinterTarget,
+      kotPrinterTarget: parsed.kotPrinterTarget ?? parsed.printerTarget ?? DEFAULT_SETTINGS.kotPrinterTarget,
+      directKotPrint: parsed.directKotPrint ?? DEFAULT_SETTINGS.directKotPrint,
       showOrderTabs: Boolean(parsed.showOrderTabs),
       showKitchenButton: Boolean(parsed.showKitchenButton),
       showNavKitchen: Boolean(parsed.showNavKitchen),
@@ -119,10 +129,21 @@ type Props = {
 
 type TabId = 'general' | 'features' | 'pos' | 'printer' | 'media' | 'specials' | 'license' | 'appearance' | 'system';
 
+type PrinterInfo = {
+  name: string;
+  portName: string | null;
+  isDefault: boolean;
+  isInteractive: boolean;
+};
+
 type PrinterServiceStatus = {
   connected: boolean;
   spoolerRunning: boolean;
+  serviceInstalled: boolean;
+  serviceRunning: boolean;
   defaultPrinter: string | null;
+  defaultPrinterPort: string | null;
+  printers: PrinterInfo[];
   message: string;
 };
 
@@ -143,8 +164,19 @@ export function Settings({ data, mutate, topology }: Props) {
   const [licenseBusy, setLicenseBusy] = useState(false);
   const [licenseNotice, setLicenseNotice] = useState('');
   const [printerServiceStatus, setPrinterServiceStatus] = useState<PrinterServiceStatus | null>(null);
+  const [printerServiceBusy, setPrinterServiceBusy] = useState(false);
+  const [printerServiceNotice, setPrinterServiceNotice] = useState('');
   const [specialDraft, setSpecialDraft] = useState({ id: '', prefix: '', name: '' });
   const [editingSpecialId, setEditingSpecialId] = useState<string | null>(null);
+  function selectedPrinterFor(target: string) {
+    return target === 'system-default'
+      ? printerServiceStatus?.printers.find((printer) => printer.isDefault)
+      : printerServiceStatus?.printers.find((printer) => printer.name === target);
+  }
+  const billingPrinter = selectedPrinterFor(settings.billingPrinterTarget);
+  const kotPrinter = selectedPrinterFor(settings.kotPrinterTarget);
+  const billingPrinterRequiresFile = Boolean(billingPrinter?.isInteractive);
+  const kotPrinterRequiresFile = Boolean(kotPrinter?.isInteractive);
   const imageFolderPath = selectedImageFolderPath;
   const todaySpecialEnabled = data.master_settings?.find(setting => setting.key === 'today_special_enabled')?.value === 'true';
   const todaySpecials = readTodaySpecialDefinitions(data.master_settings);
@@ -173,7 +205,7 @@ export function Settings({ data, mutate, topology }: Props) {
     }
   }
 
-  function handlePrinterChange<K extends 'printerTarget' | 'directPrint'>(key: K, value: CafeSettings[K]) {
+  function handlePrinterChange<K extends 'billingPrinterTarget' | 'kotPrinterTarget' | 'directPrint' | 'directKotPrint'>(key: K, value: CafeSettings[K]) {
     const updated = { ...settings, [key]: value };
     setSettings(updated);
     saveSettings(updated);
@@ -217,6 +249,22 @@ export function Settings({ data, mutate, topology }: Props) {
     if (!('__TAURI_INTERNALS__' in window)) return;
     const { invoke } = await import('@tauri-apps/api/core');
     setPrinterServiceStatus(await invoke<PrinterServiceStatus>('qcafe_printer_service_status'));
+  }
+
+  async function installPrinterService() {
+    if (!('__TAURI_INTERNALS__' in window)) return;
+    setPrinterServiceBusy(true);
+    setPrinterServiceNotice('');
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('qcafe_install_printer_service');
+      setPrinterServiceNotice('The Q Cafe print-service installer has started. Approve the Windows administrator prompt, then refresh this page to confirm it is running.');
+      window.setTimeout(() => void loadPrinterServiceStatus(), 3_000);
+    } catch (error) {
+      setPrinterServiceNotice(error instanceof Error ? error.message : 'Q Cafe could not install the Windows Print Service.');
+    } finally {
+      setPrinterServiceBusy(false);
+    }
   }
 
   async function saveTodaySpecialDefinitions(definitions: TodaySpecialDefinition[]) {
@@ -734,46 +782,115 @@ export function Settings({ data, mutate, topology }: Props) {
                   </div>
 
                   {printerServiceStatus && (
-                    <div className={`flex items-start gap-3 rounded-xl border p-4 ${printerServiceStatus.connected ? 'border-emerald-500/70 bg-emerald-500/10' : 'border-border bg-muted/20'}`}>
+                    <div className={`flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-start sm:justify-between ${printerServiceStatus.connected ? 'border-emerald-500/70 bg-emerald-500/10' : 'border-border bg-muted/20'}`}>
+                      <div className="flex min-w-0 items-start gap-3">
                       <CircleCheck className={`mt-0.5 size-5 shrink-0 ${printerServiceStatus.connected ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`} aria-hidden="true" />
                       <div className="min-w-0 space-y-1">
-                        <p className="text-sm font-semibold text-foreground">{printerServiceStatus.connected ? 'Print service connected' : 'Print service needs attention'}</p>
+                        <p className="text-sm font-semibold text-foreground">{printerServiceStatus.connected ? 'CODEXSUN Windows Print Service connected' : 'CODEXSUN Windows Print Service needs attention'}</p>
                         <p className="text-xs text-muted-foreground">{printerServiceStatus.message}</p>
                         {printerServiceStatus.defaultPrinter && <p className="text-xs text-muted-foreground">Default printer: {printerServiceStatus.defaultPrinter}</p>}
+                        {printerServiceStatus.defaultPrinterPort && <p className="text-xs text-muted-foreground">Port: {printerServiceStatus.defaultPrinterPort}</p>}
                       </div>
+                      </div>
+                      {!printerServiceStatus.connected && (
+                        <Button type="button" variant="outline" className="cursor-pointer self-start" disabled={printerServiceBusy} onClick={() => void installPrinterService()}>
+                          {printerServiceBusy ? 'Installing service…' : printerServiceStatus.serviceInstalled ? 'Repair print service' : 'Install print service'}
+                        </Button>
+                      )}
                     </div>
                   )}
+                  {printerServiceNotice && <p role="status" className="text-sm text-muted-foreground">{printerServiceNotice}</p>}
 
-                  <label className="grid gap-1.5 text-sm font-medium">
-                    Default Printer
-                    <select
-                      className={`${field} cursor-pointer`}
-                      value={settings.printerTarget}
-                      onChange={(event) => handlePrinterChange('printerTarget', event.target.value as CafeSettings['printerTarget'])}
-                    >
-                      <option value="system-default">Windows system default printer</option>
-                    </select>
-                    <span className="text-xs font-normal text-muted-foreground">
-                      Set the actual device in Windows Settings. Q Cafe uses that printer for its desktop print flow.
-                    </span>
-                  </label>
-
-                  <label className="flex cursor-pointer items-start justify-between gap-4 rounded-xl border border-border bg-card p-4 transition-colors hover:bg-accent/40">
-                    <span className="space-y-1">
-                      <span className="block text-sm font-semibold text-foreground">Direct print</span>
-                      <span className="block text-sm text-muted-foreground">
-                        Enabled by default. Q Cafe sends the completed receipt to the Windows print flow; the preview remains available in Q Cafe.
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <label className="grid gap-1.5 text-sm font-medium">
+                      Cashier receipt printer
+                      <select
+                        className={`${field} cursor-pointer`}
+                        value={settings.billingPrinterTarget}
+                        onChange={(event) => handlePrinterChange('billingPrinterTarget', event.target.value)}
+                      >
+                        <option value="system-default">
+                          Windows system default printer {printerServiceStatus?.defaultPrinter ? `(${printerServiceStatus.defaultPrinter})` : ''}
+                        </option>
+                        {printerServiceStatus?.printers?.map((printer) => (
+                          <option key={printer.name} value={printer.name}>
+                            {printer.name} {printer.isDefault ? '(Default)' : ''} {printer.isInteractive ? '(opens Save As)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="text-xs font-normal text-muted-foreground">
+                        Used for customer bills saved from POS.
                       </span>
-                    </span>
-                    <input
-                      type="checkbox"
-                      role="switch"
-                      aria-label="Direct print"
-                      className="mt-0.5 size-5 cursor-pointer accent-primary"
-                      checked={settings.directPrint}
-                      onChange={(event) => handlePrinterChange('directPrint', event.target.checked)}
-                    />
-                  </label>
+                    </label>
+
+                    <label className="grid gap-1.5 text-sm font-medium">
+                      KOT printer
+                      <select
+                        className={`${field} cursor-pointer`}
+                        value={settings.kotPrinterTarget}
+                        onChange={(event) => handlePrinterChange('kotPrinterTarget', event.target.value)}
+                      >
+                        <option value="system-default">
+                          Windows system default printer {printerServiceStatus?.defaultPrinter ? `(${printerServiceStatus.defaultPrinter})` : ''}
+                        </option>
+                        {printerServiceStatus?.printers?.map((printer) => (
+                          <option key={printer.name} value={printer.name}>
+                            {printer.name} {printer.isDefault ? '(Default)' : ''} {printer.isInteractive ? '(opens Save As)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="text-xs font-normal text-muted-foreground">
+                        Used when an order is sent to the kitchen with F4.
+                      </span>
+                    </label>
+                  </div>
+
+                  {billingPrinterRequiresFile && (
+                    <p role="alert" className="rounded-lg border border-amber-500/60 bg-amber-500/10 p-3 text-sm text-amber-950 dark:text-amber-100">
+                      {billingPrinter?.name} opens Windows Save As after a cashier receipt is submitted. Choose a physical or network printer for background direct printing.
+                    </p>
+                  )}
+                  {kotPrinterRequiresFile && (
+                    <p role="alert" className="rounded-lg border border-amber-500/60 bg-amber-500/10 p-3 text-sm text-amber-950 dark:text-amber-100">
+                      {kotPrinter?.name} opens Windows Save As after a KOT is submitted. Choose a physical or network printer for background direct printing.
+                    </p>
+                  )}
+
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <label className="flex cursor-pointer items-start justify-between gap-4 rounded-xl border border-border bg-card p-4 transition-colors hover:bg-accent/40">
+                      <span className="space-y-1">
+                        <span className="block text-sm font-semibold text-foreground">Direct receipt print</span>
+                        <span className="block text-sm text-muted-foreground">
+                          Send each saved POS bill to the cashier receipt printer.
+                        </span>
+                      </span>
+                      <input
+                        type="checkbox"
+                        role="switch"
+                        aria-label="Direct receipt print"
+                        className="mt-0.5 size-5 cursor-pointer accent-primary"
+                        checked={settings.directPrint}
+                        onChange={(event) => handlePrinterChange('directPrint', event.target.checked)}
+                      />
+                    </label>
+
+                    <label className="flex cursor-pointer items-start justify-between gap-4 rounded-xl border border-border bg-card p-4 transition-colors hover:bg-accent/40">
+                      <span className="space-y-1">
+                        <span className="block text-sm font-semibold text-foreground">Print KOT when sent</span>
+                        <span className="block text-sm text-muted-foreground">
+                          Send an item-and-quantity kitchen ticket to the KOT printer after the kitchen order is saved.
+                        </span>
+                      </span>
+                      <input
+                        type="checkbox"
+                        role="switch"
+                        aria-label="Print KOT when sent"
+                        className="mt-0.5 size-5 cursor-pointer accent-primary"
+                        checked={settings.directKotPrint}
+                        onChange={(event) => handlePrinterChange('directKotPrint', event.target.checked)}
+                      />
+                    </label>
+                  </div>
 
                   <label className="grid gap-1.5 text-sm font-medium">
                     Receipt notice (optional)

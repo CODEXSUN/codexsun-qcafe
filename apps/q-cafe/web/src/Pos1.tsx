@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { TopologyMarker, type InterfaceTopologyController } from '@codexsun/devkit-ito';
 import type { Snapshot } from './api';
 import { getMergedMenu, getMergedTables, type CustomMenuItem, type TableMasterConfig } from './mastersStore';
-import { ThermalBillReceipt } from './ThermalBillReceipt';
 import { loadSettings, type CafeSettings } from './Settings';
+import { directPrintKot, directPrintReceipt } from './rawReceipt';
 import {
   Pos1HeaderSection,
   Pos1ProductSection,
@@ -23,6 +23,16 @@ type Props = {
   mutate: (path: string, body: unknown) => Promise<unknown | false>;
   topology: InterfaceTopologyController;
 };
+
+type PendingBill = {
+  id: number;
+  billNumber: string;
+  grandTotal: number;
+};
+
+function isWarningNotice(message: string) {
+  return /\b(failed|unpaid|disabled|could not|error)\b/i.test(message);
+}
 
 export function formatChair(table: string, chair: number | string) {
   const chairStr = String(chair ?? '').trim();
@@ -65,11 +75,10 @@ function defaultTableName(settings: CafeSettings, tables: Snapshot['restaurant_t
 
 export function Pos1({ data, busy, mutate, topology }: Props) {
   const [cafeSettings, setCafeSettings] = useState<CafeSettings>(() => loadSettings());
-  const [printBillNumber, setPrintBillNumber] = useState('');
+  const [printNotice, setPrintNotice] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
   const codeInputRef = useRef<HTMLInputElement>(null);
   const quantityInputRef = useRef<HTMLInputElement>(null);
-  const nextButtonRef = useRef<HTMLButtonElement>(null);
   const nextTabNum = useRef(2);
 
   // Tabs state
@@ -94,8 +103,6 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
   const chair = activeTab.chair ?? '1';
   const orderMode = activeTab.orderMode;
   const gstApplied = activeTab.gstApplied ?? false;
-  const nextBillNumber = String(data.pos.reduce((highestId, bill) => Math.max(highestId, bill.id), 0) + 1);
-  const displayedBillNumber = printBillNumber || nextBillNumber;
   const lastBill = data.pos.slice().sort((a, b) => b.id - a.id)[0];
   const todaySpecialEnabled = data.master_settings.some(
     (setting) => setting.key === 'today_special_enabled' && setting.value === 'true'
@@ -118,7 +125,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
   const [showReceiptDrawer, setShowReceiptDrawer] = useState(false);
   const [showPreviousBillsDrawer, setShowPreviousBillsDrawer] = useState(false);
   const [selectedPreviousBillId, setSelectedPreviousBillId] = useState<number | null>(null);
-  const [readyToSave, setReadyToSave] = useState(false);
+  const [pendingBill, setPendingBill] = useState<PendingBill | null>(null);
 
   // Section 4: Manual entry state (synchronized with selected product card)
   const [selectedItem, setSelectedItem] = useState<CustomMenuItem | null>(null);
@@ -367,15 +374,18 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
   const gstRateMultiplier = (cafeSettings.defaultGstRate ?? 5) / 100;
   const gstAmount = gstApplied ? Math.round(subtotal * gstRateMultiplier) : 0;
   const total = subtotal + gstAmount;
+  const settlementTotal = pendingBill?.grandTotal ?? total;
 
   // Cart line operations
   function handleIncrementLine(lineKey: string) {
+    if (pendingBill) return;
     updateActiveTab((tab) => ({
       lines: tab.lines.map((l) => (l.key === lineKey ? { ...l, quantity: l.quantity + 1 } : l)),
     }));
   }
 
   function handleDecrementLine(lineKey: string) {
+    if (pendingBill) return;
     updateActiveTab((tab) => ({
       lines: tab.lines.map((line) =>
         line.key === lineKey
@@ -386,12 +396,14 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
   }
 
   function handleRemoveLine(lineKey: string) {
+    if (pendingBill) return;
     updateActiveTab((tab) => ({
       lines: tab.lines.filter((l) => l.key !== lineKey),
     }));
   }
 
   function handleClearUnsavedOrder() {
+    if (pendingBill) return;
     updateActiveTab({ lines: [], payment: null, gstApplied: false });
     setSelectedItem(null);
     setBottomCode('');
@@ -399,8 +411,6 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     setBottomQuantity('1');
     setBottomRate('');
     setShowPaymentCollector(false);
-    setReadyToSave(false);
-    setPrintBillNumber('');
     requestAnimationFrame(() => {
       searchInputRef.current?.focus();
       searchInputRef.current?.select();
@@ -408,6 +418,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
   }
 
   function handleOrderModeChange(nextMode: OrderMode) {
+    if (pendingBill) return;
     const wasTakeaway = tableName.toLowerCase() === 'parcel' || tableName.toLowerCase() === 'takeaway';
     updateActiveTab({
       orderMode: nextMode,
@@ -418,6 +429,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
 
   // Section 2: Card selection & Add-to-cart
   function handleSelectAndAddCard(item: CustomMenuItem) {
+    if (pendingBill) return;
     handleApplyItem(item);
 
     // Add to cart directly
@@ -453,6 +465,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
 
   // Section 4: Bottom bar "Add to Order" action
   function handleBottomAddOrder() {
+    if (pendingBill) return;
     const cleanCode = bottomCode.trim();
     const cleanName = bottomName.trim();
     if (!cleanName && !cleanCode) {
@@ -521,6 +534,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
 
   // Section 4: Field updates with auto-lookup
   function handleItemCodeChange(val: string) {
+    if (pendingBill) return;
     setBottomCode(val);
     const matched = menuItems.find((m) => m.code.toLowerCase() === val.trim().toLowerCase());
     if (matched) {
@@ -531,6 +545,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
   }
 
   function handleApplyItem(item: CustomMenuItem) {
+    if (pendingBill) return;
     setSelectedItem(item);
     setBottomCode(item.code);
     setBottomName(item.name);
@@ -565,10 +580,25 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     });
 
     if (sent) {
-      setShowPaymentCollector(false);
-      if (cafeSettings.autoPrintBill) {
-        requestAnimationFrame(() => window.print());
+      if (cafeSettings.directKotPrint) {
+        try {
+          const kitchenOrder = sent as { id?: number };
+          const printResult = await directPrintKot({
+            settings: cafeSettings,
+            kotNumber: kitchenOrder.id ? String(kitchenOrder.id) : 'NEW',
+            tableName: tableName.trim() || apiTable,
+            lines,
+          });
+          setPrintNotice(printResult.queued ? 'KOT sent directly to the kitchen printer.' : `Windows opened the ${printResult.printer} save dialog for the KOT.`);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          console.error('Direct KOT printing failed:', error);
+          setPrintNotice(`Kitchen order was saved, but KOT printing failed. ${message}`);
+        }
+      } else {
+        setPrintNotice('Kitchen order was saved. KOT printing is disabled in Printer & Receipts Settings.');
       }
+      setShowPaymentCollector(false);
       if (tabs.length > 1) {
         closeTab(activeTabId);
       } else {
@@ -585,36 +615,58 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
   }
 
   // Section 5: Payment handling
-  function handleRecordPayment(pay: PaymentRecord) {
+  async function handleRecordPayment(pay: PaymentRecord) {
+    if (pendingBill) {
+      const receipt = await mutate('/receipts', {
+        pos_id: pendingBill.id,
+        transactions: [{
+          transaction_mode: pay.mode,
+          amount: pendingBill.grandTotal,
+          denominations: pay.denominations ? JSON.stringify(pay.denominations) : null,
+          settlement_nature: 'collection',
+          reference_no: pay.referenceNo || '-',
+        }],
+      });
+      if (!receipt) return;
+      setPrintNotice(`Payment recorded for bill ${pendingBill.billNumber}. Ready for a new order.`);
+      setPendingBill(null);
+      setShowPaymentCollector(false);
+      setShowReceiptDrawer(false);
+      advanceToNextOrder();
+      return;
+    }
     updateActiveTab({ payment: pay });
     setShowPaymentCollector(false);
     setShowReceiptDrawer(false);
-    setReadyToSave(true);
+    void handleConfirmOrder(pay);
   }
 
   function handleClearPayment() {
     updateActiveTab({ payment: null });
     setShowPaymentCollector(true);
-    setReadyToSave(false);
   }
 
   function handleSkipPayment() {
+    if (pendingBill) {
+      setShowPaymentCollector(false);
+      setShowReceiptDrawer(false);
+      setPrintNotice(`Bill ${pendingBill.billNumber} remains unpaid. Press F6 when the customer is ready to pay.`);
+      return;
+    }
     updateActiveTab({ payment: null });
     setShowPaymentCollector(false);
     setShowReceiptDrawer(false);
-    setReadyToSave(true);
-    requestAnimationFrame(() => nextButtonRef.current?.focus());
+    void handleConfirmOrder(null);
   }
 
   function handleClosePaymentCollector() {
     setShowPaymentCollector(false);
-    setReadyToSave(false);
   }
 
   function handleFocusPayment() {
     setShowPreviousBillsDrawer(false);
     setShowReceiptDrawer(true);
-    setShowPaymentCollector(lines.length > 0);
+    setShowPaymentCollector(Boolean(pendingBill) || lines.length > 0);
   }
 
   function handleOpenPreviousBills() {
@@ -635,8 +687,62 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     setSelectedPreviousBillId(previousBills[nextIndex]!.id);
   }
 
-  // Section 6: Save the POS bill. A receipt and print happen only after settlement.
-  async function handleConfirmOrder() {
+  function advanceToNextOrder() {
+    if (tabs.length > 1) {
+      closeTab(activeTabId);
+    } else {
+      const defaultTable = defaultTableName(cafeSettings, data.restaurant_tables);
+      const num = nextTabNum.current++;
+      updateActiveTab({
+        name: `Order ${num}`,
+        tableName: defaultTable,
+        chair: '1',
+        orderMode: defaultTable === 'Parcel' ? 'TAKE AWAY' : defaultOrderMode(cafeSettings.defaultServiceType),
+        lines: [],
+        gstApplied: false,
+        payment: null,
+      });
+    }
+    requestAnimationFrame(() => {
+      codeInputRef.current?.focus();
+      codeInputRef.current?.select();
+    });
+  }
+
+  async function sendBillToPrinter(
+    bill: { bill_no: string; grand_total: number },
+    apiTableNo: string,
+    paymentMode: string,
+  ) {
+    try {
+      const printResult = await directPrintReceipt({
+        settings: cafeSettings,
+        billNumber: bill.bill_no,
+        tableName: apiTableNo,
+        lines,
+        subtotal,
+        gstAmount,
+        total: bill.grand_total,
+        paymentMode,
+      });
+      setPrintNotice(printResult.queued ? 'Receipt sent directly to printer.' : `Windows opened the ${printResult.printer} save dialog.`);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error('Direct receipt printing failed:', error);
+      setPrintNotice(`Direct print failed. Bill was saved. ${errorMsg}`);
+    }
+  }
+
+  // F8 saves and prints an unpaid customer bill. Collection happens afterward in the receipt drawer.
+  async function handleSaveAndPrintBill() {
+    if (!lines.length || busy || pendingBill) return;
+    await handleConfirmOrder(null, { printUnpaidBill: true, keepOrderOpen: true });
+  }
+
+  async function handleConfirmOrder(
+    paymentOverride?: PaymentRecord | null,
+    options: { printUnpaidBill?: boolean; keepOrderOpen?: boolean } = {},
+  ) {
     if (!lines.length || busy) return;
 
     let tableId: number | null = null;
@@ -688,7 +794,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
       return;
     }
     // A bill without a recorded payment remains open. It can be settled later.
-    const payment = activeTab.payment;
+    const payment = paymentOverride === undefined ? activeTab.payment : paymentOverride;
     if (payment) {
       const receipt = await mutate('/receipts', {
         pos_id: createdBill.id,
@@ -703,91 +809,25 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         ],
       });
       if (!receipt) return;
-
-      // A successfully settled bill is the only bill sent to the receipt printer.
-      setPrintBillNumber(createdBill.bill_no);
-      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-      window.print();
-      setPrintBillNumber('');
+      if (cafeSettings.directPrint) await sendBillToPrinter(createdBill, apiTableNo, payment.mode);
+      else setPrintNotice('Receipt saved. Direct printing is disabled.');
     }
 
-    // Advance to the next order after saving either a paid or an unpaid bill.
-    if (tabs.length > 1) {
-      closeTab(activeTabId);
-    } else {
-      const defaultTable = defaultTableName(cafeSettings, data.restaurant_tables);
-      const num = nextTabNum.current++;
-      updateActiveTab({
-        name: `Order ${num}`,
-        tableName: defaultTable,
-        chair: '1',
-        orderMode: defaultTable === 'Parcel' ? 'TAKE AWAY' : defaultOrderMode(cafeSettings.defaultServiceType),
-        lines: [],
-        gstApplied: false,
-        payment: null,
-      });
-    }
-    setShowPaymentCollector(false);
-    requestAnimationFrame(() => {
-      codeInputRef.current?.focus();
-      codeInputRef.current?.select();
-    });
-  }
-
-  function handleNextOrder() {
-    if (lines.length > 0) {
-      void handleConfirmOrder();
+    if (options.printUnpaidBill) await sendBillToPrinter(createdBill, apiTableNo, 'unpaid');
+    if (options.keepOrderOpen) {
+      setPendingBill({ id: createdBill.id, billNumber: createdBill.bill_no, grandTotal: createdBill.grand_total });
+      setShowReceiptDrawer(true);
+      setShowPaymentCollector(true);
       return;
     }
-    if (tabs.length > 1) {
-      closeTab(activeTabId);
-    } else {
-      const defaultTable = defaultTableName(cafeSettings, data.restaurant_tables);
-      const num = nextTabNum.current++;
-      updateActiveTab({
-        name: `Order ${num}`,
-        tableName: defaultTable,
-        chair: '1',
-        orderMode: defaultTable === 'Parcel' ? 'TAKE AWAY' : defaultOrderMode(cafeSettings.defaultServiceType),
-        lines: [],
-        gstApplied: false,
-        payment: null,
-      });
-    }
-    setShowPaymentCollector(false);
-    setReadyToSave(false);
-    requestAnimationFrame(() => {
-      codeInputRef.current?.focus();
-      codeInputRef.current?.select();
-    });
-  }
 
-  // Collect or Skip leaves the bill ready for one explicit Enter confirmation.
-  useEffect(() => {
-    if (readyToSave && !showPaymentCollector) {
-      requestAnimationFrame(() => {
-        nextButtonRef.current?.focus();
-      });
-    }
-  }, [readyToSave, showPaymentCollector]);
+    setShowPaymentCollector(false);
+    advanceToNextOrder();
+  }
 
   // Global keyboard shortcuts keep receipt settlement and passed-bill review separate.
   useEffect(() => {
     const handleKeyDown = (e: globalThis.KeyboardEvent) => {
-      // Enter confirms a collected or skipped bill and advances to a fresh order.
-      if (e.key === 'Enter' && readyToSave && !showPaymentCollector) {
-        const activeEl = document.activeElement;
-        const isEditingOtherInput =
-          activeEl === searchInputRef.current ||
-          activeEl === codeInputRef.current ||
-          activeEl === quantityInputRef.current;
-
-        if (!isEditingOtherInput) {
-          e.preventDefault();
-          handleNextOrder();
-          return;
-        }
-      }
       // Escape: close payment sheet if open
       if (e.key === 'Escape' && showPaymentCollector) {
         e.preventDefault();
@@ -824,7 +864,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         codeInputRef.current?.focus();
         codeInputRef.current?.select();
       }
-      // F6: open the current-order receipt drawer.
+      // F6: open the current-order receipt / settlement drawer.
       if (e.key === 'F6') {
         e.preventDefault();
         handleFocusPayment();
@@ -842,11 +882,13 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
           void handleSendToKitchen();
         }
       }
-      // F8 always opens settlement. It never posts the bill before Collect or Skip.
+      // F8: Save bill and send to printer immediately
       if (e.key === 'F8') {
         e.preventDefault();
-        if (lines.length > 0 && !busy) {
-          handleFocusPayment();
+        if (lines.length > 0 && !busy && !pendingBill) {
+          setShowPaymentCollector(false);
+          setShowReceiptDrawer(false);
+          void handleSaveAndPrintBill();
         }
       }
       // F9 or Alt+N: new order tab
@@ -865,7 +907,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [lines.length, busy, activeTabId, tabs, tableName, cafeSettings, showPaymentCollector, showPreviousBillsDrawer, selectedPreviousBillId, readyToSave, gstApplied, activeTab.chair, orderMode, data.pos, data.restaurant_tables]);
+  }, [lines.length, busy, pendingBill, activeTabId, tabs, tableName, cafeSettings, showPaymentCollector, showPreviousBillsDrawer, selectedPreviousBillId, gstApplied, activeTab.chair, activeTab.payment, total, orderMode, data.pos, data.restaurant_tables]);
 
   return (
     <div
@@ -873,6 +915,11 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
       {...topology.regionProps('q12')}
     >
       <TopologyMarker id="q12" topology={topology} />
+      {printNotice && (
+          <div className={`mx-4 mt-3 rounded-lg border px-3 py-2 text-sm ${isWarningNotice(printNotice) ? 'border-amber-500/70 bg-amber-500/10 text-amber-800' : 'border-emerald-500/70 bg-emerald-500/10 text-emerald-700'}`}>
+          {printNotice}
+        </div>
+      )}
 
       {/* Top Header (Full-width across POS-1 workspace) */}
       <Pos1HeaderSection
@@ -899,13 +946,12 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         onCloseTab={closeTab}
         linesCount={lines.length}
         busy={busy}
-        onSaveBill={handleFocusPayment}
+        onSaveBill={handleSaveAndPrintBill}
         onSendToKitchen={handleSendToKitchen}
         showOrderTabs={Boolean(cafeSettings.showOrderTabs)}
         showKitchenButton={Boolean(cafeSettings.showKitchenButton)}
       />
 
-      {/* Main Content Area (Split: Left Catalog Column [Categories + Product Cards] + Right Billing Cart Panel) */}
       <div className="flex flex-1 min-h-0 gap-4 p-3 print:hidden">
         {/* Left Column: Category Filter Pills + Product Catalog Cards Grid */}
         <Pos1ProductSection
@@ -935,9 +981,7 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
           onDecrementLine={handleDecrementLine}
           onRemoveLine={handleRemoveLine}
           formatChair={formatChair}
-          readyToSave={readyToSave}
-          onNextOrder={handleNextOrder}
-          nextButtonRef={nextButtonRef}
+          onFocusPayment={handleFocusPayment}
         />
       </div>
 
@@ -945,8 +989,9 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         open={showReceiptDrawer}
         onOpenChange={setShowReceiptDrawer}
         linesCount={lines.length}
-        total={total}
+        total={settlementTotal}
         payment={activeTab.payment}
+        pendingBillNumber={pendingBill?.billNumber}
         showPaymentCollector={showPaymentCollector}
         onOpenPaymentCollector={handleFocusPayment}
         onClosePaymentCollector={handleClosePaymentCollector}
@@ -981,21 +1026,6 @@ export function Pos1({ data, busy, mutate, topology }: Props) {
         lastBill={lastBill ? { billNo: lastBill.bill_no, total: lastBill.grand_total, paid: lastBill.status === 'paid' } : null}
       />
 
-      {/* 3-Inch Thermal Receipt Node (Shown strictly on print) */}
-      <ThermalBillReceipt
-        settings={cafeSettings}
-        tab={activeTab}
-        tableName={tableName}
-        lines={lines}
-        subtotal={subtotal}
-        totalQuantity={totalQuantity}
-        gstApplied={gstApplied}
-        gstAmount={gstAmount}
-        total={total}
-        payment={activeTab.payment}
-        billNumber={displayedBillNumber}
-        className="hidden print:block thermal-receipt"
-      />
     </div>
   );
 }

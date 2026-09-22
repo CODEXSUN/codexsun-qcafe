@@ -1,5 +1,35 @@
 # Q Cafe changelog
 
+## 1.0.37 - 2026-09-22
+
+### Windows print routing and KOT tickets
+
+- Q Cafe now uses apps/q-cafe/version.json as the single source for its API, web, desktop, updater, installer, and changelog version.
+- Adds separate cashier receipt and KOT printer selections in Printer & Receipts Settings.
+- Sends physical and network printer jobs through the CODEXSUN Q Cafe Windows Print Service.
+- Sends PDF and file-printer jobs through a user-session Windows print document so Save As opens.
+- Prints a KOT ticket with its kitchen order number, table, item names, and quantities.
+- Shows successful POS status banners in green and uses amber only for warnings.
+
+## 1.0.36 - 2026-09-20
+
+### Unpaid bill and receipt collection
+
+- Q Cafe now uses apps/q-cafe/version.json as the single source for its API, web, desktop, updater, installer, and changelog version.
+- F8 now saves an unpaid bill and sends it directly to the Windows Print Service through the selected printer's normal Windows spooler queue, without opening browser print preview.
+- The printed customer bill shows its unpaid status while the receipt drawer waits for the cashier to record payment.
+- Payment collection updates the existing bill receipt as paid and then opens a clear new order.
+- Q Cafe locks a printed unpaid order so its items and total cannot change before payment collection.
+
+## 1.0.35 - 2026-09-15
+
+### One-step receipt settlement
+
+- Q Cafe now uses apps/q-cafe/version.json as the single source for its API, web, desktop, updater, installer, and changelog version.
+- Pressing Enter after collecting payment now saves the bill, records its receipt, sends the paid receipt to direct print, and opens a clear new order.
+- Skipping payment now saves the bill as unpaid and opens a clear new order immediately.
+- Removes the separate Save and next bill confirmation and its second Enter action.
+
 ## 1.0.34 - 2026-09-14
 
 ### Managed image storage and desktop preview

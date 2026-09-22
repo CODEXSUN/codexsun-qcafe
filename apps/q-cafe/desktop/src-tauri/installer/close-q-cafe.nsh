@@ -2,13 +2,47 @@
   nsExec::ExecToStack '"$SYSDIR\taskkill.exe" /F /T /IM q-cafe-desktop.exe'
   Pop $0
   Pop $1
+  nsExec::ExecToStack '"$SYSDIR\sc.exe" stop CODEXSUNQCafePrint'
+  Pop $0
+  Pop $1
   nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand JAB0AGEAcgBnAGUAdAAgAD0AIABbAEkATwAuAFAAYQB0AGgAXQA6ADoARwBlAHQARgB1AGwAbABQAGEAdABoACgAKABKAG8AaQBuAC0AUABhAHQAaAAgACQAZQBuAHYAOgBMAE8AQwBBAEwAQQBQAFAARABBAFQAQQAgACcAUQAgAEMAYQBmAGUAXABuAG8AZABlAC4AZQB4AGUAJwApACkACgAxAC4ALgAyACAAfAAgAEYAbwByAEUAYQBjAGgALQBPAGIAagBlAGMAdAAgAHsACgAgACAARwBlAHQALQBDAGkAbQBJAG4AcwB0AGEAbgBjAGUAIABXAGkAbgAzADIAXwBQAHIAbwBjAGUAcwBzACAAfAAgAFcAaABlAHIAZQAtAE8AYgBqAGUAYwB0ACAAewAKACAAIAAgACAAJABfAC4ATgBhAG0AZQAgAC0AaQBlAHEAIAAnAG4AbwBkAGUALgBlAHgAZQAnACAALQBhAG4AZAAgACQAXwAuAEUAeABlAGMAdQB0AGEAYgBsAGUAUABhAHQAaAAgAC0AYQBuAGQAIABbAEkATwAuAFAAYQB0AGgAXQA6ADoARwBlAHQARgB1AGwAbABQAGEAdABoACgAJABfAC4ARQB4AGUAYwB1AHQAYQBiAGwAZQBQAGEAdABoACkAIAAtAGkAZQBxACAAJAB0AGEAcgBnAGUAdAAKACAAIAB9ACAAfAAgAEYAbwByAEUAYQBjAGgALQBPAGIAagBlAGMAdAAgAHsACgAgACAAIAAgAFMAdABvAHAALQBQAHIAbwBjAGUAcwBzACAALQBJAGQAIAAkAF8ALgBQAHIAbwBjAGUAcwBzAEkAZAAgAC0ARgBvAHIAYwBlACAALQBFAHIAcgBvAHIAQQBjAHQAaQBvAG4AIABTAGkAbABlAG4AdABsAHkAQwBvAG4AdABpAG4AdQBlAAoAIAAgAH0ACgAgACAAUwB0AGEAcgB0AC0AUwBsAGUAZQBwACAALQBNAGkAbABsAGkAcwBlAGMAbwBuAGQAcwAgADcANQAwAAoAfQA='
   Pop $0
   Pop $1
 !macroend
 
+!macro NSIS_HOOK_POSTINSTALL
+  nsExec::ExecToStack '"$SYSDIR\sc.exe" query CODEXSUNQCafePrint'
+  Pop $0
+  Pop $1
+  StrCmp $0 "0" qcafe_update_print_service
+
+  nsExec::ExecToStack '"$SYSDIR\sc.exe" create CODEXSUNQCafePrint binPath= "$\"$INSTDIR\q-cafe-print-service.exe$\"" start= auto DisplayName= "CODEXSUN Q Cafe Windows Print Service"'
+  Pop $0
+  Pop $1
+  Goto qcafe_start_print_service
+
+  qcafe_update_print_service:
+    nsExec::ExecToStack '"$SYSDIR\sc.exe" stop CODEXSUNQCafePrint'
+    Pop $0
+    Pop $1
+    nsExec::ExecToStack '"$SYSDIR\sc.exe" config CODEXSUNQCafePrint binPath= "$\"$INSTDIR\q-cafe-print-service.exe$\"" start= auto DisplayName= "CODEXSUN Q Cafe Windows Print Service"'
+    Pop $0
+    Pop $1
+
+  qcafe_start_print_service:
+    nsExec::ExecToStack '"$SYSDIR\sc.exe" start CODEXSUNQCafePrint'
+    Pop $0
+    Pop $1
+!macroend
+
 !macro NSIS_HOOK_PREUNINSTALL
   nsExec::ExecToStack '"$SYSDIR\taskkill.exe" /F /T /IM q-cafe-desktop.exe'
+  Pop $0
+  Pop $1
+  nsExec::ExecToStack '"$SYSDIR\sc.exe" stop CODEXSUNQCafePrint'
+  Pop $0
+  Pop $1
+  nsExec::ExecToStack '"$SYSDIR\sc.exe" delete CODEXSUNQCafePrint'
   Pop $0
   Pop $1
 
